@@ -94,6 +94,8 @@ const courseColorsStorageKey = currentUser ? `courseColors_${currentUser}` : 'co
   const [dueAmPm, setDueAmPm] = useState('PM')
   const [estTime, setEstTime] = useState('')
   const [priority, setPriority] = useState('MED')
+  const [repeatFrequency, setRepeatFrequency] = useState('NONE')
+  repeatFrequency
 
   // --- CORE SYSTEM APP ARRAYS ---
   const [tasks, setTasks] = useState([])
@@ -107,6 +109,7 @@ const courseColorsStorageKey = currentUser ? `courseColors_${currentUser}` : 'co
   const [filterDueBucket, setFilterDueBucket] = useState('ALL')
   const [editingTaskId, setEditingTaskId] = useState(null)
   const [editingTask, setEditingTask] = useState(null)
+  const [filterRepeat, setFilterRepeat] = useState('ALL')
 
   // --- DISPLAY PALETTE SCHEMES ---
   const [theme, setTheme] = useState(() => {
@@ -120,6 +123,60 @@ const courseColorsStorageKey = currentUser ? `courseColors_${currentUser}` : 'co
   })
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const formatRepeatLabel = (repeat) => {
+  if (repeat === 'DAILY') return 'Daily'
+  if (repeat === 'WEEKLY') return 'Weekly'
+  if (repeat === 'MONTHLY') return 'Monthly'
+  return 'Does not repeat'
+}
+
+const getNextRepeatingTask = (task) => {
+  if (!task.repeat || task.repeat === 'NONE') return null
+  if (!task.dueMonth || !task.dueDay) return null
+
+  const currentYear = new Date().getFullYear()
+  let nextDate = new Date(
+    currentYear,
+    Number(task.dueMonth) - 1,
+    Number(task.dueDay)
+  )
+
+  if (task.repeat === 'DAILY') {
+    nextDate.setDate(nextDate.getDate() + 1)
+  }
+
+  if (task.repeat === 'WEEKLY') {
+    nextDate.setDate(nextDate.getDate() + 7)
+  }
+
+  if (task.repeat === 'MONTHLY') {
+    const originalDay = Number(task.dueDay)
+    let nextMonthIndex = Number(task.dueMonth)
+
+    let nextYear = currentYear
+    if (nextMonthIndex > 11) {
+      nextMonthIndex = 0
+      nextYear += 1
+    }
+
+    const daysInNextMonth = new Date(nextYear, nextMonthIndex + 1, 0).getDate()
+
+    nextDate = new Date(
+      nextYear,
+      nextMonthIndex,
+      Math.min(originalDay, daysInNextMonth)
+    )
+  }
+
+  return {
+    ...task,
+    id: Date.now() + Math.floor(Math.random() * 1000),
+    dueMonth: String(nextDate.getMonth() + 1).padStart(2, '0'),
+    dueDay: String(nextDate.getDate()).padStart(2, '0'),
+    isCompleted: false,
+    createdFromRepeat: task.id
+  }
+}
   const getCourseColor = (course) => {
   return courseColors[course] || '#3b82f6'
 }
@@ -137,12 +194,17 @@ const getTextColorForCourse = (course) => {
 }
 
   const formatTaskDetails = (task) => {
-    const hasDate = task.dueMonth && task.dueDay
-    const monthLabel = hasDate ? monthNames[Number(task.dueMonth) - 1] : null
-    const dateLabel = hasDate ? `${monthLabel} ${Number(task.dueDay)}` : 'No date'
-    const timeLabel = task.dueHour ? `${task.dueHour} ${task.dueAmPm || ''}` : 'No time'
-    return `📅 Due: ${dateLabel} at ${timeLabel} | ⏱️ Est: ${task.estimatedMinutes || 0} mins | ⚠️ Priority: ${task.priority}`
-  }
+  const hasDate = task.dueMonth && task.dueDay
+  const monthLabel = hasDate ? monthNames[Number(task.dueMonth) - 1] : null
+  const dateLabel = hasDate ? `${monthLabel} ${Number(task.dueDay)}` : 'No date'
+  const timeLabel = task.dueHour ? `${task.dueHour} ${task.dueAmPm || ''}` : 'No time'
+  const repeatLabel =
+    task.repeat && task.repeat !== 'NONE'
+      ? ` | 🔁 Repeats: ${formatRepeatLabel(task.repeat)}`
+      : ''
+
+  return `📅 Due: ${dateLabel} at ${timeLabel} | ⏱️ Est: ${task.estimatedMinutes || 0} mins | ⚠️ Priority: ${task.priority}${repeatLabel}`
+}
 
   // Monitor DOM modifications for UI layout theme rules
   useEffect(() => {
@@ -211,18 +273,20 @@ const getTextColorForCourse = (course) => {
     }
 
     const newTask = {
-      id: Date.now(),
-      title: taskName,
-      course: finalCourse,
-      dueMonth: dueMonth,
-      dueDay: dueDay,
-      dueHour: dueHour,
-      dueAmPm: dueAmPm,
-      estimatedMinutes: estTime,
-      priority: priority,
-      isCompleted: false,
-      notes: ''
-    }
+  id: Date.now(),
+  title: taskName,
+  course: finalCourse,
+  dueMonth: dueMonth,
+  dueDay: dueDay,
+  dueHour: dueHour,
+  dueAmPm: dueAmPm,
+  estimatedMinutes: estTime,
+  priority: priority,
+  repeat: repeatFrequency,
+  isCompleted: false,
+  notes: ''
+  
+}
 
     setTasks(prev => {
       const updated = [...prev, newTask]
@@ -243,6 +307,7 @@ const getTextColorForCourse = (course) => {
     setDueAmPm('PM')
     setEstTime('')
     setPriority('MED')
+    setRepeatFrequency('NONE')
   }
   const handleCourseColorChange = (course, color) => {
   setCourseColors(prev => {
@@ -325,12 +390,27 @@ const getTextColorForCourse = (course) => {
   }
 
   const handleComplete = (id) => {
-    setTasks(prev => {
-      const updated = prev.map(t => t.id === id ? { ...t, isCompleted: true } : t)
-      saveTasksForCurrentUser(updated)
-      return updated
-    })
-  }
+  setTasks(prev => {
+    const taskToComplete = prev.find(task => task.id === id)
+
+    if (!taskToComplete) return prev
+
+    const completedTasks = prev.map(task =>
+      task.id === id
+        ? { ...task, isCompleted: true }
+        : task
+    )
+
+    const nextRepeatingTask = getNextRepeatingTask(taskToComplete)
+
+    const updated = nextRepeatingTask
+      ? [...completedTasks, nextRepeatingTask]
+      : completedTasks
+
+    saveTasksForCurrentUser(updated)
+    return updated
+  })
+}
 
   const handleUndo = (id) => {
     setTasks(prev => {
@@ -404,7 +484,8 @@ const bucketsOrder = [
 
 const assignmentMatchesFilters = (task) => {
   const search = searchTerm.trim().toLowerCase()
-
+  const matchesRepeat =
+    filterRepeat === 'ALL' || (task.repeat || 'NONE') === filterRepeat
   const matchesSearch =
     !search ||
     task.title.toLowerCase().includes(search) ||
@@ -422,7 +503,7 @@ const assignmentMatchesFilters = (task) => {
   const matchesDueBucket =
     filterDueBucket === 'ALL' || taskBucket === filterDueBucket
 
-  return matchesSearch && matchesCourse && matchesPriority && matchesDueBucket
+  return matchesSearch && matchesCourse && matchesPriority && matchesDueBucket && matchesRepeat
 }
 
 const todoTasks = tasks.filter(task =>
@@ -470,8 +551,10 @@ const resetFilters = () => {
   setFilterCourse('ALL')
   setFilterPriority('ALL')
   setFilterDueBucket('ALL')
+  setFilterRepeat('ALL')
 }
   const renderAssignmentFilters = () => (
+  
   <div
     className="card"
     style={{
@@ -518,14 +601,21 @@ const resetFilters = () => {
 
       <div>
         <label>Priority:</label>
-        <select
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
-        >
+        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
           <option value="ALL">All Priorities</option>
           <option value="HIGH">High</option>
           <option value="MED">Medium</option>
           <option value="LOW">Low</option>
+        </select>
+        <label>Repeat:</label>
+        <select
+          value={repeatFrequency}
+          onChange={(e) => setRepeatFrequency(e.target.value)}
+        >
+          <option value="NONE">Does not repeat</option>
+          <option value="DAILY">Daily</option>
+          <option value="WEEKLY">Weekly</option>
+          <option value="MONTHLY">Monthly</option>
         </select>
       </div>
 
@@ -544,6 +634,19 @@ const resetFilters = () => {
         </select>
       </div>
     </div>
+    <div>
+  <label>Repeat:</label>
+  <select
+    value={filterRepeat}
+    onChange={(e) => setFilterRepeat(e.target.value)}
+  >
+    <option value="ALL">All Repeat Types</option>
+    <option value="NONE">Does not repeat</option>
+    <option value="DAILY">Daily</option>
+    <option value="WEEKLY">Weekly</option>
+    <option value="MONTHLY">Monthly</option>
+  </select>
+</div>
 
     <button
       type="button"
@@ -689,6 +792,17 @@ const resetFilters = () => {
                 <option value="LOW">Low</option>
                 <option value="MED">Medium</option>
                 <option value="HIGH">High</option>
+              </select>
+
+              <label>Repeat:</label>
+              <select
+                value={repeatFrequency}
+                onChange={(e) => setRepeatFrequency(e.target.value)}
+              >
+                <option value="NONE">Does not repeat</option>
+                <option value="DAILY">Daily</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
               </select>
 
               <button
