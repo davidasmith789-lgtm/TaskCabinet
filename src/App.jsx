@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import Calendar from 'react-calendar'
+import 'react-calendar/dist/Calendar.css'
 import './App.css'
 
 // Helper 1: Detect dark/light mode system configuration
@@ -56,7 +58,8 @@ function App() {
 
   // Storage key assignment namespaces
   const currentStorageKey = currentUser ? `tasks_${currentUser}` : 'tasks_guest'
-  const courseStorageKey = currentUser ? `courses_${currentUser}` : 'courses_guest'
+const courseStorageKey = currentUser ? `courses_${currentUser}` : 'courses_guest'
+const courseColorsStorageKey = currentUser ? `courseColors_${currentUser}` : 'courseColors_guest'
 
   // --- DYNAMIC INTEGRATED ROSTER TRACKING ---
   // Added 'Other' as a permanent default option here
@@ -67,6 +70,15 @@ function App() {
     } catch (error) {
       console.error('Error reading courses from localStorage:', error)
       return ['AP Stat', 'British Literature', 'Calculus H', 'APES', 'Other']
+    }
+  })
+  const [courseColors, setCourseColors] = useState(() => {
+    try {
+      const storedColors = localStorage.getItem(courseColorsStorageKey)
+      return storedColors ? JSON.parse(storedColors) : {}
+    } catch (error) {
+      console.error('Error reading course colors from localStorage:', error)
+      return {}
     }
   })
 
@@ -87,6 +99,10 @@ function App() {
   const [tasks, setTasks] = useState([])
   const [currentTab, setCurrentTab] = useState('dashboard')
   const [expandedTaskId, setExpandedTaskId] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [searchTerm, setSearchTerm] = useState('')
+  const [editingTaskId, setEditingTaskId] = useState(null)
+  const [editingTask, setEditingTask] = useState(null)
 
   // --- DISPLAY PALETTE SCHEMES ---
   const [theme, setTheme] = useState(() => {
@@ -100,6 +116,21 @@ function App() {
   })
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const getCourseColor = (course) => {
+  return courseColors[course] || '#3b82f6'
+}
+
+const getTextColorForCourse = (course) => {
+  const color = getCourseColor(course).replace('#', '')
+
+  const r = parseInt(color.substring(0, 2), 16)
+  const g = parseInt(color.substring(2, 4), 16)
+  const b = parseInt(color.substring(4, 6), 16)
+
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000
+
+  return brightness > 160 ? '#111827' : '#ffffff'
+}
 
   const formatTaskDetails = (task) => {
     const hasDate = task.dueMonth && task.dueDay
@@ -126,20 +157,25 @@ function App() {
   // Profile data reloading pipeline
   // Added 'Other' as a permanent default option here as well
   useEffect(() => {
-    try {
-      const rawTasks = localStorage.getItem(currentStorageKey)
-      setTasks(rawTasks ? JSON.parse(rawTasks) : [])
+  try {
+    const rawTasks = localStorage.getItem(currentStorageKey)
+    setTasks(rawTasks ? JSON.parse(rawTasks) : [])
 
-      const rawCourses = localStorage.getItem(courseStorageKey)
-      setCourses(rawCourses ? JSON.parse(rawCourses) : ['AP Stat', 'British Literature', 'Calculus H', 'APES', 'Other'])
-    } catch (error) {
-      console.error('Failed to load user data from localStorage:', error)
-      setTasks([])
-      setCourses(['AP Stat', 'British Literature', 'Calculus H', 'APES', 'Other'])
-    }
-    setIsCustomCourse(false)
-    setCustomCourseName('')
-  }, [currentStorageKey, courseStorageKey])
+    const rawCourses = localStorage.getItem(courseStorageKey)
+    setCourses(rawCourses ? JSON.parse(rawCourses) : ['AP Stat', 'British Literature', 'Calculus H', 'APES', 'Other'])
+
+    const rawCourseColors = localStorage.getItem(courseColorsStorageKey)
+    setCourseColors(rawCourseColors ? JSON.parse(rawCourseColors) : {})
+  } catch (error) {
+    console.error('Failed to load user data from localStorage:', error)
+    setTasks([])
+    setCourses(['AP Stat', 'British Literature', 'Calculus H', 'APES', 'Other'])
+    setCourseColors({})
+  }
+
+  setIsCustomCourse(false)
+  setCustomCourseName('')
+}, [currentStorageKey, courseStorageKey, courseColorsStorageKey])
 
   useEffect(() => {
     try {
@@ -204,7 +240,22 @@ function App() {
     setEstTime('')
     setPriority('MED')
   }
+  const handleCourseColorChange = (course, color) => {
+  setCourseColors(prev => {
+    const updated = {
+      ...prev,
+      [course]: color
+    }
 
+    try {
+      localStorage.setItem(courseColorsStorageKey, JSON.stringify(updated))
+    } catch (error) {
+      console.error('Failed to save course colors:', error)
+    }
+
+    return updated
+  })
+}
   const saveTasksForCurrentUser = (updated) => {
     try { localStorage.setItem(currentStorageKey, JSON.stringify(updated)) } catch (error) {
       console.error('Failed to save tasks to localStorage:', error)
@@ -247,6 +298,32 @@ function App() {
     })
   }
 
+  const handleEditStart = (task) => {
+  setEditingTaskId(task.id)
+  setEditingTask({ ...task })
+}
+
+const handleEditSave = () => {
+  setTasks(prev => {
+    const updated = prev.map(task =>
+      task.id === editingTaskId
+        ? editingTask
+        : task
+    )
+
+    saveTasksForCurrentUser(updated)
+    return updated
+  })
+
+  setEditingTaskId(null)
+  setEditingTask(null)
+}
+
+const handleEditCancel = () => {
+  setEditingTaskId(null)
+  setEditingTask(null)
+}
+
   const handleSignIn = (e) => {
     e.preventDefault()
     const trimmedName = signInName.trim()
@@ -264,7 +341,19 @@ function App() {
   const isFormInvalid = !taskName || (isCustomCourse ? !customCourseName.trim() : !selectedCourse)
 
   // --- DATA TRANSFORMATION PIPELINE (AUTOMATIC SORTING & TIMELINE GROUPING) ---
-  const todoTasks = tasks.filter(t => !t.isCompleted);
+  const todoTasks = tasks.filter(task => {
+  if (task.isCompleted) return false
+
+  if (!searchTerm.trim()) return true
+
+  const search = searchTerm.toLowerCase()
+
+  return (
+    task.title.toLowerCase().includes(search) ||
+    task.course.toLowerCase().includes(search) ||
+    (task.notes || '').toLowerCase().includes(search)
+  )
+})
 
   const sortedTodoTasks = [...todoTasks].sort((a, b) => {
     const priorityMap = { 'HIGH': 3, 'MED': 2, 'LOW': 1 };
@@ -303,11 +392,47 @@ function App() {
 
         {/* Navigation Tab Actions */}
         <div className="tab-row" style={{ display: 'flex', gap: '8px', marginTop: '12px', marginBottom: '12px' }}>
-          <button className={`tab-button ${currentTab === 'dashboard' ? 'active' : ''}`} onClick={() => setCurrentTab('dashboard')}>Dashboard</button>
-          <button className={`tab-button ${currentTab === 'todo' ? 'active' : ''}`} onClick={() => setCurrentTab('todo')}>To Do</button>
-          <button className={`tab-button ${currentTab === 'completed' ? 'active' : ''}`} onClick={() => setCurrentTab('completed')}>Completed</button>
-          <button className={`tab-button ${currentTab === 'signin' ? 'active' : ''}`} onClick={() => setCurrentTab('signin')}>{currentUser ? 'Switch User' : 'Sign In'}</button>
-          {currentUser && <button className="btn btn-danger" onClick={handleSignOut}>Sign Out</button>}
+          <button
+            className={`tab-button ${currentTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setCurrentTab('dashboard')}
+          >
+            Dashboard
+          </button>
+
+          <button
+            className={`tab-button ${currentTab === 'todo' ? 'active' : ''}`}
+            onClick={() => setCurrentTab('todo')}
+          >
+            To Do
+          </button>
+
+          <button
+            className={`tab-button ${currentTab === 'completed' ? 'active' : ''}`}
+            onClick={() => setCurrentTab('completed')}
+          >
+            Completed
+          </button>
+
+          <button
+            className={`tab-button ${currentTab === 'calendar' ? 'active' : ''}`}
+            onClick={() => setCurrentTab('calendar')}
+          >
+            📅 Calendar
+          </button>
+
+          <button
+            className={`tab-button ${currentTab === 'signin' ? 'active' : ''}`}
+            onClick={() => setCurrentTab('signin')}
+          >
+            {currentUser ? 'Switch User' : 'Sign In'}
+          </button>
+
+          {currentUser && (
+            <button className="btn btn-danger" onClick={handleSignOut}>
+              Sign Out
+            </button>
+          )}
+
           <button className="btn btn-secondary" onClick={toggleTheme}>
             {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
           </button>
@@ -402,6 +527,40 @@ function App() {
                 Add Assignment
               </button>
             </form>
+            <div style={{ marginTop: '25px' }}>
+              <h3>🎨 Course Colors</h3>
+
+            {courses.map(course => (
+              <div
+                key={course}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  marginBottom: '10px'
+                }}
+              >
+                <span
+                  style={{
+                    backgroundColor: getCourseColor(course),
+                    color: getTextColorForCourse(course),
+                    padding: '5px 10px',
+                    borderRadius: '999px',
+                    fontWeight: '600'
+                  }}
+                >
+                  {course}
+                </span>
+
+                <input
+                  type="color"
+                  value={getCourseColor(course)}
+                  onChange={(e) => handleCourseColorChange(course, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
           </div>
         )}
 
@@ -411,6 +570,18 @@ function App() {
           {currentTab === 'todo' && (
             <div>
               <h3>📝 To Do ({todoTasks.length})</h3>
+              <input
+                type="text"
+                placeholder="🔍 Search assignments..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  marginBottom: '20px',
+                  borderRadius: '8px'
+                }}
+              />
               {todoTasks.length === 0 ? (
                 <p className="placeholder-text">No pending assignments.</p>
               ) : (
@@ -432,26 +603,98 @@ function App() {
                               onClick={() => toggleTaskExpansion(task.id)}
                             >
                               <div>
-                                <strong>{task.title}</strong> — <span className="course-name">{task.course}</span>
-                                <div className="task-details">{formatTaskDetails(task)}</div>
+                                {editingTaskId === task.id ? (
+                                  <input
+                                    value={editingTask.title}
+                                    onChange={(e) =>
+                                      setEditingTask({
+                                        ...editingTask,
+                                        title: e.target.value
+                                      })
+                                    }
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <strong>{task.title}</strong>
+                                )}
+                                <span
+                                  className="course-name"
+                                  style={{
+                                    backgroundColor: getCourseColor(task.course),
+                                    color: getTextColorForCourse(task.course),
+                                    padding: '4px 8px',
+                                    borderRadius: '999px',
+                                    fontWeight: '600'
+                                  }}
+                                >
+                                  {task.course}
+                              </span>
+                                <div className="task-details">
+                                  {formatTaskDetails(task)}
+                                  </div>
                               </div>
-
+                              
                               <div className="task-actions">
-                                <button 
-                                  className="btn btn-primary"
-                                  onClick={(e) => { e.stopPropagation(); handleComplete(task.id) }}
-                                  style={{ padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
-                                >
-                                  Complete ✅
-                                </button>
-                                <button 
-                                  className="btn btn-danger"
-                                  onClick={(e) => { e.stopPropagation(); handleDelete(task.id) }}
-                                  style={{ padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
-                                >
-                                  Delete
-                                </button>
-                              </div>
+                              {editingTaskId === task.id ? (
+                                <>
+                                  <button
+                                    className="btn btn-primary"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleEditSave()
+                                    }}
+                                    style={{ padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                                  >
+                                    Save 💾
+                                  </button>
+
+                                  <button
+                                    className="btn btn-warning"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleEditCancel()
+                                    }}
+                                    style={{ padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-primary"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleComplete(task.id)
+                                    }}
+                                    style={{ padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                                  >
+                                    Complete ✅
+                                  </button>
+
+                                  <button
+                                    className="btn btn-secondary"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleEditStart(task)
+                                    }}
+                                  >
+                                    ✏️ Edit
+                                  </button>
+
+                                  <button
+                                    className="btn btn-danger"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleDelete(task.id)
+                                    }}
+                                    style={{ padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                                  >
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
 
                               {expandedTaskId === task.id && (
                                 <div className="task-notes-panel" onClick={(e) => e.stopPropagation()}>
@@ -491,7 +734,19 @@ function App() {
                       onClick={() => toggleTaskExpansion(task.id)}
                     >
                       <div>
-                        <strong>{task.title}</strong> — <span className="course-name">{task.course}</span>
+                        <strong>{task.title}</strong> 
+                        <span
+                          className="course-name"
+                          style={{
+                            backgroundColor: getCourseColor(task.course),
+                            color: getTextColorForCourse(task.course),
+                            padding: '4px 8px',
+                            borderRadius: '999px',
+                            fontWeight: '600'
+                          }}
+                        >
+                          {task.course}
+                        </span>
                         <div className="task-details">{formatTaskDetails(task)}</div>
                       </div>
                       <div className="task-actions">
@@ -529,7 +784,77 @@ function App() {
               )}
             </div>
           )}
+          {/* CALENDAR TAB VIEW */}
+          {currentTab === 'calendar' && (
+            <div className="card card-container" style={{ marginTop: '10px' }}>
+              <h3>📅 Assignment Calendar</h3>
 
+              <Calendar
+                onChange={setSelectedDate}
+                value={selectedDate}
+                tileContent={({ date }) => {
+                const taskForDay = tasks.find(task =>
+                  Number(task.dueMonth) === date.getMonth() + 1 &&
+                  Number(task.dueDay) === date.getDate()
+                )
+
+                return taskForDay ? (
+                  <div
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      backgroundColor: getCourseColor(taskForDay.course),
+                      margin: '0 auto',
+                      marginTop: 2
+                    }}
+                  />
+                ) : null
+              }}
+              />
+
+              <h4 style={{ marginTop: '20px' }}>
+                Assignments for {selectedDate.toDateString()}
+              </h4>
+
+              {tasks.filter(task =>
+                Number(task.dueMonth) === selectedDate.getMonth() + 1 &&
+                Number(task.dueDay) === selectedDate.getDate()
+              ).length === 0 ? (
+                <p className="placeholder-text">No assignments due on this day.</p>
+              ) : (
+                <ul className="task-list" style={{ paddingLeft: 0, listStyle: 'none' }}>
+                  {tasks
+                    .filter(task =>
+                      Number(task.dueMonth) === selectedDate.getMonth() + 1 &&
+                      Number(task.dueDay) === selectedDate.getDate()
+                    )
+                    .map(task => (
+                      <li key={task.id} className="task-card">
+                        <div>
+                          <strong>{task.title}</strong> —{' '}
+                          <span
+                            className="course-name"
+                            style={{
+                              backgroundColor: getCourseColor(task.course),
+                              color: getTextColorForCourse(task.course),
+                              padding: '4px 8px',
+                              borderRadius: '999px',
+                              fontWeight: '600'
+                            }}
+                          >
+                            {task.course}
+                          </span>
+                          <div className="task-details">
+                            {formatTaskDetails(task)}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          )}
           {/* SIGN IN PROFILES TAB VIEW */}
           {currentTab === 'signin' && (
             <div className="card card-container" style={{ marginTop: '10px' }}>
