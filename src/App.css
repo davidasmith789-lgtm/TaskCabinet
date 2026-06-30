@@ -867,3 +867,49 @@ button:disabled {
   margin-bottom: 6px;
   color: var(--text-color);
 }
+
+/* ============================
+   Compact Add Assignment Header
+   ============================ */
+
+.assignment-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.assignment-header-row h3 {
+  margin: 0;
+}
+
+.assignment-toggle-button {
+  padding: 7px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+/* ============================
+   Compact Course Colors Header
+   ============================ */
+
+.course-colors-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.course-colors-header-row h3 {
+  margin: 0;
+}
+
+.course-colors-toggle-button {
+  padding: 7px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
