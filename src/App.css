@@ -1,9 +1,30 @@
+/*
+  TASKACADIA STYLESHEET GUIDE
+
+  CSS controls how the JSX in App.jsx looks. A selector such as .task-card
+  targets an element whose JSX contains className="task-card". Properties inside
+  the braces control its spacing, colors, layout, and other visual details.
+
+  Important CSS ideas used in this file:
+  - Variables beginning with -- are reusable design values.
+  - var(--name) reads one of those variables.
+  - display: flex is useful for rows; display: grid is useful for card layouts.
+  - @media rules adjust the interface when the browser becomes narrow.
+  - :hover, :focus-visible, and :disabled describe interactive states.
+  - Rules later in the file can refine earlier rules with the same selector.
+
+  The first section contains the original shared foundations. The later
+  "TaskAcadia Layout Upgrade" section adds the current dashboard design. Both
+  layers remain because a few original variables and behaviors are still used.
+*/
+
+/* --------------------------------------------------------------------------
+   FOUNDATIONAL THEME TOKENS AND SHARED ELEMENTS
+   -------------------------------------------------------------------------- */
 
 /*
-  Theme colors for the app.
-  - :root contains the light mode defaults.
-  - [data-theme="dark"] overrides those values for dark mode.
-  Toggle between light and dark using the button in App.jsx.
+  :root contains light-mode defaults. [data-theme="dark"] replaces selected
+  values when App.jsx sets data-theme="dark" on the root <html> element.
 */
 :root {
   --background-color: #ebeff3;
@@ -40,14 +61,19 @@
   width: 100%;
   margin: 0;
   padding: 0;
-  transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out;
+  transition:
+    background-color 0.3s ease-in-out,
+    color 0.3s ease-in-out;
 }
 
 .app-title {
   color: var(--text-color);
 }
 
-html, body, #root {
+/* Ensure the React mounting elements always cover the full browser viewport. */
+html,
+body,
+#root {
   min-height: 100%;
   min-width: 100%;
   margin: 0;
@@ -55,7 +81,9 @@ html, body, #root {
   background: var(--background-color);
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -85,6 +113,7 @@ html, body, #root {
   padding: 0;
 }
 
+/* A task becomes a vertical layout when its notes panel is expanded. */
 .task-card {
   background: var(--card-background);
   border: 1px solid var(--border-color);
@@ -139,6 +168,7 @@ html, body, #root {
   resize: vertical;
 }
 
+/* Shared button variants communicate purpose through consistent colors. */
 .placeholder-text {
   color: var(--placeholder-color);
 }
@@ -190,7 +220,9 @@ html, body, #root {
   margin-top: 8px;
 }
 
-.App select, .App input[type="text"], .App input[type="number"] {
+.App select,
+.App input[type="text"],
+.App input[type="number"] {
   background-color: var(--card-background);
   color: var(--text-color);
   border: 1px solid var(--border-color);
@@ -201,193 +233,12 @@ html, body, #root {
   color: var(--placeholder-color);
 }
 
+/* --------------------------------------------------------------------------
+   REACT-CALENDAR LIBRARY OVERRIDES
+   -------------------------------------------------------------------------- */
 
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-}
-
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
-}
-
-#center {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
-
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
-}
-
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
-}
-
-.ticks {
-  position: relative;
-  width: 100%;
-
-  &::before,
-  &::after {
-    content: "";
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
-
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
-}
-
-/* React Calendar base styling */
+/* react-calendar supplies its own class names; these rules make the third-party
+   calendar match TaskAcadia in both light and dark themes. */
 .react-calendar {
   width: 100%;
   max-width: 500px;
@@ -397,78 +248,85 @@ html, body, #root {
 }
 
 /* Dark mode calendar container */
-html[data-theme='dark'] .react-calendar {
+html[data-theme="dark"] .react-calendar {
   background-color: #111827;
   border: 1px solid #374151;
   color: #f9fafb;
 }
 
 /* Dark mode top navigation */
-html[data-theme='dark'] .react-calendar__navigation button {
+html[data-theme="dark"] .react-calendar__navigation button {
   background-color: #1f2937;
   color: #f9fafb;
   border-radius: 8px;
 }
 
-html[data-theme='dark'] .react-calendar__navigation button:hover {
+html[data-theme="dark"] .react-calendar__navigation button:hover {
   background-color: #374151;
 }
 
 /* Dark mode weekday labels */
-html[data-theme='dark'] .react-calendar__month-view__weekdays {
+html[data-theme="dark"] .react-calendar__month-view__weekdays {
   color: #d1d5db;
 }
 
-html[data-theme='dark'] .react-calendar__month-view__weekdays abbr {
+html[data-theme="dark"] .react-calendar__month-view__weekdays abbr {
   color: #d1d5db;
   text-decoration: none;
 }
 
 /* Dark mode day numbers */
-html[data-theme='dark'] .react-calendar__tile {
+html[data-theme="dark"] .react-calendar__tile {
   background-color: #111827;
   color: #f9fafb;
   border-radius: 8px;
 }
 
 /* Hovered day */
-html[data-theme='dark'] .react-calendar__tile:hover {
+html[data-theme="dark"] .react-calendar__tile:hover {
   background-color: #374151;
   color: #ffffff;
 }
 
 /* Selected day */
-html[data-theme='dark'] .react-calendar__tile--active {
+html[data-theme="dark"] .react-calendar__tile--active {
   background-color: #2563eb;
   color: #ffffff;
 }
 
 /* Today's date */
-html[data-theme='dark'] .react-calendar__tile--now {
+html[data-theme="dark"] .react-calendar__tile--now {
   background-color: #4b5563;
   color: #ffffff;
 }
 
 /* Neighboring month days */
-html[data-theme='dark'] .react-calendar__month-view__days__day--neighboringMonth {
+html[data-theme="dark"]
+  .react-calendar__month-view__days__day--neighboringMonth {
   color: #6b7280;
 }
 
 /* Disabled days */
-html[data-theme='dark'] .react-calendar__tile:disabled {
+html[data-theme="dark"] .react-calendar__tile:disabled {
   background-color: #1f2937;
   color: #6b7280;
 }
 
 /* Light mode polish */
-html[data-theme='light'] .react-calendar {
+html[data-theme="light"] .react-calendar {
   background-color: #ffffff;
   border: 1px solid #d1d5db;
   color: #111827;
 }
-/* ============================
-   TaskAcadia Layout Upgrade
-   ============================ */
+/* ============================================================================
+   CURRENT TASKACADIA DASHBOARD DESIGN
+   ============================================================================
+
+   This layer introduces the modern page background, cards, shadows, responsive
+   grids, and accent gradient. Some variable names intentionally overlap the
+   foundation above; because this section comes later, these are the active
+   values for the current interface.
+*/
 
 :root {
   --page-bg: #f4f7fb;
@@ -481,7 +339,7 @@ html[data-theme='light'] .react-calendar {
   --accent-gradient: linear-gradient(135deg, #4f46e5, #7c3aed, #2563eb);
 }
 
-html[data-theme='dark'] {
+html[data-theme="dark"] {
   --page-bg: #0b1020;
   --card-bg: #151b2e;
   --text-color: #f9fafb;
@@ -494,8 +352,16 @@ html[data-theme='dark'] {
 body {
   margin: 0;
   background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.16), transparent 35%),
-    radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 30%),
+    radial-gradient(
+      circle at top left,
+      rgba(99, 102, 241, 0.16),
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(37, 99, 235, 0.12),
+      transparent 30%
+    ),
     var(--page-bg);
   color: var(--text-color);
 }
@@ -508,10 +374,17 @@ body {
   width: min(1280px, calc(100% - 48px));
   margin: 0 auto;
   padding: 28px 0 48px;
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
 }
 
-/* Header / hero */
+/* Header / hero
+   The gradient card introduces the app and shows the active local profile. */
 
 .hero-card {
   display: flex;
@@ -558,7 +431,8 @@ body {
   font-weight: 700;
 }
 
-/* Navigation */
+/* Navigation
+   flex-wrap allows buttons to move onto another line before mobile rules apply. */
 
 .tab-row {
   display: flex;
@@ -573,7 +447,7 @@ body {
   backdrop-filter: blur(10px);
 }
 
-html[data-theme='dark'] .tab-row {
+html[data-theme="dark"] .tab-row {
   background: rgba(21, 27, 46, 0.76);
 }
 
@@ -584,7 +458,10 @@ html[data-theme='dark'] .tab-row {
   padding: 10px 14px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
 }
 
 .tab-button {
@@ -603,7 +480,8 @@ html[data-theme='dark'] .tab-row {
   box-shadow: 0 8px 18px rgba(79, 70, 229, 0.28);
 }
 
-/* Dashboard stats */
+/* Dashboard statistics
+   Four equal columns become two and then one at the responsive breakpoints. */
 
 .stats-grid {
   display: grid;
@@ -639,7 +517,8 @@ html[data-theme='dark'] .tab-row {
   letter-spacing: 0.08em;
 }
 
-/* Main dashboard layout */
+/* Main dashboard layout
+   minmax(0, ...) prevents long content from forcing the page wider. */
 
 .dashboard-grid {
   display: grid;
@@ -647,7 +526,8 @@ html[data-theme='dark'] .tab-row {
   gap: 18px;
 }
 
-/* Cards and forms */
+/* Cards and forms
+   These selectors provide the shared surface and input style used across tabs. */
 
 .card,
 .card-container {
@@ -703,7 +583,8 @@ textarea {
   resize: vertical;
 }
 
-/* Task cards */
+/* Task cards
+   High-priority work receives a red left edge without changing card structure. */
 
 .task-list {
   display: grid;
@@ -716,7 +597,9 @@ textarea {
   border-radius: 18px;
   padding: 16px;
   box-shadow: var(--shadow-card);
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .task-card:hover {
@@ -745,7 +628,7 @@ textarea {
   font-size: 18px;
 }
 
-/* Buttons */
+/* Button color variants */
 
 .btn-primary {
   background: #4f46e5;
@@ -772,21 +655,22 @@ button:disabled {
   opacity: 0.55;
 }
 
-/* Hint and placeholder text */
+/* Secondary explanatory and empty-state text */
 
 .hint-text,
 .placeholder-text {
   color: var(--muted-text);
 }
 
-/* Calendar polish */
+/* Calendar placement and shadow; detailed library colors are defined above. */
 
 .react-calendar {
   margin: 0 auto;
   box-shadow: var(--shadow-card);
 }
 
-/* Responsive */
+/* Responsive page rules
+   900px targets tablets/small laptops; 560px targets narrow phone layouts. */
 
 @media (max-width: 900px) {
   .app-shell {
@@ -825,6 +709,8 @@ button:disabled {
 /* ============================
    Compact Filter Bar
    ============================ */
+
+/* The filter controls exist in the page only when filtersOpen is true. */
 
 .filter-bar {
   width: 100%;
@@ -872,6 +758,8 @@ button:disabled {
    Compact Add Assignment Header
    ============================ */
 
+/* Header and toggle remain on one row while the form itself opens below. */
+
 .assignment-header-row {
   display: flex;
   align-items: center;
@@ -895,6 +783,8 @@ button:disabled {
    Compact Course Colors Header
    ============================ */
 
+/* Mirrors the Add Assignment header for a consistent dashboard rhythm. */
+
 .course-colors-header-row {
   display: flex;
   align-items: center;
@@ -917,6 +807,9 @@ button:disabled {
 /* ============================
    Professional Edit Modal
    ============================ */
+
+/* The backdrop covers the viewport. Its large z-index keeps the modal above
+   normal page content, and max-height lets long forms scroll safely. */
 
 .modal-backdrop {
   position: fixed;
@@ -1039,7 +932,12 @@ button:disabled {
     width: 100%;
   }
 }
-/* Make edit modal title follow theme text color */
+/* Later modal refinements
+   These rules intentionally come after the base modal styles and therefore win
+   when the same property appears in both places. Keeping related refinements in
+   this order preserves the current, tested modal layout. */
+
+/* Make edit modal title follow theme text color. */
 .edit-modal-header h2 {
   color: var(--text-color);
 }
@@ -1055,12 +953,12 @@ button:disabled {
 }
 
 /* Keep secondary buttons readable in dark mode */
-html[data-theme='dark'] .btn-secondary {
+html[data-theme="dark"] .btn-secondary {
   background: #334155;
   color: #ffffff;
 }
 
-html[data-theme='dark'] .btn-secondary:hover {
+html[data-theme="dark"] .btn-secondary:hover {
   background: #475569;
   color: #ffffff;
 }
@@ -1068,6 +966,8 @@ html[data-theme='dark'] .btn-secondary:hover {
 /* ============================
    Better Edit Modal Field Layout
    ============================ */
+
+/* Details use a compact grid on wide screens and one column on small screens. */
 
 .edit-modal-grid {
   display: grid;
@@ -1088,8 +988,8 @@ html[data-theme='dark'] .btn-secondary:hover {
   background: rgba(99, 102, 241, 0.06);
 }
 
-html[data-theme='dark'] .edit-details-grid {
-  background: rgba(99, 102, 241, 0.10);
+html[data-theme="dark"] .edit-details-grid {
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .edit-field {
@@ -1137,6 +1037,8 @@ html[data-theme='dark'] .edit-details-grid {
    Edit Modal Side-by-Side Layout
    ============================ */
 
+/* On wide screens details and notes sit beside one another for easier scanning. */
+
 .edit-main-layout {
   display: grid;
   grid-template-columns: minmax(360px, 0.95fr) minmax(320px, 1.05fr);
@@ -1155,8 +1057,8 @@ html[data-theme='dark'] .edit-details-grid {
   background: rgba(99, 102, 241, 0.06);
 }
 
-html[data-theme='dark'] .edit-notes-side {
-  background: rgba(99, 102, 241, 0.10);
+html[data-theme="dark"] .edit-notes-side {
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .edit-notes-side textarea {
@@ -1179,6 +1081,8 @@ html[data-theme='dark'] .edit-notes-side {
 /* ============================
    Edit Modal Final Layout Polish
    ============================ */
+
+/* These final constraints balance both columns and protect smaller screens. */
 
 /* Centers the details + notes section inside the popup */
 .edit-main-layout {
@@ -1234,7 +1138,6 @@ html[data-theme='dark'] .edit-notes-side {
   }
 }
 
-
 /* Force details + notes section to span and center correctly */
 .edit-main-layout {
   grid-column: 1 / -1;
@@ -1264,6 +1167,9 @@ html[data-theme='dark'] .edit-notes-side {
 /* ============================
    Recommended Plan of Attack
    ============================ */
+
+/* All selectors for this feature use the recommended-plan- prefix. That keeps
+   this card isolated from task cards, filters, the calendar, and the modal. */
 
 .recommended-plan-card {
   margin-bottom: 18px;
@@ -1321,7 +1227,9 @@ html[data-theme='dark'] .edit-notes-side {
   border: 1px solid var(--border-color);
   border-radius: 16px;
   background: rgba(99, 102, 241, 0.05);
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .recommended-plan-item:hover {
@@ -1402,7 +1310,7 @@ html[data-theme='dark'] .edit-notes-side {
   text-align: center;
 }
 
-html[data-theme='dark'] .recommended-plan-count {
+html[data-theme="dark"] .recommended-plan-count {
   color: #c7d2fe;
 }
 
@@ -1419,5 +1327,193 @@ html[data-theme='dark'] .recommended-plan-count {
 
   .recommended-plan-button {
     align-items: flex-start;
+  }
+}
+
+/* ============================
+   In Progress + Subtask Checklist UI
+   ============================
+
+   These selectors are intentionally isolated from the existing task, calendar,
+   filter, and modal selectors. The goal is to add workflow/checklist polish
+   without changing the visual rules that older features already rely on.
+*/
+
+.status-action-button {
+  white-space: nowrap;
+}
+
+.in-progress-task-card {
+  border-left: 5px solid #4f46e5;
+}
+
+.in-progress-status-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.12);
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+html[data-theme="dark"] .in-progress-status-pill {
+  color: #c7d2fe;
+  background: rgba(129, 140, 248, 0.18);
+}
+
+.subtask-progress-line {
+  margin: 8px 0 0;
+  color: var(--muted-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.recommended-plan-progress {
+  margin-top: 8px;
+}
+
+.subtask-form-section,
+.edit-subtask-section,
+.subtask-checklist-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+html[data-theme="dark"] .subtask-form-section,
+html[data-theme="dark"] .edit-subtask-section,
+html[data-theme="dark"] .subtask-checklist-panel {
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.subtask-form-hint,
+.subtask-checklist-hint {
+  margin: 6px 0 0;
+  color: var(--muted-text);
+  font-size: 13px;
+}
+
+.subtask-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.subtask-add-button {
+  white-space: nowrap;
+}
+
+.subtask-draft-list,
+.edit-subtask-list,
+.subtask-checklist-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subtask-draft-item,
+.edit-subtask-item,
+.subtask-checklist-item {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+}
+
+.subtask-draft-item,
+.edit-subtask-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+}
+
+.subtask-draft-item span {
+  overflow-wrap: anywhere;
+}
+
+.subtask-remove-button {
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.subtask-remove-button:hover {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.subtask-checklist-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.subtask-checklist-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.subtask-checklist-item input,
+.edit-subtask-item input[type="checkbox"] {
+  width: auto;
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.subtask-checklist-item span {
+  overflow-wrap: anywhere;
+}
+
+.subtask-checklist-item input:checked + span {
+  color: var(--muted-text);
+  text-decoration: line-through;
+}
+
+.subtask-checklist-item input:disabled + span {
+  opacity: 0.8;
+}
+
+.edit-subtask-list {
+  margin-top: 12px;
+}
+
+.edit-subtask-item {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+@media (max-width: 560px) {
+  .subtask-form-row,
+  .subtask-draft-item,
+  .edit-subtask-item {
+    grid-template-columns: 1fr;
+  }
+
+  .subtask-add-button,
+  .subtask-remove-button {
+    width: 100%;
+  }
+
+  .subtask-checklist-header {
+    flex-direction: column;
   }
 }
