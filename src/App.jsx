@@ -564,6 +564,39 @@ const sortedTodoTasks = [...todoTasks].sort((a, b) => {
   return (Number(a.estimatedMinutes) || 0) - (Number(b.estimatedMinutes) || 0)
 })
 
+const recommendationPriorityOrder = { HIGH: 0, MED: 1, LOW: 2 }
+
+const getRecommendationEstimate = (task) => {
+  const estimatedMinutes = Number(task.estimatedMinutes)
+  return Number.isFinite(estimatedMinutes) && estimatedMinutes > 0
+    ? estimatedMinutes
+    : Number.POSITIVE_INFINITY
+}
+
+const recommendedTasks = tasks
+  .filter(task => !task.isCompleted)
+  .sort((a, b) => {
+    const bucketA = bucketsOrder.indexOf(getDueDateBucket(a.dueMonth, a.dueDay))
+    const bucketB = bucketsOrder.indexOf(getDueDateBucket(b.dueMonth, b.dueDay))
+    const safeBucketA = bucketA === -1 ? bucketsOrder.length : bucketA
+    const safeBucketB = bucketB === -1 ? bucketsOrder.length : bucketB
+
+    if (safeBucketA !== safeBucketB) return safeBucketA - safeBucketB
+
+    const priorityA = recommendationPriorityOrder[a.priority] ?? 3
+    const priorityB = recommendationPriorityOrder[b.priority] ?? 3
+
+    if (priorityA !== priorityB) return priorityA - priorityB
+
+    const estimateA = getRecommendationEstimate(a)
+    const estimateB = getRecommendationEstimate(b)
+
+    if (estimateA !== estimateB) return estimateA - estimateB
+
+    return (a.title || '').localeCompare(b.title || '')
+  })
+  .slice(0, 5)
+
 const groupedTasks = bucketsOrder.reduce((acc, bucket) => {
   acc[bucket] = []
   return acc
@@ -797,6 +830,61 @@ const estimatedMinutesLeft = totalEstimatedMinutes % 60
         <p>Estimated remaining</p>
       </div>
     </div>
+
+    <section className="recommended-plan-card" aria-labelledby="recommended-plan-title">
+      <div className="recommended-plan-header">
+        <div>
+          <p className="recommended-plan-eyebrow">Suggested next steps</p>
+          <h2 id="recommended-plan-title">Recommended Plan of Attack</h2>
+        </div>
+        <span className="recommended-plan-count">Top {recommendedTasks.length}</span>
+      </div>
+
+      {recommendedTasks.length === 0 ? (
+        <p className="recommended-plan-empty">
+          You have no incomplete assignments. Nice work!
+        </p>
+      ) : (
+        <ol className="recommended-plan-list">
+          {recommendedTasks.map((task, index) => {
+            const estimatedMinutes = getRecommendationEstimate(task)
+
+            return (
+              <li key={task.id} className="recommended-plan-item">
+                <span className="recommended-plan-rank" aria-hidden="true">
+                  {index + 1}
+                </span>
+
+                <div className="recommended-plan-content">
+                  <div className="recommended-plan-title-row">
+                    <strong>{task.title}</strong>
+                    <span
+                      className="recommended-plan-course"
+                      style={{
+                        backgroundColor: getCourseColor(task.course),
+                        color: getTextColorForCourse(task.course)
+                      }}
+                    >
+                      {task.course}
+                    </span>
+                  </div>
+
+                  <div className="recommended-plan-details">
+                    <span>{getDueDateBucket(task.dueMonth, task.dueDay)}</span>
+                    <span>{task.priority || 'No priority'} priority</span>
+                    <span>
+                      {Number.isFinite(estimatedMinutes)
+                        ? `${estimatedMinutes} min`
+                        : 'No time estimate'}
+                    </span>
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </section>
 
     <div className="card card-container">
   <div className="assignment-header-row">
