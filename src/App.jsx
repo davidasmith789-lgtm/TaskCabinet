@@ -521,6 +521,95 @@ function getTaskStatus(task) {
   return "todo";
 }
 
+function getQuickMatchEstimate(task) {
+  const estimate = Number(task?.estimatedMinutes);
+  return Number.isFinite(estimate) && estimate > 0
+    ? estimate
+    : Number.POSITIVE_INFINITY;
+}
+
+function getQuickMatchDueRank(bucket) {
+  if (bucket.startsWith("Overdue")) return 0;
+  if (bucket.startsWith("Due Today")) return 1;
+  if (bucket.startsWith("Due Tomorrow")) return 2;
+  if (bucket === "Due This Week") return 3;
+  if (bucket === "Due Next Week") return 4;
+  if (bucket === "Due Later") return 5;
+  return 6;
+}
+
+function getQuickMatchDueLabel(bucket) {
+  if (bucket.startsWith("Overdue")) return "Overdue";
+  if (bucket.startsWith("Due Today")) return "Due Today";
+  if (bucket.startsWith("Due Tomorrow")) return "Due Tomorrow";
+  return bucket;
+}
+
+function rankQuickMatchCandidates(taskList, availableMinutes, getDueBucket) {
+  const priorityRank = { HIGH: 0, MED: 1, LOW: 2 };
+  const candidates = taskList.map((task) => {
+    const estimate = getQuickMatchEstimate(task);
+    const dueBucket = getDueBucket(task);
+    const hasEstimate = Number.isFinite(estimate);
+    return {
+      task,
+      estimate,
+      dueBucket,
+      dueLabel: getQuickMatchDueLabel(dueBucket),
+      hasEstimate,
+      fits: hasEstimate && estimate <= availableMinutes,
+    };
+  });
+
+  const compareCandidates = (a, b) => {
+    const dueDifference = getQuickMatchDueRank(a.dueBucket) - getQuickMatchDueRank(b.dueBucket);
+    if (dueDifference) return dueDifference;
+
+    const deadlineDifference =
+      (getEffectiveDeadline(a.task)?.getTime() ?? Infinity) -
+      (getEffectiveDeadline(b.task)?.getTime() ?? Infinity);
+    if (deadlineDifference) return deadlineDifference;
+
+    const priorityDifference =
+      (priorityRank[a.task.priority] ?? 3) - (priorityRank[b.task.priority] ?? 3);
+    if (priorityDifference) return priorityDifference;
+
+    const fitDifferenceA = a.fits
+      ? availableMinutes - a.estimate
+      : a.estimate - availableMinutes;
+    const fitDifferenceB = b.fits
+      ? availableMinutes - b.estimate
+      : b.estimate - availableMinutes;
+    if (fitDifferenceA !== fitDifferenceB) return fitDifferenceA - fitDifferenceB;
+
+    const statusDifference =
+      (getTaskStatus(a.task) === "inProgress" ? 0 : 1) -
+      (getTaskStatus(b.task) === "inProgress" ? 0 : 1);
+    if (statusDifference) return statusDifference;
+
+    return (a.task.title || "").localeCompare(b.task.title || "");
+  };
+
+  const fitting = candidates.filter((candidate) => candidate.fits).sort(compareCandidates);
+  const oversized = candidates
+    .filter((candidate) => candidate.hasEstimate && !candidate.fits)
+    .sort(compareCandidates);
+  const missingEstimate = candidates
+    .filter((candidate) => !candidate.hasEstimate)
+    .sort(compareCandidates);
+
+  return [...fitting, ...oversized, ...missingEstimate].slice(0, 4);
+}
+
+function getQuickMatchReason(match) {
+  if (!match.hasEstimate) return "Time is unknown, but this is the most urgent task to start.";
+  if (!match.fits) return "This may not fit completely, but it is your best use of this time.";
+  if (getTaskStatus(match.task) === "inProgress") return "Fits your time and you already have momentum.";
+  if (match.dueLabel === "Overdue") return "Fits your time and is overdue.";
+  if (match.dueLabel === "Due Today") return "Fits your time and is due today.";
+  return "Fits your time and is one of your most urgent tasks.";
+}
+
 /**
  * Summarize checklist progress for compact task cards.
  * Returning null means the task has no checklist and should not show clutter.
@@ -757,6 +846,8 @@ function App() {
   // the user is currently viewing; they are interface state rather than data.
   const [tasks, setTasks] = useState([]);
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [quickMatchMinutes, setQuickMatchMinutes] = useState("");
+  const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calendarOpen, setCalendarOpen] = useState(true);
@@ -2235,6 +2326,11 @@ function App() {
     }
   };
 
+  const handleDashboardCalendarClick = (date) => {
+    setSelectedDate(date);
+    setCurrentTab("calendar");
+  };
+
   // Open the shared assignment form directly beneath the selected calendar day.
   const handleAddForSelectedDate = () => {
     prefillDueDate(selectedDate);
@@ -3223,6 +3319,19 @@ function App() {
   );
   const activeTasksCount = activeDashboardTasks.length;
 
+  const quickMatchInputNumber = Number(quickMatchMinutes);
+  const quickMatchInputIsValid =
+    Number.isInteger(quickMatchInputNumber) && quickMatchInputNumber > 0;
+  const quickMatchResults = quickMatchSubmittedMinutes
+    ? rankQuickMatchCandidates(
+        activeDashboardTasks,
+        quickMatchSubmittedMinutes,
+        getTaskDueBucket,
+      )
+    : [];
+  const quickMatchBest = quickMatchResults[0] || null;
+  const quickMatchBackups = quickMatchResults.slice(1, 4);
+
   const overdueTasksCount = activeDashboardTasks.filter(
     (task) => getTaskDueBucket(task) === "Overdue 🚨",
   ).length;
@@ -3436,6 +3545,86 @@ function App() {
               </div>
             </div>
 
+            <div className="dashboard-focus-grid">
+              <section className="quick-match-card" aria-labelledby="quick-match-title">
+                <div className="quick-match-header">
+                  <h2 id="quick-match-title">Quick Match</h2>
+                  <p>Find the best assignment for the time you have.</p>
+                </div>
+
+                <form
+                  className="quick-match-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (quickMatchInputIsValid) {
+                      setQuickMatchSubmittedMinutes(quickMatchInputNumber);
+                    }
+                  }}
+                >
+                  <label htmlFor="quick-match-minutes">
+                    <span>I have</span>
+                    <input
+                      id="quick-match-minutes"
+                      type="number"
+                      min="1"
+                      step="1"
+                      inputMode="numeric"
+                      value={quickMatchMinutes}
+                      onChange={(e) => setQuickMatchMinutes(e.target.value)}
+                      aria-label="Available minutes"
+                    />
+                    <span>minutes</span>
+                  </label>
+                  <button type="submit" className="btn btn-primary" disabled={!quickMatchInputIsValid}>
+                    Find Task
+                  </button>
+                </form>
+
+                <div className="quick-match-result" aria-live="polite">
+                  {quickMatchSubmittedMinutes === null ? (
+                    <p className="quick-match-placeholder">Enter your available time to get a match.</p>
+                  ) : !quickMatchBest ? (
+                    <p className="quick-match-placeholder">No incomplete assignments are available.</p>
+                  ) : (
+                    <>
+                      <span className="quick-match-kicker">Best fit</span>
+                      <div className="quick-match-title-row">
+                        <strong>{quickMatchBest.task.title}</strong>
+                        <span
+                          className="quick-match-course"
+                          style={{
+                            backgroundColor: getCourseColor(quickMatchBest.task.course),
+                            color: getTextColorForCourse(quickMatchBest.task.course),
+                          }}
+                        >
+                          {quickMatchBest.task.course || getTaskCategory(quickMatchBest.task)}
+                        </span>
+                      </div>
+                      <div className="quick-match-meta">
+                        <span>{quickMatchBest.hasEstimate ? `${quickMatchBest.estimate} min` : "No estimate"}</span>
+                        <span>{quickMatchBest.dueLabel}</span>
+                        <span>{quickMatchBest.task.priority || "No"} priority</span>
+                      </div>
+                      <p className="quick-match-reason">{getQuickMatchReason(quickMatchBest)}</p>
+
+                      {quickMatchBackups.length > 0 && (
+                        <div className="quick-match-backups">
+                          <span>Backups</span>
+                          <ul>
+                            {quickMatchBackups.map((match) => (
+                              <li key={match.task.id}>
+                                <strong>{match.task.title}</strong>
+                                <small>{match.hasEstimate ? `${match.estimate} min` : "No estimate"}</small>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </section>
+
             {/* Clicking a recommendation opens that task in the To Do view. */}
             <section
               className="recommended-plan-card"
@@ -3523,6 +3712,21 @@ function App() {
                 </ol>
               )}
             </section>
+
+              <section className="dashboard-calendar-card" aria-labelledby="dashboard-calendar-title">
+                <div className="dashboard-calendar-header">
+                  <h2 id="dashboard-calendar-title">Calendar</h2>
+                  <button type="button" onClick={() => setCurrentTab("calendar")}>Open</button>
+                </div>
+                <p>Select a date to open the full calendar.</p>
+                <Calendar
+                  value={selectedDate}
+                  calendarType={userSettings.calendarWeekStartsOn === "monday" ? "iso8601" : "gregory"}
+                  showNeighboringMonth={userSettings.showNeighboringMonth !== false}
+                  onClickDay={handleDashboardCalendarClick}
+                />
+              </section>
+            </div>
 
             {/* Collapsible form for creating a new assignment. */}
             <div

@@ -1848,6 +1848,247 @@ html[data-theme="dark"] .edit-notes-side {
 }
 
 /* ============================
+   Quick Match + Dashboard Calendar
+   ============================ */
+
+.dashboard-focus-grid {
+  display: grid;
+  grid-template-areas: "quick plan calendar";
+  grid-template-columns: minmax(230px, 0.72fr) minmax(460px, 1.56fr) minmax(230px, 0.72fr);
+  align-items: stretch;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.dashboard-focus-grid .recommended-plan-card {
+  grid-area: plan;
+  margin-bottom: 0;
+}
+
+.quick-match-card,
+.dashboard-calendar-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 22px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  box-shadow: var(--shadow-card);
+}
+
+.quick-match-card {
+  grid-area: quick;
+}
+
+.quick-match-header h2,
+.dashboard-calendar-header h2 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 1.25rem;
+}
+
+.quick-match-header p,
+.dashboard-calendar-card > p {
+  margin: 5px 0 14px;
+  color: var(--muted-text);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.quick-match-form {
+  display: grid;
+  gap: 9px;
+}
+
+.quick-match-form label {
+  display: grid;
+  grid-template-columns: auto minmax(58px, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-color);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.quick-match-form input {
+  min-width: 0;
+  padding: 8px;
+  text-align: center;
+}
+
+.quick-match-form .btn {
+  width: 100%;
+  padding: 9px 12px;
+}
+
+.quick-match-result {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--border-color);
+}
+
+.quick-match-placeholder {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.quick-match-kicker,
+.quick-match-backups > span {
+  color: var(--muted-text);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.quick-match-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.quick-match-title-row > strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}
+
+.quick-match-course {
+  flex: 0 0 auto;
+  max-width: 48%;
+  overflow: hidden;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-match-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.quick-match-meta span {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-alt));
+  color: var(--text-color);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.quick-match-reason {
+  margin: 9px 0 0;
+  color: var(--muted-text);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.quick-match-backups {
+  margin-top: 13px;
+  padding-top: 11px;
+  border-top: 1px solid var(--border-color);
+}
+
+.quick-match-backups ul {
+  display: grid;
+  gap: 7px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quick-match-backups li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.74rem;
+}
+
+.quick-match-backups li strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-match-backups li small {
+  flex: 0 0 auto;
+  color: var(--muted-text);
+}
+
+.dashboard-calendar-card {
+  grid-area: calendar;
+}
+
+.dashboard-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dashboard-calendar-header button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--link-color);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dashboard-calendar-card .react-calendar {
+  width: 100% !important;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 12px;
+  font-size: 0.72rem;
+}
+
+.dashboard-calendar-card .react-calendar__navigation {
+  height: 34px;
+  margin-bottom: 5px;
+}
+
+.dashboard-calendar-card .react-calendar__navigation button {
+  min-width: 28px;
+  padding: 4px !important;
+  font-size: 0.72rem;
+}
+
+.dashboard-calendar-card .react-calendar__tile {
+  padding: 7px 2px !important;
+  font-size: 0.68rem;
+}
+
+.dashboard-calendar-card .react-calendar__month-view__weekdays {
+  font-size: 0.58rem;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-focus-grid {
+    grid-template-areas:
+      "plan"
+      "quick";
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dashboard-calendar-card {
+    display: none;
+  }
+}
+
+/* ============================
    Recommended Plan of Attack
    ============================ */
 
