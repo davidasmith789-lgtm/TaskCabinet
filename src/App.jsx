@@ -850,7 +850,6 @@ function App() {
   const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [calendarOpen, setCalendarOpen] = useState(true);
   const [calendarAddOpen, setCalendarAddOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCourse, setFilterCourse] = useState("ALL");
@@ -3332,6 +3331,95 @@ function App() {
   const quickMatchBest = quickMatchResults[0] || null;
   const quickMatchBackups = quickMatchResults.slice(1, 4);
 
+  const renderQuickMatchCard = () => (
+    <section className="quick-match-card" aria-label="Quick Match">
+      <div className="quick-match-header">
+        <h2>Quick Match</h2>
+        <p>Find the best assignment for the time you have.</p>
+      </div>
+      <form
+        className="quick-match-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (quickMatchInputIsValid) setQuickMatchSubmittedMinutes(quickMatchInputNumber);
+        }}
+      >
+        <label>
+          <span>I have</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            inputMode="numeric"
+            value={quickMatchMinutes}
+            onChange={(e) => setQuickMatchMinutes(e.target.value)}
+            aria-label="Available minutes"
+          />
+          <span>minutes</span>
+        </label>
+        <button type="submit" className="btn btn-primary" disabled={!quickMatchInputIsValid}>Find Task</button>
+      </form>
+      <div className="quick-match-result" aria-live="polite">
+        {quickMatchSubmittedMinutes === null ? (
+          <p className="quick-match-placeholder">Enter your available time to get a match.</p>
+        ) : !quickMatchBest ? (
+          <p className="quick-match-placeholder">No incomplete assignments are available.</p>
+        ) : (
+          <>
+            <span className="quick-match-kicker">Best fit</span>
+            <div className="quick-match-title-row">
+              <strong>{quickMatchBest.task.title}</strong>
+              <span
+                className="quick-match-course"
+                style={{
+                  backgroundColor: getCourseColor(quickMatchBest.task.course),
+                  color: getTextColorForCourse(quickMatchBest.task.course),
+                }}
+              >
+                {quickMatchBest.task.course || getTaskCategory(quickMatchBest.task)}
+              </span>
+            </div>
+            <div className="quick-match-meta">
+              <span>{quickMatchBest.hasEstimate ? `${quickMatchBest.estimate} min` : "No estimate"}</span>
+              <span>{quickMatchBest.dueLabel}</span>
+              <span>{quickMatchBest.task.priority || "No"} priority</span>
+            </div>
+            <p className="quick-match-reason">{getQuickMatchReason(quickMatchBest)}</p>
+            {quickMatchBackups.length > 0 && (
+              <div className="quick-match-backups">
+                <span>Backups</span>
+                <ul>
+                  {quickMatchBackups.map((match) => (
+                    <li key={match.task.id}>
+                      <strong>{match.task.title}</strong>
+                      <small>{match.hasEstimate ? `${match.estimate} min` : "No estimate"}</small>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+
+  const renderWorkspaceCalendar = () => (
+    <section className="dashboard-calendar-card" aria-labelledby="dashboard-calendar-title">
+      <div className="dashboard-calendar-header">
+        <h2 id="dashboard-calendar-title">Calendar</h2>
+        <button type="button" onClick={() => setCurrentTab("calendar")}>Open</button>
+      </div>
+      <p>Select a date to open the full calendar.</p>
+      <Calendar
+        value={selectedDate}
+        calendarType={userSettings.calendarWeekStartsOn === "monday" ? "iso8601" : "gregory"}
+        showNeighboringMonth={userSettings.showNeighboringMonth !== false}
+        onClickDay={handleDashboardCalendarClick}
+      />
+    </section>
+  );
+
   const overdueTasksCount = activeDashboardTasks.filter(
     (task) => getTaskDueBucket(task) === "Overdue 🚨",
   ).length;
@@ -3509,6 +3597,12 @@ function App() {
           )}
         </div>
 
+        <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : ""}`}>
+          <aside className={`workspace-rail workspace-rail-left${currentTab === "dashboard" ? " workspace-rail-left-dashboard" : ""}`}>
+            {renderQuickMatchCard()}
+          </aside>
+          <main className="workspace-main">
+
         {/*
           DASHBOARD VIEW
           Includes quick statistics, recommendations, assignment creation, and
@@ -3546,85 +3640,6 @@ function App() {
             </div>
 
             <div className="dashboard-focus-grid">
-              <section className="quick-match-card" aria-labelledby="quick-match-title">
-                <div className="quick-match-header">
-                  <h2 id="quick-match-title">Quick Match</h2>
-                  <p>Find the best assignment for the time you have.</p>
-                </div>
-
-                <form
-                  className="quick-match-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (quickMatchInputIsValid) {
-                      setQuickMatchSubmittedMinutes(quickMatchInputNumber);
-                    }
-                  }}
-                >
-                  <label htmlFor="quick-match-minutes">
-                    <span>I have</span>
-                    <input
-                      id="quick-match-minutes"
-                      type="number"
-                      min="1"
-                      step="1"
-                      inputMode="numeric"
-                      value={quickMatchMinutes}
-                      onChange={(e) => setQuickMatchMinutes(e.target.value)}
-                      aria-label="Available minutes"
-                    />
-                    <span>minutes</span>
-                  </label>
-                  <button type="submit" className="btn btn-primary" disabled={!quickMatchInputIsValid}>
-                    Find Task
-                  </button>
-                </form>
-
-                <div className="quick-match-result" aria-live="polite">
-                  {quickMatchSubmittedMinutes === null ? (
-                    <p className="quick-match-placeholder">Enter your available time to get a match.</p>
-                  ) : !quickMatchBest ? (
-                    <p className="quick-match-placeholder">No incomplete assignments are available.</p>
-                  ) : (
-                    <>
-                      <span className="quick-match-kicker">Best fit</span>
-                      <div className="quick-match-title-row">
-                        <strong>{quickMatchBest.task.title}</strong>
-                        <span
-                          className="quick-match-course"
-                          style={{
-                            backgroundColor: getCourseColor(quickMatchBest.task.course),
-                            color: getTextColorForCourse(quickMatchBest.task.course),
-                          }}
-                        >
-                          {quickMatchBest.task.course || getTaskCategory(quickMatchBest.task)}
-                        </span>
-                      </div>
-                      <div className="quick-match-meta">
-                        <span>{quickMatchBest.hasEstimate ? `${quickMatchBest.estimate} min` : "No estimate"}</span>
-                        <span>{quickMatchBest.dueLabel}</span>
-                        <span>{quickMatchBest.task.priority || "No"} priority</span>
-                      </div>
-                      <p className="quick-match-reason">{getQuickMatchReason(quickMatchBest)}</p>
-
-                      {quickMatchBackups.length > 0 && (
-                        <div className="quick-match-backups">
-                          <span>Backups</span>
-                          <ul>
-                            {quickMatchBackups.map((match) => (
-                              <li key={match.task.id}>
-                                <strong>{match.task.title}</strong>
-                                <small>{match.hasEstimate ? `${match.estimate} min` : "No estimate"}</small>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </section>
-
             {/* Clicking a recommendation opens that task in the To Do view. */}
             <section
               className="recommended-plan-card"
@@ -3713,19 +3728,10 @@ function App() {
               )}
             </section>
 
-              <section className="dashboard-calendar-card" aria-labelledby="dashboard-calendar-title">
-                <div className="dashboard-calendar-header">
-                  <h2 id="dashboard-calendar-title">Calendar</h2>
-                  <button type="button" onClick={() => setCurrentTab("calendar")}>Open</button>
-                </div>
-                <p>Select a date to open the full calendar.</p>
-                <Calendar
-                  value={selectedDate}
-                  calendarType={userSettings.calendarWeekStartsOn === "monday" ? "iso8601" : "gregory"}
-                  showNeighboringMonth={userSettings.showNeighboringMonth !== false}
-                  onClickDay={handleDashboardCalendarClick}
-                />
-              </section>
+            </div>
+
+            <div className="quick-match-dashboard-mobile">
+              {renderQuickMatchCard()}
             </div>
 
             {/* Collapsible form for creating a new assignment. */}
@@ -4287,18 +4293,8 @@ function App() {
             >
               <div className="panel-header">
                 <h3>📅 Assignment Calendar</h3>
-
-                <button
-                  type="button"
-                  className="btn btn-secondary panel-mini-button"
-                  onClick={() => setCalendarOpen((prev) => !prev)}
-                >
-                  {calendarOpen ? "Minimize" : "Open"}
-                </button>
               </div>
 
-              {calendarOpen && (
-                <>
                   <Calendar
                     onChange={handleCalendarDateChange}
                     value={selectedDate}
@@ -4459,8 +4455,6 @@ function App() {
                       {renderAddAssignmentForm("calendar")}
                     </div>
                   )}
-                </>
-              )}
             </div>
           )}
           {/* SETTINGS: central home for appearance and future app preferences. */}
@@ -5215,8 +5209,15 @@ function App() {
               </div>
             </div>
           )}
+          </div>
+          </main>
+          {currentTab !== "calendar" && (
+            <aside className="workspace-rail workspace-rail-right">
+              {renderWorkspaceCalendar()}
+            </aside>
+          )}
         </div>
-      </div>
+        </div>
       {/*
         EDIT MODAL
         Rendered above every tab only while editingTask contains a temporary copy.
