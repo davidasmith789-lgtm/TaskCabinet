@@ -2,31 +2,15 @@ import { useState, useEffect } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import "./App.css";
+import { Analytics } from "@vercel/analytics/react";
 
 const DEFAULT_USER_SETTINGS = {
   showPriority: true,
   showRepeat: true,
   showEstimatedMinutes: true,
-  defaultCategory: "School",
-  defaultPriority: "MED",
-  defaultEstimatedMinutes: "",
-  defaultRepeat: "NONE",
-  defaultDueTime: "11:00",
-  defaultDueAmPm: "PM",
-  autoCompleteChecklist: true,
-  confirmBeforeTrash: false,
   notificationsEnabled: false,
   reminderMinutes: 60,
   schoolLevel: "high",
-  textSize: "medium",
-  interfaceDensity: "comfortable",
-  showHeaderSubtitle: true,
-  reduceMotion: false,
-  calendarWeekStartsOn: "sunday",
-  showNeighboringMonth: true,
-  showCalendarCycleLabels: true,
-  showCalendarTaskDots: true,
-  settingsSectionOrder: ["personalization", "assignments", "calendar", "reminders", "cycle", "storage"],
   cycleDayNames: ["A Day", "B Day"],
   cycleAnchorDate: "",
   courseCycleDays: {},
@@ -85,17 +69,6 @@ const COLOR_PERSONALIZATION_FIELDS = [
   { key: "heroEnd", label: "Header gradient end", group: "Header" },
   { key: "heroText", label: "Header text", group: "Header" },
 ];
-
-const normalizeHexColor = (colorId) => {
-  const match = colorId.trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (!match) return null;
-
-  const hex = match[1];
-  const expandedHex = hex.length === 3
-    ? hex.split("").map((character) => character.repeat(2)).join("")
-    : hex;
-  return `#${expandedHex.toLowerCase()}`;
-};
 
 const THEME_COLOR_DEFAULTS = {
   light: {
@@ -157,51 +130,12 @@ const COLOR_CSS_VARIABLES = {
 };
 
 const SETTINGS_SECTIONS = [
-  { id: "personalization", icon: "🎨", label: "Personalization", description: "Theme, layout, type, and every color." },
-  { id: "assignments", icon: "📝", label: "Assignment Options", description: "Fields, defaults, and workflow behavior." },
-  { id: "calendar", icon: "📅", label: "Calendar", description: "Week layout and calendar details." },
-  { id: "reminders", icon: "🔔", label: "Reminders & App", description: "Notifications and installation." },
-  { id: "cycle", icon: "🔁", label: "School Cycle", description: "Cycle labels, anchor date, and courses." },
-  { id: "storage", icon: "🗄️", label: "Storage", description: "Archive, Trash, and preference tools." },
+  { id: "personalization", label: "Personalization", description: "Theme, school level, and every color." },
+  { id: "assignments", label: "Assignment Options", description: "Choose which fields appear when adding work." },
+  { id: "reminders", label: "Reminders & App", description: "Notifications and installation." },
+  { id: "cycle", label: "School Cycle", description: "Cycle labels, anchor date, and courses." },
+  { id: "storage", label: "Storage", description: "Archived assignments and Trash." },
 ];
-
-function getOrderedSettingsSections(savedOrder) {
-  const validIds = new Set(SETTINGS_SECTIONS.map((section) => section.id));
-  const safeOrder = Array.isArray(savedOrder)
-    ? savedOrder.filter((id, index, items) => validIds.has(id) && items.indexOf(id) === index)
-    : [];
-  const missingIds = SETTINGS_SECTIONS.map((section) => section.id).filter((id) => !safeOrder.includes(id));
-  const completeOrder = [...safeOrder, ...missingIds];
-  return completeOrder.map((id) => SETTINGS_SECTIONS.find((section) => section.id === id));
-}
-
-function SettingsCard({ title, description, className = "", children }) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <section className={`settings-section ${className}`.trim()}>
-      <div className="settings-collapse-header">
-        <h4>{title}</h4>
-        <button
-          type="button"
-          className="settings-collapse-button"
-          onClick={() => setIsOpen((open) => !open)}
-          aria-expanded={isOpen}
-          aria-label={`${isOpen ? "Shrink" : "Enlarge"} ${title}`}
-          title={`${isOpen ? "Shrink" : "Enlarge"} ${title}`}
-        >
-          {isOpen ? "−" : "+"}
-        </button>
-      </div>
-      {isOpen && (
-        <div className="settings-collapsible-content">
-          {description && <p className="hint-text settings-card-description">{description}</p>}
-          {children}
-        </div>
-      )}
-    </section>
-  );
-}
 
 function getTaskCategory(task) {
   return task?.category || "School";
@@ -321,7 +255,7 @@ async function deleteAttachmentFile(id) {
 }
 
 /**
- * TASKCABINET APPLICATION GUIDE
+ * TASKACADIA APPLICATION GUIDE
  *
  * This file contains the app's data, behavior, and visible React interface.
  * how to read it is from top to bottom:
@@ -417,7 +351,7 @@ function getEffectiveDeadline(task) {
 /**
  * Convert a stored month/day into a friendly urgency group.
  *
- * TaskCabinet currently stores month and day, but not a year. For that reason,
+ * TaskAcadia currently stores month and day, but not a year. For that reason,
  * this helper compares every task with the current calendar year. The exact
  * returned strings are also used by filtering, sorting, counts, and headings,
  * so update those related features together if these labels ever change.
@@ -519,95 +453,6 @@ function getTaskStatus(task) {
   if (task?.isCompleted) return "completed";
   if (task?.status === "inProgress") return "inProgress";
   return "todo";
-}
-
-function getQuickMatchEstimate(task) {
-  const estimate = Number(task?.estimatedMinutes);
-  return Number.isFinite(estimate) && estimate > 0
-    ? estimate
-    : Number.POSITIVE_INFINITY;
-}
-
-function getQuickMatchDueRank(bucket) {
-  if (bucket.startsWith("Overdue")) return 0;
-  if (bucket.startsWith("Due Today")) return 1;
-  if (bucket.startsWith("Due Tomorrow")) return 2;
-  if (bucket === "Due This Week") return 3;
-  if (bucket === "Due Next Week") return 4;
-  if (bucket === "Due Later") return 5;
-  return 6;
-}
-
-function getQuickMatchDueLabel(bucket) {
-  if (bucket.startsWith("Overdue")) return "Overdue";
-  if (bucket.startsWith("Due Today")) return "Due Today";
-  if (bucket.startsWith("Due Tomorrow")) return "Due Tomorrow";
-  return bucket;
-}
-
-function rankQuickMatchCandidates(taskList, availableMinutes, getDueBucket) {
-  const priorityRank = { HIGH: 0, MED: 1, LOW: 2 };
-  const candidates = taskList.map((task) => {
-    const estimate = getQuickMatchEstimate(task);
-    const dueBucket = getDueBucket(task);
-    const hasEstimate = Number.isFinite(estimate);
-    return {
-      task,
-      estimate,
-      dueBucket,
-      dueLabel: getQuickMatchDueLabel(dueBucket),
-      hasEstimate,
-      fits: hasEstimate && estimate <= availableMinutes,
-    };
-  });
-
-  const compareCandidates = (a, b) => {
-    const dueDifference = getQuickMatchDueRank(a.dueBucket) - getQuickMatchDueRank(b.dueBucket);
-    if (dueDifference) return dueDifference;
-
-    const deadlineDifference =
-      (getEffectiveDeadline(a.task)?.getTime() ?? Infinity) -
-      (getEffectiveDeadline(b.task)?.getTime() ?? Infinity);
-    if (deadlineDifference) return deadlineDifference;
-
-    const priorityDifference =
-      (priorityRank[a.task.priority] ?? 3) - (priorityRank[b.task.priority] ?? 3);
-    if (priorityDifference) return priorityDifference;
-
-    const fitDifferenceA = a.fits
-      ? availableMinutes - a.estimate
-      : a.estimate - availableMinutes;
-    const fitDifferenceB = b.fits
-      ? availableMinutes - b.estimate
-      : b.estimate - availableMinutes;
-    if (fitDifferenceA !== fitDifferenceB) return fitDifferenceA - fitDifferenceB;
-
-    const statusDifference =
-      (getTaskStatus(a.task) === "inProgress" ? 0 : 1) -
-      (getTaskStatus(b.task) === "inProgress" ? 0 : 1);
-    if (statusDifference) return statusDifference;
-
-    return (a.task.title || "").localeCompare(b.task.title || "");
-  };
-
-  const fitting = candidates.filter((candidate) => candidate.fits).sort(compareCandidates);
-  const oversized = candidates
-    .filter((candidate) => candidate.hasEstimate && !candidate.fits)
-    .sort(compareCandidates);
-  const missingEstimate = candidates
-    .filter((candidate) => !candidate.hasEstimate)
-    .sort(compareCandidates);
-
-  return [...fitting, ...oversized, ...missingEstimate].slice(0, 4);
-}
-
-function getQuickMatchReason(match) {
-  if (!match.hasEstimate) return "Time is unknown, but this is the most urgent task to start.";
-  if (!match.fits) return "This may not fit completely, but it is your best use of this time.";
-  if (getTaskStatus(match.task) === "inProgress") return "Fits your time and you already have momentum.";
-  if (match.dueLabel === "Overdue") return "Fits your time and is overdue.";
-  if (match.dueLabel === "Due Today") return "Fits your time and is due today.";
-  return "Fits your time and is one of your most urgent tasks.";
 }
 
 /**
@@ -818,15 +663,15 @@ function App() {
   // These are "controlled inputs": each input displays a state value and uses
   // its onChange handler to put the user's latest typing back into that state.
   const [taskName, setTaskName] = useState("");
-  const [category, setCategory] = useState(userSettings.defaultCategory || "School");
+  const [category, setCategory] = useState("School");
   const [selectedCourse, setSelectedCourse] = useState("");
   const [dueMonth, setDueMonth] = useState("");
   const [dueDay, setDueDay] = useState("");
-  const [dueHour, setDueHour] = useState(userSettings.defaultDueTime || "11:00");
-  const [dueAmPm, setDueAmPm] = useState(userSettings.defaultDueAmPm || "PM");
-  const [estTime, setEstTime] = useState(String(userSettings.defaultEstimatedMinutes || ""));
-  const [priority, setPriority] = useState(userSettings.defaultPriority || "MED");
-  const [repeatFrequency, setRepeatFrequency] = useState(userSettings.defaultRepeat || "NONE");
+  const [dueHour, setDueHour] = useState("11:00");
+  const [dueAmPm, setDueAmPm] = useState("PM");
+  const [estTime, setEstTime] = useState("");
+  const [priority, setPriority] = useState("MED");
+  const [repeatFrequency, setRepeatFrequency] = useState("NONE");
   const [newSubtaskText, setNewSubtaskText] = useState("");
   const [newSubtaskDueMonth, setNewSubtaskDueMonth] = useState("");
   const [newSubtaskDueDay, setNewSubtaskDueDay] = useState("");
@@ -838,9 +683,6 @@ function App() {
   const [draftLinkMessage, setDraftLinkMessage] = useState("");
   const [draftLinks, setDraftLinks] = useState([]);
   const [draftFiles, setDraftFiles] = useState([]);
-  const [optionalLinksOpen, setOptionalLinksOpen] = useState(false);
-  const [optionalFilesOpen, setOptionalFilesOpen] = useState(false);
-  const [optionalChecklistOpen, setOptionalChecklistOpen] = useState(false);
 
   // ---------------------------------------------------------------------------
   // TASK DATA, NAVIGATION, FILTERS, AND OPEN/CLOSED PANELS
@@ -849,10 +691,9 @@ function App() {
   // the user is currently viewing; they are interface state rather than data.
   const [tasks, setTasks] = useState([]);
   const [currentTab, setCurrentTab] = useState("dashboard");
-  const [quickMatchMinutes, setQuickMatchMinutes] = useState("");
-  const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(true);
   const [calendarAddOpen, setCalendarAddOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCourse, setFilterCourse] = useState("ALL");
@@ -884,13 +725,6 @@ function App() {
   const [addAssignmentOpen, setAddAssignmentOpen] = useState(true);
   const [courseColorsOpen, setCourseColorsOpen] = useState(true);
   const [settingsSection, setSettingsSection] = useState("personalization");
-  const [storageView, setStorageView] = useState(null);
-  const [draggedSettingsSection, setDraggedSettingsSection] = useState(null);
-  const [settingsDropTarget, setSettingsDropTarget] = useState(null);
-  const [appearanceSettingsOpen, setAppearanceSettingsOpen] = useState(false);
-  const [colorStudioOpen, setColorStudioOpen] = useState(false);
-  const [colorGroupsOpen, setColorGroupsOpen] = useState({});
-  const [colorTextDrafts, setColorTextDrafts] = useState({});
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isStandalone, setIsStandalone] = useState(() =>
     window.matchMedia?.("(display-mode: standalone)").matches ||
@@ -1070,9 +904,9 @@ function App() {
         try {
           if (navigator.serviceWorker?.controller) {
             const registration = await navigator.serviceWorker.ready;
-            await registration.showNotification(`TaskCabinet: ${task.title}`, options);
+            await registration.showNotification(`TaskAcadia: ${task.title}`, options);
           } else {
-            new Notification(`TaskCabinet: ${task.title}`, options);
+            new Notification(`TaskAcadia: ${task.title}`, options);
           }
           notified[`${task.id}-${deadline.getTime()}`] = new Date().toISOString();
         } catch (error) {
@@ -1131,95 +965,11 @@ function App() {
     if (!isEnabled && field === "showEstimatedMinutes") setEstTime("");
   };
 
-  const handleAssignmentDefaultChange = (field, value) => {
-    handleAddFieldSettingChange(field, value);
-    if (field === "defaultCategory") setCategory(value);
-    if (field === "defaultPriority") setPriority(value);
-    if (field === "defaultEstimatedMinutes") setEstTime(String(value));
-    if (field === "defaultRepeat") setRepeatFrequency(value);
-    if (field === "defaultDueTime") setDueHour(value);
-    if (field === "defaultDueAmPm") setDueAmPm(value);
-  };
-
-  const handleResetPreferences = () => {
-    const confirmed = window.confirm(
-      "Reset appearance, assignment, calendar, reminder, and school-cycle preferences? Your assignments and courses will not be deleted.",
-    );
-    if (!confirmed) return;
-
-    const resetSettings = {
-      ...DEFAULT_USER_SETTINGS,
-      cycleDayNames: [...DEFAULT_USER_SETTINGS.cycleDayNames],
-      courseCycleDays: {},
-      customColors: {},
-    };
-    setUserSettings(resetSettings);
-    localStorage.setItem(settingsStorageKey, JSON.stringify(resetSettings));
-    setTheme(getSystemPreference());
-    setCategory(resetSettings.defaultCategory);
-    setPriority(resetSettings.defaultPriority);
-    setEstTime(resetSettings.defaultEstimatedMinutes);
-    setRepeatFrequency(resetSettings.defaultRepeat);
-    setDueHour(resetSettings.defaultDueTime);
-    setDueAmPm(resetSettings.defaultDueAmPm);
-  };
-
-  const saveSettingsSectionOrder = (sections) => {
-    handleAddFieldSettingChange(
-      "settingsSectionOrder",
-      sections.map((section) => section.id),
-    );
-  };
-
-  const handleSettingsSectionDrop = (targetId, position) => {
-    if (!draggedSettingsSection || draggedSettingsSection === targetId) {
-      setDraggedSettingsSection(null);
-      setSettingsDropTarget(null);
-      return;
-    }
-
-    const reordered = getOrderedSettingsSections(userSettings.settingsSectionOrder)
-      .filter((section) => section.id !== draggedSettingsSection);
-    const targetIndex = reordered.findIndex((section) => section.id === targetId);
-    const insertIndex = targetIndex + (position === "after" ? 1 : 0);
-    const draggedSection = SETTINGS_SECTIONS.find((section) => section.id === draggedSettingsSection);
-    reordered.splice(insertIndex, 0, draggedSection);
-    saveSettingsSectionOrder(reordered);
-    setDraggedSettingsSection(null);
-    setSettingsDropTarget(null);
-  };
-
-  const handleSettingsSectionMove = (sectionId, direction) => {
-    const reordered = getOrderedSettingsSections(userSettings.settingsSectionOrder);
-    const currentIndex = reordered.findIndex((section) => section.id === sectionId);
-    const nextIndex = currentIndex + direction;
-    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= reordered.length) return;
-    [reordered[currentIndex], reordered[nextIndex]] = [reordered[nextIndex], reordered[currentIndex]];
-    saveSettingsSectionOrder(reordered);
-  };
-
   const handleCustomColorChange = (key, value) => {
     handleAddFieldSettingChange("customColors", {
       ...(userSettings.customColors || {}),
       [key]: value,
     });
-  };
-
-  const clearColorTextDraft = (draftKey) => {
-    setColorTextDrafts((drafts) => {
-      if (!(draftKey in drafts)) return drafts;
-      const updatedDrafts = { ...drafts };
-      delete updatedDrafts[draftKey];
-      return updatedDrafts;
-    });
-  };
-
-  const commitColorTextDraft = (draftKey, currentValue, onValidColor) => {
-    const normalizedColor = normalizeHexColor(
-      colorTextDrafts[draftKey] ?? currentValue,
-    );
-    if (normalizedColor) onValidColor(normalizedColor);
-    clearColorTextDraft(draftKey);
   };
 
   const handleAddCycleDay = () => {
@@ -1285,16 +1035,11 @@ function App() {
       setCourseColors(rawCourseColors ? JSON.parse(rawCourseColors) : {});
 
       const rawSettings = localStorage.getItem(settingsStorageKey);
-      const loadedSettings = rawSettings
-        ? { ...DEFAULT_USER_SETTINGS, ...JSON.parse(rawSettings) }
-        : DEFAULT_USER_SETTINGS;
-      setUserSettings(loadedSettings);
-      setCategory(loadedSettings.defaultCategory);
-      setPriority(loadedSettings.defaultPriority);
-      setEstTime(String(loadedSettings.defaultEstimatedMinutes || ""));
-      setRepeatFrequency(loadedSettings.defaultRepeat);
-      setDueHour(loadedSettings.defaultDueTime);
-      setDueAmPm(loadedSettings.defaultDueAmPm);
+      setUserSettings(
+        rawSettings
+          ? { ...DEFAULT_USER_SETTINGS, ...JSON.parse(rawSettings) }
+          : DEFAULT_USER_SETTINGS,
+      );
     } catch (error) {
       console.error("Failed to load user data from localStorage:", error);
       setTasks([]);
@@ -1307,12 +1052,6 @@ function App() {
       ]);
       setCourseColors({});
       setUserSettings(DEFAULT_USER_SETTINGS);
-      setCategory(DEFAULT_USER_SETTINGS.defaultCategory);
-      setPriority(DEFAULT_USER_SETTINGS.defaultPriority);
-      setEstTime(DEFAULT_USER_SETTINGS.defaultEstimatedMinutes);
-      setRepeatFrequency(DEFAULT_USER_SETTINGS.defaultRepeat);
-      setDueHour(DEFAULT_USER_SETTINGS.defaultDueTime);
-      setDueAmPm(DEFAULT_USER_SETTINGS.defaultDueAmPm);
     }
 
     setIsCustomCourse(false);
@@ -1526,17 +1265,17 @@ function App() {
 
     // Return the form to friendly defaults after a successful submission.
     setTaskName("");
-    setCategory(userSettings.defaultCategory || "School");
+    setCategory("School");
     setSelectedCourse("");
     setCustomCourseName("");
     setIsCustomCourse(false);
     setDueMonth("");
     setDueDay("");
-    setDueHour(userSettings.defaultDueTime || "11:00");
-    setDueAmPm(userSettings.defaultDueAmPm || "PM");
-    setEstTime(String(userSettings.defaultEstimatedMinutes || ""));
-    setPriority(userSettings.defaultPriority || "MED");
-    setRepeatFrequency(userSettings.defaultRepeat || "NONE");
+    setDueHour("11:00");
+    setDueAmPm("PM");
+    setEstTime("");
+    setPriority("MED");
+    setRepeatFrequency("NONE");
     setNewSubtaskText("");
     setDraftSubtasks([]);
     setNewSubtaskDueMonth("");
@@ -1548,9 +1287,6 @@ function App() {
     setDraftLinks([]);
     setDraftLinkMessage("");
     setDraftFiles([]);
-    setOptionalLinksOpen(false);
-    setOptionalFilesOpen(false);
-    setOptionalChecklistOpen(false);
 
     if (currentTab === "calendar") {
       setCalendarAddOpen(false);
@@ -1760,7 +1496,6 @@ function App() {
         );
 
         shouldCompleteTask =
-          userSettings.autoCompleteChecklist &&
           updatedSubtasks.length > 0 &&
           updatedSubtasks.every((subtask) => subtask.isDone);
 
@@ -1852,37 +1587,8 @@ function App() {
     });
   };
 
-  const handleMoveAllArchivedToTrash = () => {
-    const archivedCount = tasks.filter((task) => task.isArchived && !task.isDeleted).length;
-    if (archivedCount === 0) return;
-
-    const confirmed = window.confirm(
-      `Move all ${archivedCount} archived assignment${archivedCount === 1 ? "" : "s"} to Trash? They can still be restored.`,
-    );
-    if (!confirmed) return;
-
-    const deletedAt = new Date().toISOString();
-    setTasks((prev) => {
-      const updated = prev.map((task) =>
-        task.isArchived && !task.isDeleted
-          ? { ...task, isDeleted: true, deletedAt }
-          : task,
-      );
-      saveTasksForCurrentUser(updated);
-      return updated;
-    });
-  };
-
   // Deleting moves an assignment to recoverable Trash instead of erasing it.
   const handleDelete = (id) => {
-    if (userSettings.confirmBeforeTrash) {
-      const taskToDelete = tasks.find((task) => task.id === id);
-      const confirmed = window.confirm(
-        `Move "${taskToDelete?.title || "this assignment"}" to Trash?`,
-      );
-      if (!confirmed) return;
-    }
-
     const deletedAt = new Date().toISOString();
 
     setTasks((prev) => {
@@ -2331,11 +2037,6 @@ function App() {
     }
   };
 
-  const handleDashboardCalendarClick = (date) => {
-    setSelectedDate(date);
-    setCurrentTab("calendar");
-  };
-
   // Open the shared assignment form directly beneath the selected calendar day.
   const handleAddForSelectedDate = () => {
     prefillDueDate(selectedDate);
@@ -2568,10 +2269,7 @@ function App() {
     );
 
   const calendarTasks = tasks.filter(
-    (task) =>
-      !task.isArchived &&
-      !task.isDeleted &&
-      getTaskStatus(task) !== "completed",
+    (task) => !task.isArchived && !task.isDeleted,
   );
   const selectedDateTasks = calendarTasks.filter(
     (task) =>
@@ -3142,22 +2840,11 @@ function App() {
         </>
       )}
 
-      <div className="subtask-form-section assignment-links-form optional-assignment-section">
-        <div className="optional-assignment-header">
-          <label>Optional Assignment Links</label>
-          <button
-            type="button"
-            className="optional-assignment-toggle"
-            onClick={() => setOptionalLinksOpen((open) => !open)}
-            aria-expanded={optionalLinksOpen}
-            aria-label={`${optionalLinksOpen ? "Minimize" : "Open"} Optional Assignment Links`}
-          >
-            {optionalLinksOpen ? "−" : "+"}
-          </button>
+      <div className="subtask-form-section assignment-links-form">
+        <div>
+          <label>Optional Assignment Links:</label>
+          <p className="subtask-form-hint">Name a website, document, or resource.</p>
         </div>
-        {optionalLinksOpen && (
-          <div className="optional-assignment-content">
-        <p className="subtask-form-hint">Name a website, document, or resource.</p>
         <div className="link-form-row">
           <input
             type="text"
@@ -3204,25 +2891,10 @@ function App() {
             ))}
           </ul>
         )}
-          </div>
-        )}
       </div>
 
-      <div className="subtask-form-section attachment-form-section optional-assignment-section">
-        <div className="optional-assignment-header">
-          <label>Optional Files</label>
-          <button
-            type="button"
-            className="optional-assignment-toggle"
-            onClick={() => setOptionalFilesOpen((open) => !open)}
-            aria-expanded={optionalFilesOpen}
-            aria-label={`${optionalFilesOpen ? "Minimize" : "Open"} Optional Files`}
-          >
-            {optionalFilesOpen ? "−" : "+"}
-          </button>
-        </div>
-        {optionalFilesOpen && (
-          <div className="optional-assignment-content">
+      <div className="subtask-form-section attachment-form-section">
+        <label>Optional Files:</label>
         <input
           type="file"
           multiple
@@ -3238,29 +2910,16 @@ function App() {
             <button type="button" className="subtask-remove-button" onClick={() => setDraftFiles((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}>Remove</button>
           </div>
         ))}
-          </div>
-        )}
       </div>
 
-      <div className="subtask-form-section optional-assignment-section">
-        <div className="optional-assignment-header">
-          <label>Optional Checklist Steps</label>
-          <button
-            type="button"
-            className="optional-assignment-toggle"
-            onClick={() => setOptionalChecklistOpen((open) => !open)}
-            aria-expanded={optionalChecklistOpen}
-            aria-label={`${optionalChecklistOpen ? "Minimize" : "Open"} Optional Checklist Steps`}
-          >
-            {optionalChecklistOpen ? "−" : "+"}
-          </button>
-        </div>
-        {optionalChecklistOpen && (
-          <div className="optional-assignment-content">
+      <div className="subtask-form-section">
+        <div>
+          <label>Optional Checklist Steps:</label>
           <p className="subtask-form-hint">
             Break the assignment into smaller pieces. Leave this blank if the
             assignment does not need steps.
           </p>
+        </div>
 
         <div className="subtask-form-row">
           <input
@@ -3337,8 +2996,6 @@ function App() {
             ))}
           </ul>
         )}
-          </div>
-        )}
       </div>
 
       <button
@@ -3368,108 +3025,6 @@ function App() {
   );
   const activeTasksCount = activeDashboardTasks.length;
 
-  const quickMatchInputNumber = Number(quickMatchMinutes);
-  const quickMatchInputIsValid =
-    Number.isInteger(quickMatchInputNumber) && quickMatchInputNumber > 0;
-  const quickMatchResults = quickMatchSubmittedMinutes
-    ? rankQuickMatchCandidates(
-        activeDashboardTasks,
-        quickMatchSubmittedMinutes,
-        getTaskDueBucket,
-      )
-    : [];
-  const quickMatchBest = quickMatchResults[0] || null;
-  const quickMatchBackups = quickMatchResults.slice(1, 4);
-
-  const renderQuickMatchCard = () => (
-    <section className="quick-match-card" aria-label="Quick Match">
-      <div className="quick-match-header">
-        <h2>Quick Match</h2>
-        <p>Find the best assignment for the time you have.</p>
-      </div>
-      <form
-        className="quick-match-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (quickMatchInputIsValid) setQuickMatchSubmittedMinutes(quickMatchInputNumber);
-        }}
-      >
-        <label>
-          <span>I have</span>
-          <input
-            type="number"
-            min="1"
-            step="1"
-            inputMode="numeric"
-            value={quickMatchMinutes}
-            onChange={(e) => setQuickMatchMinutes(e.target.value)}
-            aria-label="Available minutes"
-          />
-          <span>minutes</span>
-        </label>
-        <button type="submit" className="btn btn-primary" disabled={!quickMatchInputIsValid}>Find Task</button>
-      </form>
-      <div className="quick-match-result" aria-live="polite">
-        {quickMatchSubmittedMinutes === null ? (
-          <p className="quick-match-placeholder">Enter your available time to get a match.</p>
-        ) : !quickMatchBest ? (
-          <p className="quick-match-placeholder">No incomplete assignments are available.</p>
-        ) : (
-          <>
-            <span className="quick-match-kicker">Best fit</span>
-            <div className="quick-match-title-row">
-              <strong>{quickMatchBest.task.title}</strong>
-              <span
-                className="quick-match-course"
-                style={{
-                  backgroundColor: getCourseColor(quickMatchBest.task.course),
-                  color: getTextColorForCourse(quickMatchBest.task.course),
-                }}
-              >
-                {quickMatchBest.task.course || getTaskCategory(quickMatchBest.task)}
-              </span>
-            </div>
-            <div className="quick-match-meta">
-              <span>{quickMatchBest.hasEstimate ? `${quickMatchBest.estimate} min` : "No estimate"}</span>
-              <span>{quickMatchBest.dueLabel}</span>
-              <span>{quickMatchBest.task.priority || "No"} priority</span>
-            </div>
-            <p className="quick-match-reason">{getQuickMatchReason(quickMatchBest)}</p>
-            {quickMatchBackups.length > 0 && (
-              <div className="quick-match-backups">
-                <span>Backups</span>
-                <ul>
-                  {quickMatchBackups.map((match) => (
-                    <li key={match.task.id}>
-                      <strong>{match.task.title}</strong>
-                      <small>{match.hasEstimate ? `${match.estimate} min` : "No estimate"}</small>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </section>
-  );
-
-  const renderWorkspaceCalendar = () => (
-    <section className="dashboard-calendar-card" aria-labelledby="dashboard-calendar-title">
-      <div className="dashboard-calendar-header">
-        <h2 id="dashboard-calendar-title">Calendar</h2>
-        <button type="button" onClick={() => setCurrentTab("calendar")}>Open</button>
-      </div>
-      <p>Select a date to open the full calendar.</p>
-      <Calendar
-        value={selectedDate}
-        calendarType={userSettings.calendarWeekStartsOn === "monday" ? "iso8601" : "gregory"}
-        showNeighboringMonth={userSettings.showNeighboringMonth !== false}
-        onClickDay={handleDashboardCalendarClick}
-      />
-    </section>
-  );
-
   const overdueTasksCount = activeDashboardTasks.filter(
     (task) => getTaskDueBucket(task) === "Overdue 🚨",
   ).length;
@@ -3489,7 +3044,7 @@ function App() {
       <div className={`App ${theme} auth-screen`}>
         <main className="auth-card">
           <p className="eyebrow">Student Productivity Hub</p>
-          <h1 className="app-title">TaskCabinet</h1>
+          <h1 className="app-title">🎓 TaskAcadia</h1>
           <p className="hero-subtitle">
             {authMode === "signin"
               ? "Sign in to open your local assignment planner."
@@ -3547,7 +3102,7 @@ function App() {
           <div className="auth-warning">
             <strong>Password does not save, save independently!</strong>
             <p>
-              TaskCabinet stores only a password verifier. Accounts and assignments
+              TaskAcadia stores only a password verifier. Accounts and assignments
               stay on this browser, do not sync to other devices, and have no
               password recovery.
             </p>
@@ -3564,19 +3119,21 @@ function App() {
   // such as currentTab === "todo" conditionally show only the selected screen.
   const schoolLevelCopy =
     SCHOOL_LEVEL_COPY[userSettings.schoolLevel] || SCHOOL_LEVEL_COPY.high;
+  const activeSettingsSection =
+    SETTINGS_SECTIONS.find((section) => section.id === settingsSection) ||
+    SETTINGS_SECTIONS[0];
+
   return (
-    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} density-${userSettings.interfaceDensity || "comfortable"}${userSettings.reduceMotion ? " reduce-motion" : ""}`}>
+    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"}`}>
       <div className="app-shell">
         {/* The header is always visible and identifies the active local profile. */}
         <header className="hero-card">
           <div>
             <p className="eyebrow">{schoolLevelCopy.eyebrow}</p>
-            <h1 className="app-title">TaskCabinet</h1>
-            {userSettings.showHeaderSubtitle && (
-              <p className="hero-subtitle">
-                {schoolLevelCopy.subtitle}
-              </p>
-            )}
+            <h1 className="app-title">🎓 TaskAcadia</h1>
+            <p className="hero-subtitle">
+              {schoolLevelCopy.subtitle}
+            </p>
           </div>
 
           <div className="user-pill">
@@ -3647,12 +3204,6 @@ function App() {
           )}
         </div>
 
-        <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : ""}`}>
-          <aside className={`workspace-rail workspace-rail-left${currentTab === "dashboard" ? " workspace-rail-left-dashboard" : ""}`}>
-            {renderQuickMatchCard()}
-          </aside>
-          <main className="workspace-main">
-
         {/*
           DASHBOARD VIEW
           Includes quick statistics, recommendations, assignment creation, and
@@ -3689,7 +3240,6 @@ function App() {
               </div>
             </div>
 
-            <div className="dashboard-focus-grid">
             {/* Clicking a recommendation opens that task in the To Do view. */}
             <section
               className="recommended-plan-card"
@@ -3777,12 +3327,6 @@ function App() {
                 </ol>
               )}
             </section>
-
-            </div>
-
-            <div className="quick-match-dashboard-mobile">
-              {renderQuickMatchCard()}
-            </div>
 
             {/* Collapsible form for creating a new assignment. */}
             <div
@@ -4343,13 +3887,21 @@ function App() {
             >
               <div className="panel-header">
                 <h3>📅 Assignment Calendar</h3>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary panel-mini-button"
+                  onClick={() => setCalendarOpen((prev) => !prev)}
+                >
+                  {calendarOpen ? "Minimize" : "Open"}
+                </button>
               </div>
 
+              {calendarOpen && (
+                <>
                   <Calendar
                     onChange={handleCalendarDateChange}
                     value={selectedDate}
-                    calendarType={userSettings.calendarWeekStartsOn === "monday" ? "iso8601" : "gregory"}
-                    showNeighboringMonth={userSettings.showNeighboringMonth !== false}
                     tileContent={({ date }) => {
                       const taskForDay = calendarTasks.find(
                         (task) =>
@@ -4358,13 +3910,10 @@ function App() {
                       );
                       const cycleDay = getCycleDayForDate(date, userSettings);
 
-                      const showCycleDay = userSettings.showCalendarCycleLabels !== false && cycleDay;
-                      const showTaskDot = userSettings.showCalendarTaskDots !== false && taskForDay;
-
-                      return showTaskDot || showCycleDay ? (
+                      return taskForDay || cycleDay ? (
                         <div className="calendar-tile-details">
-                          {showCycleDay && <span>{cycleDay}</span>}
-                          {showTaskDot && (
+                          {cycleDay && <span>{cycleDay}</span>}
+                          {taskForDay && (
                             <i style={{ backgroundColor: getCourseColor(taskForDay.course) }} />
                           )}
                         </div>
@@ -4505,213 +4054,84 @@ function App() {
                       {renderAddAssignmentForm("calendar")}
                     </div>
                   )}
+                </>
+              )}
             </div>
           )}
           {/* SETTINGS: central home for appearance and future app preferences. */}
           {currentTab === "settings" && (
             <div className="card card-container" style={{ marginTop: "10px" }}>
-              <div className={`settings-layout${storageView ? " settings-storage-focus" : ""}`}>
-                {!storageView && <nav className="settings-sidebar" aria-label="Settings categories">
+              <div className="settings-layout">
+                <nav className="settings-sidebar" aria-label="Settings categories">
                   <p className="eyebrow">Settings</p>
-                  <div className="settings-profile-chip">
-                    <span>Preferences for</span>
-                    <strong>{currentUser || "Guest profile"}</strong>
-                  </div>
-                  {getOrderedSettingsSections(userSettings.settingsSectionOrder).map((section) => (
-                    <div
-                      key={section.id}
-                      className={`settings-nav-item${draggedSettingsSection === section.id ? " dragging" : ""}${settingsDropTarget?.id === section.id ? ` drop-${settingsDropTarget.position}` : ""}`}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = "move";
-                        const bounds = e.currentTarget.getBoundingClientRect();
-                        const position = e.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
-                        setSettingsDropTarget({ id: section.id, position });
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        handleSettingsSectionDrop(section.id, settingsDropTarget?.position || "before");
-                      }}
-                    >
-                      <button
-                        type="button"
-                        className="settings-drag-handle"
-                        draggable
-                        aria-label={`Drag ${section.label} to reorder`}
-                        title="Drag to reorder. Press Alt+Up or Alt+Down to move with the keyboard."
-                        onKeyDown={(e) => {
-                          if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-                          e.preventDefault();
-                          handleSettingsSectionMove(section.id, e.key === "ArrowUp" ? -1 : 1);
-                        }}
-                        onDragStart={(e) => {
-                          setDraggedSettingsSection(section.id);
-                          e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/plain", section.id);
-                        }}
-                        onDragEnd={() => {
-                          setDraggedSettingsSection(null);
-                          setSettingsDropTarget(null);
-                        }}
-                      >
-                        ⋮⋮
-                      </button>
-                      <button
-                        type="button"
-                        className={`settings-nav-button ${settingsSection === section.id ? "active" : ""}`}
-                        aria-current={settingsSection === section.id ? "page" : undefined}
-                        onClick={() => {
-                          setStorageView(null);
-                          setSettingsSection(section.id);
-                        }}
-                      >
-                        <strong className="settings-nav-label">
-                          <span className="settings-nav-icon" aria-hidden="true">{section.icon}</span>
-                          {section.label}
-                        </strong>
-                        <span>{section.description}</span>
-                      </button>
-                    </div>
-                  ))}
-                </nav>}
-                <div className="settings-content">
-                  <div className={`settings-grid${storageView ? " settings-grid-hidden" : ""}`}>
-                <section className="settings-section" hidden={settingsSection !== "personalization"}>
-                  <div className="settings-collapse-header">
-                    <h4>Appearance</h4>
+                  {SETTINGS_SECTIONS.map((section) => (
                     <button
                       type="button"
-                      className="settings-collapse-button"
-                      onClick={() => setAppearanceSettingsOpen((isOpen) => !isOpen)}
-                      aria-expanded={appearanceSettingsOpen}
-                      aria-controls="appearance-settings-content"
-                      aria-label={`${appearanceSettingsOpen ? "Shrink" : "Enlarge"} Appearance`}
-                      title={`${appearanceSettingsOpen ? "Shrink" : "Enlarge"} Appearance`}
+                      key={section.id}
+                      className={`settings-nav-button ${settingsSection === section.id ? "active" : ""}`}
+                      aria-current={settingsSection === section.id ? "page" : undefined}
+                      onClick={() => setSettingsSection(section.id)}
                     >
-                      {appearanceSettingsOpen ? "−" : "+"}
+                      <strong>{section.label}</strong>
+                      <span>{section.description}</span>
                     </button>
-                  </div>
-                  {appearanceSettingsOpen && (
-                    <div id="appearance-settings-content" className="settings-collapsible-content">
-                      <p className="hint-text">Currently using {theme} mode.</p>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={toggleTheme}
-                      >
-                        Use {theme === "dark" ? "Light Mode" : "Dark Mode"}
-                      </button>
-                      <label className="settings-select-row">
-                        <span>School level</span>
-                        <select
-                          value={userSettings.schoolLevel || "high"}
-                          onChange={(e) => handleAddFieldSettingChange("schoolLevel", e.target.value)}
-                        >
-                          <option value="middle">Middle School</option>
-                          <option value="high">High School</option>
-                          <option value="college">College</option>
-                        </select>
-                      </label>
-                      <div className="settings-option-grid">
-                        <label className="settings-select-row settings-option-card">
-                          <span>Text size</span>
-                          <select
-                            value={userSettings.textSize || "medium"}
-                            onChange={(e) => handleAddFieldSettingChange("textSize", e.target.value)}
-                          >
-                            <option value="small">Small</option>
-                            <option value="medium">Medium</option>
-                            <option value="large">Large</option>
-                          </select>
-                        </label>
-                        <label className="settings-select-row settings-option-card">
-                          <span>Interface spacing</span>
-                          <select
-                            value={userSettings.interfaceDensity || "comfortable"}
-                            onChange={(e) => handleAddFieldSettingChange("interfaceDensity", e.target.value)}
-                          >
-                            <option value="compact">Compact</option>
-                            <option value="comfortable">Comfortable</option>
-                            <option value="spacious">Spacious</option>
-                          </select>
-                        </label>
-                      </div>
-                      <label className="settings-toggle settings-toggle-copy">
-                        <span><strong>Header description</strong><small>Show the school-level message below TaskCabinet.</small></span>
-                        <input
-                          type="checkbox"
-                          checked={userSettings.showHeaderSubtitle !== false}
-                          onChange={(e) => handleAddFieldSettingChange("showHeaderSubtitle", e.target.checked)}
-                        />
-                      </label>
-                      <label className="settings-toggle settings-toggle-copy">
-                        <span><strong>Reduce motion</strong><small>Turn off interface animation and smooth scrolling.</small></span>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(userSettings.reduceMotion)}
-                          onChange={(e) => handleAddFieldSettingChange("reduceMotion", e.target.checked)}
-                        />
-                      </label>
-                    </div>
-                  )}
+                  ))}
+                </nav>
+                <div className="settings-content">
+                  <header className="settings-content-header">
+                    <p className="eyebrow">TaskAcadia Preferences</p>
+                    <h2>{activeSettingsSection.label}</h2>
+                    <p>{activeSettingsSection.description}</p>
+                  </header>
+                  <div className="settings-grid">
+                <section className="settings-section" hidden={settingsSection !== "personalization"}>
+                  <h4>Appearance</h4>
+                  <p className="hint-text">Currently using {theme} mode.</p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={toggleTheme}
+                  >
+                    Use {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                  </button>
+                  <label className="settings-select-row">
+                    <span>School level</span>
+                    <select
+                      value={userSettings.schoolLevel || "high"}
+                      onChange={(e) => handleAddFieldSettingChange("schoolLevel", e.target.value)}
+                    >
+                      <option value="middle">Middle School</option>
+                      <option value="high">High School</option>
+                      <option value="college">College</option>
+                    </select>
+                  </label>
                 </section>
 
                 <section className="settings-section color-studio-section" hidden={settingsSection !== "personalization"}>
                   <div className="color-studio-header">
-                    <h4>Full Color Studio</h4>
-                    <button
-                      type="button"
-                      className="settings-collapse-button"
-                      onClick={() => setColorStudioOpen((isOpen) => !isOpen)}
-                      aria-expanded={colorStudioOpen}
-                      aria-controls="color-studio-content"
-                      aria-label={`${colorStudioOpen ? "Shrink" : "Enlarge"} Full Color Studio`}
-                      title={`${colorStudioOpen ? "Shrink" : "Enlarge"} Full Color Studio`}
-                    >
-                      {colorStudioOpen ? "−" : "+"}
-                    </button>
-                  </div>
-
-                  {colorStudioOpen && (
-                    <div id="color-studio-content" className="settings-collapsible-content">
-                      <div className="color-studio-intro">
+                    <div>
+                      <h4>Full Color Studio</h4>
                       <p className="hint-text">
                         Personalize every major surface and action. Changes preview instantly and save to this profile.
                       </p>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => handleAddFieldSettingChange("customColors", {})}
-                        >
-                          Reset to {theme === "dark" ? "Dark" : "Light"} Defaults
-                        </button>
-                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => handleAddFieldSettingChange("customColors", {})}
+                    >
+                      Reset to {theme === "dark" ? "Dark" : "Light"} Defaults
+                    </button>
+                  </div>
 
                   {[...new Set(COLOR_PERSONALIZATION_FIELDS.map((field) => field.group))].map((group) => (
                     <div className="color-studio-group" key={group}>
-                      <div className="settings-collapse-header settings-collapse-subheader">
-                        <h5>{group}</h5>
-                        <button
-                          type="button"
-                          className="settings-collapse-button settings-collapse-button-small"
-                          onClick={() => setColorGroupsOpen((openGroups) => ({
-                            ...openGroups,
-                            [group]: openGroups[group] !== true,
-                          }))}
-                          aria-expanded={colorGroupsOpen[group] === true}
-                          aria-label={`${colorGroupsOpen[group] === true ? "Shrink" : "Enlarge"} ${group}`}
-                          title={`${colorGroupsOpen[group] === true ? "Shrink" : "Enlarge"} ${group}`}
-                        >
-                          {colorGroupsOpen[group] === true ? "−" : "+"}
-                        </button>
-                      </div>
-                      {colorGroupsOpen[group] === true && (
-                        <div className="color-control-grid">
+                      <h5>{group}</h5>
+                      <div className="color-control-grid">
                         {COLOR_PERSONALIZATION_FIELDS.filter((field) => field.group === group).map((field) => {
                           const value =
                             userSettings.customColors?.[field.key] ||
                             THEME_COLOR_DEFAULTS[theme][field.key];
-                          const draftKey = `theme:${field.key}`;
                           return (
                             <label className="color-control" key={field.key}>
                               <span>{field.label}</span>
@@ -4719,108 +4139,45 @@ function App() {
                                 <input
                                   type="color"
                                   value={value}
-                                  onChange={(e) => {
-                                    handleCustomColorChange(field.key, e.target.value);
-                                    clearColorTextDraft(draftKey);
-                                  }}
+                                  onChange={(e) => handleCustomColorChange(field.key, e.target.value)}
                                   aria-label={`${field.label} color`}
                                 />
                                 <input
                                   type="text"
-                                  value={colorTextDrafts[draftKey] ?? value.toUpperCase()}
-                                  onChange={(e) => setColorTextDrafts((drafts) => ({
-                                    ...drafts,
-                                    [draftKey]: e.target.value,
-                                  }))}
-                                  onBlur={() => commitColorTextDraft(
-                                    draftKey,
-                                    value,
-                                    (color) => handleCustomColorChange(field.key, color),
-                                  )}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") e.currentTarget.blur();
-                                    if (e.key === "Escape") clearColorTextDraft(draftKey);
-                                  }}
-                                  maxLength={7}
-                                  spellCheck="false"
+                                  value={value.toUpperCase()}
+                                  readOnly
                                   aria-label={`${field.label} hex color`}
                                 />
                               </div>
                             </label>
                           );
                         })}
-                        </div>
-                      )}
+                      </div>
                     </div>
                   ))}
                   <div className="color-studio-group">
-                    <div className="settings-collapse-header settings-collapse-subheader">
-                      <h5>Course and category badges</h5>
-                      <button
-                        type="button"
-                        className="settings-collapse-button settings-collapse-button-small"
-                        onClick={() => setColorGroupsOpen((openGroups) => ({
-                          ...openGroups,
-                          badges: openGroups.badges !== true,
-                        }))}
-                        aria-expanded={colorGroupsOpen.badges === true}
-                        aria-label={`${colorGroupsOpen.badges === true ? "Shrink" : "Enlarge"} Course and category badges`}
-                        title={`${colorGroupsOpen.badges === true ? "Shrink" : "Enlarge"} Course and category badges`}
-                      >
-                        {colorGroupsOpen.badges === true ? "−" : "+"}
-                      </button>
-                    </div>
-                    {colorGroupsOpen.badges === true && (
-                      <div className="color-control-grid">
-                      {[...new Set([...courses, "Work", "Personal"])].map((label) => {
-                        const value = getCourseColor(label);
-                        const draftKey = `badge:${label}`;
-                        return (
-                          <label className="color-control" key={label}>
+                    <h5>Course and category badges</h5>
+                    <div className="color-control-grid">
+                      {[...new Set([...courses, "Work", "Personal"])].map((label) => (
+                        <label className="color-control" key={label}>
                           <span>{label}</span>
                           <div className="badge-color-control">
                             <input
                               type="color"
-                              value={value}
-                              onChange={(e) => {
-                                handleCourseColorChange(label, e.target.value);
-                                clearColorTextDraft(draftKey);
-                              }}
+                              value={getCourseColor(label)}
+                              onChange={(e) => handleCourseColorChange(label, e.target.value)}
                               aria-label={`${label} badge color`}
                             />
-                            <input
-                              type="text"
-                              value={colorTextDrafts[draftKey] ?? value.toUpperCase()}
-                              onChange={(e) => setColorTextDrafts((drafts) => ({
-                                ...drafts,
-                                [draftKey]: e.target.value,
-                              }))}
-                              onBlur={() => commitColorTextDraft(
-                                draftKey,
-                                value,
-                                (color) => handleCourseColorChange(label, color),
-                              )}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") e.currentTarget.blur();
-                                if (e.key === "Escape") clearColorTextDraft(draftKey);
-                              }}
-                              maxLength={7}
-                              spellCheck="false"
-                              aria-label={`${label} badge hex color`}
-                            />
+                            <input type="text" value={getCourseColor(label).toUpperCase()} readOnly />
                           </div>
-                          </label>
-                        );
-                      })}
-                      </div>
-                    )}
-                  </div>
+                        </label>
+                      ))}
                     </div>
-                  )}
+                  </div>
                 </section>
 
-                <section className="settings-section" hidden>
-                  <h4>Install TaskCabinet</h4>
+                <section className="settings-section" hidden={settingsSection !== "reminders"}>
+                  <h4>Install TaskAcadia</h4>
                   <p className="hint-text">
                     Install the planner as a desktop or home-screen app with offline access.
                   </p>
@@ -4837,10 +4194,10 @@ function App() {
                   )}
                 </section>
 
-                <section className="settings-section" hidden>
+                <section className="settings-section" hidden={settingsSection !== "reminders"}>
                   <h4>Due Reminders</h4>
                   <p className="hint-text">
-                    Browser reminders are checked while TaskCabinet is open.
+                    Browser reminders are checked while TaskAcadia is open.
                   </p>
                   <label className="settings-toggle">
                     <span>Notifications</span>
@@ -4865,7 +4222,7 @@ function App() {
                   </label>
                 </section>
 
-                <section className="settings-section school-cycle-settings" hidden>
+                <section className="settings-section school-cycle-settings" hidden={settingsSection !== "cycle"}>
                   <h4>School-Day Cycle</h4>
                   <p className="hint-text">
                     The anchor date uses the first label. Weekends are skipped automatically.
@@ -4927,7 +4284,7 @@ function App() {
                   </div>
                 </section>
 
-                <section className="settings-section" hidden>
+                <section className="settings-section" hidden={settingsSection !== "assignments"}>
                   <h4>Add Assignment Fields</h4>
                   <p className="hint-text">
                     {currentUser
@@ -4976,135 +4333,7 @@ function App() {
                   </label>
                 </section>
 
-                {settingsSection === "reminders" && (
-                  <>
-                    <SettingsCard title="Install TaskCabinet" description="Install the planner as a desktop or home-screen app with offline access.">
-                      {isStandalone ? (
-                        <span className="settings-status-pill">Installed</span>
-                      ) : installPrompt ? (
-                        <button type="button" className="btn btn-primary" onClick={handleInstallApp}>Install App</button>
-                      ) : (
-                        <p className="hint-text">Use your browser’s “Install app” or “Add to Home Screen” menu.</p>
-                      )}
-                    </SettingsCard>
-                    <SettingsCard title="Due Reminders" description="Browser reminders are checked while TaskCabinet is open.">
-                      <label className="settings-toggle settings-toggle-copy">
-                        <span><strong>Notifications</strong><small>Alert me when an incomplete assignment approaches its deadline.</small></span>
-                        <input type="checkbox" checked={Boolean(userSettings.notificationsEnabled)} onChange={(e) => handleNotificationSettingChange(e.target.checked)} />
-                      </label>
-                      <label className="settings-select-row">
-                        <span>Reminder window</span>
-                        <select value={userSettings.reminderMinutes || 60} disabled={!userSettings.notificationsEnabled} onChange={(e) => handleAddFieldSettingChange("reminderMinutes", Number(e.target.value))}>
-                          <option value={15}>15 minutes before</option>
-                          <option value={30}>30 minutes before</option>
-                          <option value={60}>1 hour before</option>
-                          <option value={180}>3 hours before</option>
-                          <option value={1440}>1 day before</option>
-                        </select>
-                      </label>
-                    </SettingsCard>
-                  </>
-                )}
-
-                {settingsSection === "calendar" && (
-                  <SettingsCard title="Calendar Display" description="Choose how dates and school information appear in both calendar tools." className="settings-section-wide">
-                    <div className="settings-option-grid">
-                      <label className="settings-select-row settings-option-card">
-                        <span>Week starts on</span>
-                        <select value={userSettings.calendarWeekStartsOn || "sunday"} onChange={(e) => handleAddFieldSettingChange("calendarWeekStartsOn", e.target.value)}>
-                          <option value="sunday">Sunday</option>
-                          <option value="monday">Monday</option>
-                        </select>
-                      </label>
-                    </div>
-                    <label className="settings-toggle settings-toggle-copy"><span><strong>Neighboring-month dates</strong><small>Show faded dates from the previous and next month.</small></span><input type="checkbox" checked={userSettings.showNeighboringMonth !== false} onChange={(e) => handleAddFieldSettingChange("showNeighboringMonth", e.target.checked)} /></label>
-                    <label className="settings-toggle settings-toggle-copy"><span><strong>School-cycle labels</strong><small>Display A Day, B Day, and custom cycle labels on dates.</small></span><input type="checkbox" checked={userSettings.showCalendarCycleLabels !== false} onChange={(e) => handleAddFieldSettingChange("showCalendarCycleLabels", e.target.checked)} /></label>
-                    <label className="settings-toggle settings-toggle-copy"><span><strong>Assignment indicators</strong><small>Show a course-colored dot on dates with assignments.</small></span><input type="checkbox" checked={userSettings.showCalendarTaskDots !== false} onChange={(e) => handleAddFieldSettingChange("showCalendarTaskDots", e.target.checked)} /></label>
-                  </SettingsCard>
-                )}
-
-                {settingsSection === "cycle" && (
-                  <SettingsCard title="School-Day Cycle" description="The anchor date uses the first label. Weekends are skipped automatically." className="school-cycle-settings">
-                    <label className="settings-select-row">
-                      <span>Anchor date</span>
-                      <input
-                        type="date"
-                        value={userSettings.cycleAnchorDate || ""}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          const date = value ? new Date(`${value}T00:00:00`) : null;
-                          if (date && (date.getDay() === 0 || date.getDay() === 6)) {
-                            alert("Choose a weekday as the first school-cycle day.");
-                            return;
-                          }
-                          handleAddFieldSettingChange("cycleAnchorDate", value);
-                        }}
-                      />
-                    </label>
-                    <div className="cycle-day-list">
-                      {(userSettings.cycleDayNames || ["A Day", "B Day"]).map((dayName) => (
-                        <span className="cycle-day-chip" key={dayName}>{dayName}<button type="button" onClick={() => handleRemoveCycleDay(dayName)} aria-label={`Remove ${dayName}`}>×</button></span>
-                      ))}
-                    </div>
-                    <div className="cycle-day-add-row">
-                      <input value={newCycleDayName} onChange={(e) => setNewCycleDayName(e.target.value)} placeholder="e.g., C Day" />
-                      <button type="button" className="btn btn-secondary" onClick={handleAddCycleDay}>Add Day</button>
-                    </div>
-                    <div className="course-cycle-grid">
-                      {courses.map((course) => (
-                        <div className="course-cycle-row" key={course}>
-                          <strong>{course}</strong>
-                          <div>
-                            {(userSettings.cycleDayNames || ["A Day", "B Day"]).map((dayName) => {
-                              const assignedDays = userSettings.courseCycleDays?.[course];
-                              const isChecked = !Array.isArray(assignedDays) || assignedDays.includes(dayName);
-                              return <label key={dayName}><input type="checkbox" checked={isChecked} onChange={(e) => handleCourseCycleDayToggle(course, dayName, e.target.checked)} />{dayName}</label>;
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </SettingsCard>
-                )}
-
-                {settingsSection === "assignments" && (
-                  <>
-                    <SettingsCard title="Add Assignment Fields" description={currentUser ? `Saved for ${currentUser}.` : "Sign in to keep these preferences with a profile."}>
-                      <label className="settings-toggle"><span>Priority</span><input type="checkbox" checked={userSettings.showPriority} onChange={(e) => handleAddFieldSettingChange("showPriority", e.target.checked)} /></label>
-                      <label className="settings-toggle"><span>Repeat</span><input type="checkbox" checked={userSettings.showRepeat} onChange={(e) => handleAddFieldSettingChange("showRepeat", e.target.checked)} /></label>
-                      <label className="settings-toggle"><span>Estimated Minutes</span><input type="checkbox" checked={userSettings.showEstimatedMinutes} onChange={(e) => handleAddFieldSettingChange("showEstimatedMinutes", e.target.checked)} /></label>
-                    </SettingsCard>
-                    <SettingsCard title="New Assignment Defaults" description="These values prefill new assignments and return after each successful add." className="settings-section-wide">
-                      <div className="settings-option-grid assignment-defaults-grid">
-                        <label className="settings-select-row settings-option-card"><span>Category</span><select value={userSettings.defaultCategory || "School"} onChange={(e) => handleAssignmentDefaultChange("defaultCategory", e.target.value)}>{TASK_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                        <label className="settings-select-row settings-option-card"><span>Priority</span><select value={userSettings.defaultPriority || "MED"} onChange={(e) => handleAssignmentDefaultChange("defaultPriority", e.target.value)}><option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option></select></label>
-                        <label className="settings-select-row settings-option-card"><span>Estimated minutes</span><input type="number" min="0" value={userSettings.defaultEstimatedMinutes || ""} placeholder="None" onChange={(e) => handleAssignmentDefaultChange("defaultEstimatedMinutes", e.target.value)} /></label>
-                        <label className="settings-select-row settings-option-card"><span>Repeat</span><select value={userSettings.defaultRepeat || "NONE"} onChange={(e) => handleAssignmentDefaultChange("defaultRepeat", e.target.value)}><option value="NONE">Does not repeat</option><option value="DAILY">Daily</option><option value="EVERY_OTHER_WEEKDAY">Every Other Weekday</option><option value="WEEKLY">Weekly</option><option value="MONTHLY">Monthly</option></select></label>
-                        <label className="settings-select-row settings-option-card"><span>Due time</span><input type="text" value={userSettings.defaultDueTime || "11:00"} placeholder="11:00" onChange={(e) => handleAssignmentDefaultChange("defaultDueTime", e.target.value)} onBlur={() => handleAssignmentDefaultChange("defaultDueTime", normalizeDueTime(userSettings.defaultDueTime) || "11:00")} /></label>
-                        <label className="settings-select-row settings-option-card"><span>AM or PM</span><select value={userSettings.defaultDueAmPm || "PM"} onChange={(e) => handleAssignmentDefaultChange("defaultDueAmPm", e.target.value)}><option value="AM">AM</option><option value="PM">PM</option></select></label>
-                      </div>
-                    </SettingsCard>
-                    <SettingsCard title="Workflow & Safety" description="Control automatic behavior and extra safeguards.">
-                      <label className="settings-toggle settings-toggle-copy"><span><strong>Complete finished checklists</strong><small>Complete an assignment when every checklist item is checked.</small></span><input type="checkbox" checked={userSettings.autoCompleteChecklist !== false} onChange={(e) => handleAddFieldSettingChange("autoCompleteChecklist", e.target.checked)} /></label>
-                      <label className="settings-toggle settings-toggle-copy"><span><strong>Confirm before Trash</strong><small>Ask before moving an assignment into recoverable Trash.</small></span><input type="checkbox" checked={Boolean(userSettings.confirmBeforeTrash)} onChange={(e) => handleAddFieldSettingChange("confirmBeforeTrash", e.target.checked)} /></label>
-                    </SettingsCard>
-                  </>
-                )}
-
-                {settingsSection === "storage" && (
-                  <div className="storage-choice-grid settings-section-wide">
-                    <button type="button" className="storage-choice-card" onClick={() => setStorageView("archive")}>
-                      <span><strong>Archive</strong><small>Review and restore completed assignments you chose to archive.</small></span>
-                      <span className="settings-count">{archivedTasks.length}</span>
-                    </button>
-                    <button type="button" className="storage-choice-card" onClick={() => setStorageView("trash")}>
-                      <span><strong>Trash</strong><small>Recover assignments or remove them permanently.</small></span>
-                      <span className="settings-count">{trashTasks.length}</span>
-                    </button>
-                  </div>
-                )}
-
-                <details className="settings-section settings-storage-section" hidden>
+                <details className="settings-section settings-storage-section" hidden={settingsSection !== "storage"}>
                   <summary>
                     <span>Archive</span>
                     <span className="settings-count">{archivedTasks.length}</span>
@@ -5138,7 +4367,7 @@ function App() {
                   </div>
                 </details>
 
-                <details className="settings-section settings-storage-section" hidden>
+                <details className="settings-section settings-storage-section" hidden={settingsSection !== "storage"}>
                   <summary>
                     <span>Trash</span>
                     <span className="settings-count">{trashTasks.length}</span>
@@ -5189,85 +4418,13 @@ function App() {
                     )}
                   </div>
                 </details>
-
-                {settingsSection === "storage" && (
-                  <SettingsCard
-                    title="Reset Preferences"
-                    description="Return personalization, assignment, calendar, reminder, and school-cycle settings to their defaults."
-                    className="settings-danger-zone settings-section-wide"
-                  >
-                    <p className="hint-text">Assignments, courses, archived items, Trash, links, and files are not affected.</p>
-                    <button type="button" className="btn btn-danger" onClick={handleResetPreferences}>Reset All Preferences</button>
-                  </SettingsCard>
-                )}
                   </div>
-                  {storageView && (
-                    <section className="storage-management-view" aria-label={`${storageView === "archive" ? "Archive" : "Trash"} assignments`}>
-                      <div className="storage-management-header">
-                        <div>
-                          <button type="button" className="storage-back-button" onClick={() => setStorageView(null)}>← Back to Storage</button>
-                          <h2>{storageView === "archive" ? "Archive" : "Trash"}</h2>
-                          <p className="hint-text">
-                            {storageView === "archive"
-                              ? `${archivedTasks.length} archived assignment${archivedTasks.length === 1 ? "" : "s"}`
-                              : `${trashTasks.length} deleted assignment${trashTasks.length === 1 ? "" : "s"}`}
-                          </p>
-                        </div>
-                        {storageView === "archive" && archivedTasks.length > 0 && (
-                          <button type="button" className="btn btn-danger" onClick={handleMoveAllArchivedToTrash}>Move All to Trash</button>
-                        )}
-                        {storageView === "trash" && trashTasks.length > 0 && (
-                          <button type="button" className="btn btn-danger" onClick={handleEmptyTrash}>Empty Trash</button>
-                        )}
-                      </div>
-
-                      {storageView === "archive" && (
-                        archivedTasks.length === 0 ? (
-                          <div className="storage-empty-state"><strong>Archive is empty</strong><p>Completed assignments you archive will appear here.</p></div>
-                        ) : (
-                          <ul className="storage-management-list">
-                            {archivedTasks.map((task) => (
-                              <li key={task.id} className="task-card storage-management-card">
-                                <div><strong>{task.title}</strong><div className="task-details">{formatTaskDetails(task)}</div></div>
-                                <button type="button" className="btn btn-secondary" onClick={() => handleRestoreArchived(task.id)}>Restore</button>
-                              </li>
-                            ))}
-                          </ul>
-                        )
-                      )}
-
-                      {storageView === "trash" && (
-                        trashTasks.length === 0 ? (
-                          <div className="storage-empty-state"><strong>Trash is empty</strong><p>Assignments moved to Trash can be recovered here.</p></div>
-                        ) : (
-                          <ul className="storage-management-list">
-                            {trashTasks.map((task) => (
-                              <li key={task.id} className="task-card storage-management-card">
-                                <div><strong>{task.title}</strong><div className="task-details">{formatTaskDetails(task)}</div></div>
-                                <div className="task-actions">
-                                  <button type="button" className="btn btn-secondary" onClick={() => handleRestoreDeleted(task.id)}>Restore</button>
-                                  <button type="button" className="btn btn-danger" onClick={() => handleDeletePermanently(task.id)}>Delete Permanently</button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        )
-                      )}
-                    </section>
-                  )}
                 </div>
               </div>
             </div>
           )}
-          </div>
-          </main>
-          {currentTab !== "calendar" && (
-            <aside className="workspace-rail workspace-rail-right">
-              {renderWorkspaceCalendar()}
-            </aside>
-          )}
         </div>
-        </div>
+      </div>
       {/*
         EDIT MODAL
         Rendered above every tab only while editingTask contains a temporary copy.
@@ -5642,7 +4799,6 @@ function App() {
                     <option value="AM">AM</option><option value="PM">PM</option>
                   </select>
                 </div>
-
                 {getSafeSubtasks(editingTask).length > 0 ? (
                   <ul className="edit-subtask-list">
                     {getSafeSubtasks(editingTask).map((subtask) => (
@@ -5652,7 +4808,6 @@ function App() {
                           checked={subtask.isDone}
                           onChange={() => handleEditSubtaskToggle(subtask.id)}
                         />
-
                         <input
                           type="text"
                           value={subtask.text}
@@ -5663,7 +4818,6 @@ function App() {
                             )
                           }
                         />
-
                         <div className="edit-subtask-deadline-fields">
                           <select
                             value={subtask.dueMonth}
@@ -5788,8 +4942,6 @@ function App() {
             </div>
             <Calendar
               activeStartDate={copyCalendarStart}
-              calendarType={userSettings.calendarWeekStartsOn === "monday" ? "iso8601" : "gregory"}
-              showNeighboringMonth={userSettings.showNeighboringMonth !== false}
               onClickDay={handleCopyDateToggle}
               onActiveStartDateChange={({ activeStartDate }) => {
                 if (activeStartDate) setCopyCalendarStart(activeStartDate);
@@ -5849,8 +5001,8 @@ function App() {
           </div>
         </div>
       )}
+      <Analytics />
     </div>
   );
 }
-
 export default App;
