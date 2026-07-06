@@ -1,7 +1,7 @@
-# Quick Match Agent
+# What Should I Do? Agent
 
 ## Purpose
-Quick Match helps students choose the best assignment to work on based on how much free time they have right now.
+What Should I Do? helps students choose the best assignment to work on based on how much free time they have right now.
 
 The user enters a number of minutes, and the app recommends the best assignment match using existing TaskAcadia data.
 

@@ -3,6 +3,21 @@ import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import "./App.css";
 import { Analytics } from "@vercel/analytics/react";
+import {
+  formatChecklistCountdown,
+  formatChecklistDeadline,
+  getChecklistDeadline,
+} from "./checklistUtils.js";
+import {
+  canHideWidget,
+  createDefaultWorkspaceLayout,
+  normalizeWorkspaceLayout,
+  placeWidget,
+} from "./workspaceLayout.js";
+import { preparePastedAssignmentLines } from "./bulkImportUtils.js";
+import { extractSyllabusText, findLikelySyllabusAssignments } from "./syllabusImport.js";
+import { formatAssignmentCountdown, getAssignmentCountdownTone } from "./assignmentCountdown.js";
+import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "./calendarWeekUtils.js";
 const DEFAULT_USER_SETTINGS = {
   showPriority: true,
   showRepeat: true,
@@ -19,14 +34,17 @@ const DEFAULT_USER_SETTINGS = {
   reminderMinutes: 60,
   schoolLevel: "high",
   textSize: "medium",
+  fontFamily: "sans",
   interfaceDensity: "comfortable",
   showHeaderSubtitle: true,
   reduceMotion: false,
   calendarWeekStartsOn: "sunday",
+  calendarViewMode: "month",
   showNeighboringMonth: true,
   showCalendarCycleLabels: true,
   showCalendarTaskDots: true,
-  settingsSectionOrder: ["personalization", "assignments", "calendar", "reminders", "cycle", "storage"],
+  checklistTimesEnabled: false,
+  settingsSectionOrder: ["personalization", "assignments", "checklists", "calendar", "reminders", "cycle", "storage"],
   cycleDayNames: ["A Day", "B Day"],
   cycleAnchorDate: "",
   courseCycleDays: {},
@@ -80,6 +98,14 @@ const COLOR_PERSONALIZATION_FIELDS = [
   { key: "calendarText", label: "Calendar text", group: "Calendar" },
   { key: "calendarSelected", label: "Selected date", group: "Calendar" },
   { key: "calendarToday", label: "Today", group: "Calendar" },
+  { key: "checklistSurface", label: "Checklist surface", group: "Checklists" },
+  { key: "checklistText", label: "Checklist text", group: "Checklists" },
+  { key: "checklistAccent", label: "Checklist accent", group: "Checklists" },
+  { key: "checklistPalette1", label: "Checklist swatch 1", group: "Checklists" },
+  { key: "checklistPalette2", label: "Checklist swatch 2", group: "Checklists" },
+  { key: "checklistPalette3", label: "Checklist swatch 3", group: "Checklists" },
+  { key: "checklistPalette4", label: "Checklist swatch 4", group: "Checklists" },
+  { key: "checklistPalette5", label: "Checklist swatch 5", group: "Checklists" },
   { key: "heroStart", label: "Header gradient start", group: "Header" },
   { key: "heroMiddle", label: "Header gradient middle", group: "Header" },
   { key: "heroEnd", label: "Header gradient end", group: "Header" },
@@ -97,6 +123,13 @@ const normalizeHexColor = (colorId) => {
   return `#${expandedHex.toLowerCase()}`;
 };
 
+const getContrastText = (color) => {
+  const hex = normalizeHexColor(color || "")?.slice(1);
+  if (!hex) return "#111827";
+  const [r, g, b] = [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map((part) => parseInt(part, 16));
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160 ? "#111827" : "#ffffff";
+};
+
 const THEME_COLOR_DEFAULTS = {
   light: {
     page: "#f4f7fb", surface: "#ffffff", surfaceAlt: "#ebeff3",
@@ -107,6 +140,9 @@ const THEME_COLOR_DEFAULTS = {
     danger: "#dc2626", dangerText: "#ffffff", priorityHigh: "#ffebeb",
     link: "#2563eb", calendar: "#ffffff", calendarText: "#111827",
     calendarSelected: "#2563eb", calendarToday: "#dbeafe",
+    checklistSurface: "#ffffff", checklistText: "#111827", checklistAccent: "#4f46e5",
+    checklistPalette1: "#fff7cc", checklistPalette2: "#dff7e8", checklistPalette3: "#dceeff",
+    checklistPalette4: "#f3e4ff", checklistPalette5: "#ffe1e1",
     heroStart: "#4f46e5", heroMiddle: "#7c3aed", heroEnd: "#2563eb", heroText: "#ffffff",
   },
   dark: {
@@ -118,6 +154,9 @@ const THEME_COLOR_DEFAULTS = {
     danger: "#ef4444", dangerText: "#ffffff", priorityHigh: "#4a1a1a",
     link: "#60a5fa", calendar: "#111827", calendarText: "#f9fafb",
     calendarSelected: "#2563eb", calendarToday: "#4b5563",
+    checklistSurface: "#151b2e", checklistText: "#f9fafb", checklistAccent: "#818cf8",
+    checklistPalette1: "#5a4b1f", checklistPalette2: "#173f32", checklistPalette3: "#173755",
+    checklistPalette4: "#3e2854", checklistPalette5: "#512a31",
     heroStart: "#312e81", heroMiddle: "#581c87", heroEnd: "#1e3a8a", heroText: "#ffffff",
   },
 };
@@ -150,6 +189,14 @@ const COLOR_CSS_VARIABLES = {
   calendarText: ["--calendar-text"],
   calendarSelected: ["--calendar-selected"],
   calendarToday: ["--calendar-today"],
+  checklistSurface: ["--checklist-surface"],
+  checklistText: ["--checklist-text"],
+  checklistAccent: ["--checklist-accent"],
+  checklistPalette1: ["--checklist-palette-1"],
+  checklistPalette2: ["--checklist-palette-2"],
+  checklistPalette3: ["--checklist-palette-3"],
+  checklistPalette4: ["--checklist-palette-4"],
+  checklistPalette5: ["--checklist-palette-5"],
   heroStart: ["--hero-start"],
   heroMiddle: ["--hero-middle"],
   heroEnd: ["--hero-end"],
@@ -159,6 +206,7 @@ const COLOR_CSS_VARIABLES = {
 const SETTINGS_SECTIONS = [
   { id: "personalization", icon: "🎨", label: "Personalization", description: "Theme, layout, type, and every color." },
   { id: "assignments", icon: "📝", label: "Assignment Options", description: "Fields, defaults, and workflow behavior." },
+  { id: "checklists", icon: "☑️", label: "Checklists", description: "Standalone list deadlines and appearance." },
   { id: "calendar", icon: "📅", label: "Calendar", description: "Week layout and calendar details." },
   { id: "reminders", icon: "🔔", label: "Reminders & App", description: "Notifications and installation." },
   { id: "cycle", icon: "🔁", label: "School Cycle", description: "Cycle labels, anchor date, and courses." },
@@ -731,6 +779,126 @@ function getNextRepeatingTask(task) {
   };
 }
 
+const WORKSPACE_TABS = [
+  ["dashboard", "Dashboard"],
+  ["todo", "To Do"],
+  ["inProgress", "In Progress"],
+  ["completed", "Completed"],
+  ["settings", "Settings"],
+];
+
+const PERSONALIZATION_TIPS = [
+  ["Move widgets", "Drag the dotted grip on a widget header to reorder it. Drop it on another navigation tab to move it there."],
+  ["Resize anything", "Drag the bottom-right corner of a widget. Desktop and mobile sizes save independently."],
+  ["Copy across tabs", "Open a widget's three-dot menu and choose a destination under Copy to. Its content stays synchronized."],
+  ["Minimize sections", "Double-click or double-tap a widget header. Every copy of that widget uses the same minimized state."],
+  ["Hide and restore", "Choose Hide widget, then use the Widgets button beside navigation to restore it later."],
+  ["Reset layouts", "The Widgets tray can reset the current tab or every desktop and mobile layout without deleting data."],
+  ["Fonts and text", "Choose an app-wide font and a text scale from 70% to 150% in Appearance."],
+  ["Colors", "Full Color Studio controls the app and checklist palette. Individual lists can still use their own custom color."],
+  ["Checklist deadlines", "Add dates to list items. Enable optional times in Checklist settings; date-only items are due at 11:59 PM."],
+  ["Troubleshooting", "If a layout feels cramped after a major text-size change, resize the widget or reset that tab's layout."],
+];
+
+function WorkspaceWidget({
+  instance,
+  title,
+  collapsed,
+  onToggle,
+  onResize,
+  onReorder,
+  onMove,
+  onCopy,
+  onHide,
+  children,
+}) {
+  const resizeStart = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = instance.width;
+    const startHeight = instance.height;
+    const move = (moveEvent) => onResize(
+      Math.max(190, startWidth + moveEvent.clientX - startX),
+      Math.max(58, startHeight + moveEvent.clientY - startY),
+    );
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  };
+
+  const dragStart = (event) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/taskcabinet-widget", instance.id);
+  };
+
+  const touchDragStart = (event) => {
+    if (event.pointerType === "mouse") return;
+    event.preventDefault();
+    const move = (moveEvent) => {
+      const target = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest?.(".workspace-widget");
+      const targetId = target?.dataset.widgetId;
+      if (targetId && targetId !== instance.id) onReorder(instance.id, targetId);
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  };
+
+  return (
+    <section
+      className={`workspace-widget${collapsed ? " is-collapsed" : ""}`}
+      data-widget-id={instance.id}
+      style={{ width: `${instance.width}px`, height: collapsed ? "58px" : `${instance.height}px` }}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        const sourceId = event.dataTransfer.getData("text/taskcabinet-widget");
+        if (sourceId && sourceId !== instance.id) onReorder(sourceId, instance.id);
+      }}
+    >
+      <header className="workspace-widget-header" onDoubleClick={onToggle}>
+        <button
+          type="button"
+          className="widget-drag-grip"
+          draggable
+          onDragStart={dragStart}
+          onPointerDown={touchDragStart}
+          aria-label={`Move ${title}`}
+          title="Drag to move"
+        >
+          ⠿
+        </button>
+        <strong>{title}</strong>
+        <span className="widget-collapse-hint">Double-click to {collapsed ? "expand" : "minimize"}</span>
+        <details className="widget-menu" onDoubleClick={(event) => event.stopPropagation()}>
+          <summary aria-label={`${title} options`}>•••</summary>
+          <div className="widget-menu-popover">
+            <strong>Move to</strong>
+            {WORKSPACE_TABS.map(([tab, label]) => <button type="button" key={`move-${tab}`} onClick={() => onMove(tab)}>{label}</button>)}
+            <strong>Copy to</strong>
+            {WORKSPACE_TABS.map(([tab, label]) => <button type="button" key={`copy-${tab}`} onClick={() => onCopy(tab)}>{label}</button>)}
+            <button type="button" className="widget-hide-action" onClick={onHide}>Hide widget</button>
+          </div>
+        </details>
+      </header>
+      {!collapsed && <div className="workspace-widget-body">{children}</div>}
+      {!collapsed && <button type="button" className="widget-resize-handle" onPointerDown={resizeStart} aria-label={`Resize ${title}`} />}
+    </section>
+  );
+}
+
+function WorkspaceCanvas({ children }) {
+  return <div className="workspace-widget-canvas">{children}</div>;
+}
+
 const VOICE_MONTHS = [
   "january", "february", "march", "april", "may", "june",
   "july", "august", "september", "october", "november", "december",
@@ -923,6 +1091,12 @@ function App() {
   const settingsStorageKey = currentUser
     ? `settings_${currentUser}`
     : "settings_guest";
+  const checklistStorageKey = currentUser
+    ? `checklists_${currentUser}`
+    : "checklists_guest";
+  const workspaceStorageKey = currentUser
+    ? `workspaceLayout_${currentUser}`
+    : "workspaceLayout_guest";
 
   // ---------------------------------------------------------------------------
   // COURSES AND COURSE COLORS
@@ -971,6 +1145,7 @@ function App() {
   const [taskName, setTaskName] = useState("");
   const [category, setCategory] = useState(userSettings.defaultCategory || "School");
   const [selectedCourse, setSelectedCourse] = useState("");
+  const [courseOverviewSelection, setCourseOverviewSelection] = useState("");
   const [dueMonth, setDueMonth] = useState("");
   const [dueDay, setDueDay] = useState("");
   const [dueHour, setDueHour] = useState(userSettings.defaultDueTime || "11:00");
@@ -1027,9 +1202,34 @@ function App() {
     links: false,
     checklist: false,
   });
+  const [checklists, setChecklists] = useState(() => {
+    try {
+      const stored = localStorage.getItem(checklistStorageKey);
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error("Error reading checklists from localStorage:", error);
+      return [];
+    }
+  });
+  const [workspaceLayout, setWorkspaceLayout] = useState(() => {
+    try {
+      return normalizeWorkspaceLayout(JSON.parse(localStorage.getItem(workspaceStorageKey) || "null"));
+    } catch (error) {
+      console.error("Error reading workspace layout:", error);
+      return createDefaultWorkspaceLayout();
+    }
+  });
   const [voiceStatus, setVoiceStatus] = useState("idle");
   const [voiceElapsed, setVoiceElapsed] = useState(0);
   const [voiceError, setVoiceError] = useState("");
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImportText, setBulkImportText] = useState("");
+  const [bulkImportPreview, setBulkImportPreview] = useState([]);
+  const [bulkImportMessage, setBulkImportMessage] = useState("");
+  const [syllabusCourse, setSyllabusCourse] = useState("");
+  const [syllabusFileName, setSyllabusFileName] = useState("");
+  const [syllabusImportStatus, setSyllabusImportStatus] = useState("idle");
+  const [syllabusExtractedText, setSyllabusExtractedText] = useState("");
   const voiceRecognitionRef = useRef(null);
   const voiceTranscriptRef = useRef("");
   const voiceTimerRef = useRef(null);
@@ -1054,6 +1254,11 @@ function App() {
   const [colorStudioOpen, setColorStudioOpen] = useState(false);
   const [colorGroupsOpen, setColorGroupsOpen] = useState({});
   const [colorTextDrafts, setColorTextDrafts] = useState({});
+  const [selectedChecklistId, setSelectedChecklistId] = useState(null);
+  const [checklistNow, setChecklistNow] = useState(() => new Date());
+  const [widgetsTrayOpen, setWidgetsTrayOpen] = useState(false);
+  const [helpSearch, setHelpSearch] = useState("");
+  const [workspaceMode, setWorkspaceMode] = useState(() => window.innerWidth < 768 ? "mobile" : "desktop");
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isStandalone, setIsStandalone] = useState(() =>
     window.matchMedia?.("(display-mode: standalone)").matches ||
@@ -1154,6 +1359,11 @@ function App() {
       console.error("Error writing theme to localStorage:", error);
     }
   }, [theme]);
+
+  useEffect(() => {
+    const scale = { xsmall: 0.7, small: 0.85, medium: 1, large: 1.25, xlarge: 1.5 }[userSettings.textSize] || 1;
+    document.documentElement.style.fontSize = `${scale * 100}%`;
+  }, [userSettings.textSize]);
 
   useEffect(() => {
     const rootStyle = document.documentElement.style;
@@ -1257,6 +1467,54 @@ function App() {
     const intervalId = window.setInterval(checkReminders, 60000);
     return () => window.clearInterval(intervalId);
   }, [currentUser, tasks, userSettings.notificationsEnabled, userSettings.reminderMinutes]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setChecklistNow(new Date()), 60000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setWorkspaceMode(window.innerWidth < 768 ? "mobile" : "desktop");
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser || !userSettings.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted") return undefined;
+    const checkChecklistReminders = async () => {
+      const now = Date.now();
+      const windowMs = Number(userSettings.reminderMinutes || 60) * 60000;
+      const notificationKey = `taskacadia_checklist_notified_${currentUser}`;
+      let notified = {};
+      try { notified = JSON.parse(localStorage.getItem(notificationKey) || "{}"); } catch { /* use the empty fallback */ }
+      for (const list of checklists) {
+        for (const item of list.items || []) {
+          if (item.isDone) continue;
+          const deadline = getChecklistDeadline(item);
+          if (!deadline) continue;
+          const difference = deadline.getTime() - now;
+          const id = `${item.id}-${deadline.getTime()}`;
+          if (difference < 0 || difference > windowMs || notified[id]) continue;
+          const options = { body: `${list.title || "Checklist"} · due ${deadline.toLocaleString()}`, icon: "/favicon.svg", tag: `taskcabinet-checklist-${item.id}` };
+          try {
+            if (navigator.serviceWorker?.controller) {
+              const registration = await navigator.serviceWorker.ready;
+              await registration.showNotification(`TaskCabinet: ${item.text}`, options);
+            } else {
+              new Notification(`TaskCabinet: ${item.text}`, options);
+            }
+            notified[id] = new Date().toISOString();
+          } catch (error) {
+            console.error("Could not show checklist notification:", error);
+          }
+        }
+      }
+      localStorage.setItem(notificationKey, JSON.stringify(notified));
+    };
+    checkChecklistReminders();
+    const intervalId = window.setInterval(checkChecklistReminders, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [checklists, currentUser, userSettings.notificationsEnabled, userSettings.reminderMinutes]);
 
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === "light" ? "dark" : "light"));
@@ -1460,6 +1718,11 @@ function App() {
         ? { ...DEFAULT_USER_SETTINGS, ...JSON.parse(rawSettings) }
         : DEFAULT_USER_SETTINGS;
       setUserSettings(loadedSettings);
+      const rawChecklists = localStorage.getItem(checklistStorageKey);
+      setChecklists(rawChecklists ? JSON.parse(rawChecklists) : []);
+      const rawWorkspace = localStorage.getItem(workspaceStorageKey);
+      setWorkspaceLayout(normalizeWorkspaceLayout(rawWorkspace ? JSON.parse(rawWorkspace) : null));
+      setSelectedChecklistId(null);
       setCategory(loadedSettings.defaultCategory);
       setPriority(loadedSettings.defaultPriority);
       setEstTime(String(loadedSettings.defaultEstimatedMinutes || ""));
@@ -1478,6 +1741,8 @@ function App() {
       ]);
       setCourseColors({});
       setUserSettings(DEFAULT_USER_SETTINGS);
+      setChecklists([]);
+      setWorkspaceLayout(createDefaultWorkspaceLayout());
       setCategory(DEFAULT_USER_SETTINGS.defaultCategory);
       setPriority(DEFAULT_USER_SETTINGS.defaultPriority);
       setEstTime(DEFAULT_USER_SETTINGS.defaultEstimatedMinutes);
@@ -1493,6 +1758,8 @@ function App() {
     courseStorageKey,
     courseColorsStorageKey,
     settingsStorageKey,
+    checklistStorageKey,
+    workspaceStorageKey,
   ]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -1823,9 +2090,9 @@ function App() {
     }
   };
 
-  const handleApplyVoiceAssignments = (payload, createdAt) => {
+  const handleApplyVoiceAssignments = (payload, createdAt, source = "voice") => {
     const parsedAssignments = Array.isArray(payload?.assignments)
-      ? payload.assignments.slice(0, 10)
+      ? payload.assignments.slice(0, source === "paste" ? 50 : 10)
       : [];
     const currentYear = new Date().getFullYear();
     const skipped = Array.isArray(payload?.skipped)
@@ -1856,7 +2123,9 @@ function App() {
         dueMonthNumber >= 1 && dueMonthNumber <= 12 &&
         dueDayNumber >= 1 && dueDayNumber <= 31;
       if (dueYear && dueYear !== currentYear) {
-        setVoiceError(`${title} was added without its ${dueYear} due date because TaskCabinet currently stores month and day only.`);
+        const warning = `${title} was added without its ${dueYear} due date because TaskCabinet currently stores month and day only.`;
+        if (source === "voice") setVoiceError(warning);
+        else setBulkImportMessage(warning);
       }
 
       const normalizedTime = normalizeDueTime(assignment.dueHour) ||
@@ -1873,7 +2142,7 @@ function App() {
             const text = String(subtask?.text || "").trim();
             if (!text) return [];
             return [{
-              id: `${createdAt}-${index}-voice-step-${subtaskIndex}`,
+              id: `${createdAt}-${index}-${source}-step-${subtaskIndex}`,
               text,
               isDone: false,
               dueMonth: "",
@@ -1908,15 +2177,15 @@ function App() {
         archivedAt: null,
         isDeleted: false,
         deletedAt: null,
-        createdByVoice: true,
-        voiceCreatedCourse: parsedCategory === "School" && !courses.includes(parsedCourse)
+        createdByVoice: source === "voice",
+        voiceCreatedCourse: source === "voice" && parsedCategory === "School" && !courses.includes(parsedCourse)
           ? parsedCourse
           : "",
       }];
     });
 
     if (createdTasks.length === 0) {
-      throw new Error(skipped[0] || "No usable assignments were found in that recording.");
+      throw new Error(skipped[0] || `No usable assignments were found in that ${source === "paste" ? "list" : "recording"}.`);
     }
 
     const updatedTasks = [...tasks, ...createdTasks];
@@ -1929,7 +2198,89 @@ function App() {
       setCourses(updatedCourses);
       saveCoursesForCurrentUser(updatedCourses);
     }
+    return createdTasks.length;
+  };
 
+  const parseBulkImportText = (value, forcedCourse = "") => {
+    setBulkImportMessage("");
+    const prepared = preparePastedAssignmentLines(value);
+    const parsed = prepared.flatMap((entry, index) => {
+      let text = entry.text;
+      let courseHint = entry.courseHint;
+      const prefixedCourse = courses.find((course) => text.toLowerCase().startsWith(`${course.toLowerCase()}:`) || text.toLowerCase().startsWith(`${course.toLowerCase()} -`));
+      if (prefixedCourse) {
+        courseHint = prefixedCourse;
+        text = text.replace(new RegExp(`^${prefixedCourse.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[:-]\\s*`, "i"), "");
+      }
+      const result = parseLocalVoiceAssignments(text, courses, {
+        category: userSettings.defaultCategory,
+        priority: userSettings.defaultPriority,
+        estimatedMinutes: userSettings.defaultEstimatedMinutes,
+        repeat: userSettings.defaultRepeat,
+        dueTime: userSettings.defaultDueTime,
+        dueAmPm: userSettings.defaultDueAmPm,
+      });
+      const assignment = result.assignments[0];
+      if (!assignment) return [];
+      return [{ ...assignment, course: forcedCourse || courseHint || assignment.course, previewId: `${index}-${crypto.randomUUID()}`, selected: true }];
+    });
+    setBulkImportPreview(parsed);
+    setBulkImportMessage(parsed.length > 0 ? `Review ${parsed.length} assignment${parsed.length === 1 ? "" : "s"} before adding them.` : "No assignment lines could be understood. Put one assignment on each line.");
+    return parsed;
+  };
+
+  const handleParseBulkImport = () => parseBulkImportText(bulkImportText);
+
+  const handleSyllabusFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBulkImportOpen(true);
+    setBulkImportPreview([]);
+    setBulkImportMessage("");
+    setSyllabusFileName(file.name);
+    setSyllabusImportStatus("reading");
+    try {
+      const extractedText = await extractSyllabusText(file);
+      setSyllabusExtractedText(extractedText);
+      const likelyAssignments = findLikelySyllabusAssignments(extractedText);
+      if (!likelyAssignments) {
+        setBulkImportText(extractedText);
+        setBulkImportMessage("The file was read, but no dated assignment lines were identified automatically. Edit the extracted text so each assignment is on its own line, then choose Review Assignments.");
+        setSyllabusImportStatus("needs-review");
+        return;
+      }
+      setBulkImportText(likelyAssignments);
+      const parsed = parseBulkImportText(likelyAssignments, syllabusCourse || courses[0] || "Other");
+      setBulkImportMessage(`${file.name} was read locally. Review the ${parsed.length} suggested assignment${parsed.length === 1 ? "" : "s"} before adding them.`);
+      setSyllabusImportStatus("ready");
+    } catch (error) {
+      setBulkImportMessage(error.message || "The syllabus could not be read.");
+      setSyllabusImportStatus("error");
+    }
+  };
+
+  const handleBulkPreviewChange = (previewId, field, value) => {
+    setBulkImportPreview((items) => items.map((item) => item.previewId === previewId ? { ...item, [field]: value } : item));
+  };
+
+  const handleBulkImportSubmit = () => {
+    const selected = bulkImportPreview.filter((item) => item.selected && String(item.title || "").trim());
+    if (selected.length === 0) {
+      setBulkImportMessage("Select at least one assignment with a title.");
+      return;
+    }
+    try {
+      const count = handleApplyVoiceAssignments({ assignments: selected, skipped: [] }, crypto.randomUUID(), "paste");
+      setBulkImportPreview([]);
+      setBulkImportText("");
+      setSyllabusFileName("");
+      setSyllabusImportStatus("idle");
+      setSyllabusExtractedText("");
+      setBulkImportMessage(`${count} assignment${count === 1 ? "" : "s"} added to To Do.`);
+    } catch (error) {
+      setBulkImportMessage(error.message || "The assignments could not be added.");
+    }
   };
 
   const handleVoiceStop = () => {
@@ -2881,6 +3232,150 @@ function App() {
     (category === "School" &&
       (isCustomCourse ? !customCourseName.trim() : !selectedCourse));
 
+  const saveChecklistData = (next) => {
+    setChecklists(next);
+    try { localStorage.setItem(checklistStorageKey, JSON.stringify(next)); }
+    catch (error) { console.error("Failed to save checklists:", error); }
+  };
+
+  const handleCreateChecklist = () => {
+    const id = crypto.randomUUID();
+    const color = userSettings.customColors?.checklistPalette1 || THEME_COLOR_DEFAULTS[theme].checklistPalette1;
+    saveChecklistData([...checklists, { id, title: "Untitled checklist", color, pinned: false, items: [], createdAt: new Date().toISOString() }]);
+  };
+
+  const updateChecklist = (listId, updater) => {
+    saveChecklistData(checklists.map((list) => list.id === listId ? updater(list) : list));
+  };
+
+  const handleDeleteChecklist = (listId) => {
+    if (!window.confirm("Delete this checklist permanently?")) return;
+    saveChecklistData(checklists.filter((list) => list.id !== listId));
+    if (selectedChecklistId === listId) setSelectedChecklistId(null);
+  };
+
+  const handleReorderChecklist = (sourceId, targetId) => {
+    if (!sourceId || sourceId === targetId) return;
+    const items = [...checklists];
+    const sourceIndex = items.findIndex((list) => list.id === sourceId);
+    const targetIndex = items.findIndex((list) => list.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = items.splice(sourceIndex, 1);
+    items.splice(targetIndex, 0, moved);
+    saveChecklistData(items);
+  };
+
+  const handleAddChecklistItem = (listId, text) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    updateChecklist(listId, (list) => ({ ...list, items: [...(list.items || []), { id: crypto.randomUUID(), text: trimmed, isDone: false, dueDate: "", dueTime: "" }] }));
+  };
+
+  const handleUpdateChecklistItem = (listId, itemId, field, value) => {
+    updateChecklist(listId, (list) => ({
+      ...list,
+      items: (list.items || []).map((item) => item.id === itemId ? { ...item, [field]: value } : item),
+    }));
+  };
+
+  const handleDeleteChecklistItem = (listId, itemId) => {
+    if (!window.confirm("Delete this checklist item permanently?")) return;
+    updateChecklist(listId, (list) => ({ ...list, items: (list.items || []).filter((item) => item.id !== itemId) }));
+  };
+
+  const handleReorderChecklistItem = (listId, sourceId, targetId) => {
+    if (!sourceId || sourceId === targetId) return;
+    updateChecklist(listId, (list) => {
+      const items = [...(list.items || [])];
+      const sourceIndex = items.findIndex((item) => item.id === sourceId);
+      const targetIndex = items.findIndex((item) => item.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return list;
+      const [moved] = items.splice(sourceIndex, 1);
+      items.splice(targetIndex, 0, moved);
+      return { ...list, items };
+    });
+  };
+
+  const startChecklistTouchReorder = (event, selector, sourceId, reorder) => {
+    if (event.pointerType === "mouse") return;
+    event.preventDefault();
+    const move = (moveEvent) => {
+      const targetId = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest?.(selector)?.dataset.reorderId;
+      if (targetId && targetId !== sourceId) reorder(sourceId, targetId);
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  };
+
+  const saveWorkspace = (next) => {
+    setWorkspaceLayout(next);
+    try { localStorage.setItem(workspaceStorageKey, JSON.stringify(next)); }
+    catch (error) { console.error("Failed to save workspace layout:", error); }
+  };
+
+  const updateWidgetInstance = (instanceId, changes) => {
+    const next = structuredClone(workspaceLayout);
+    for (const tab of Object.keys(next[workspaceMode])) {
+      next[workspaceMode][tab] = next[workspaceMode][tab].map((item) => item.id === instanceId ? { ...item, ...changes } : item);
+    }
+    saveWorkspace(next);
+  };
+
+  const reorderWorkspaceWidgets = (sourceId, targetId) => {
+    const next = structuredClone(workspaceLayout);
+    const items = next[workspaceMode][currentTab] || [];
+    const sourceIndex = items.findIndex((item) => item.id === sourceId);
+    const targetIndex = items.findIndex((item) => item.id === targetId);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    const [moved] = items.splice(sourceIndex, 1);
+    items.splice(targetIndex, 0, moved);
+    saveWorkspace(next);
+  };
+
+  const moveWorkspaceWidget = (instance, targetTab, copy = false) => {
+    if (targetTab === "calendar") return;
+    saveWorkspace(placeWidget(workspaceLayout, workspaceMode, targetTab, instance, { copy }));
+    if (!copy) setCurrentTab(targetTab);
+  };
+
+  const handleTabWidgetDrop = (event, targetTab) => {
+    event.preventDefault();
+    const instanceId = event.dataTransfer.getData("text/taskcabinet-widget");
+    const instance = Object.values(workspaceLayout[workspaceMode] || {}).flat().find((item) => item.id === instanceId);
+    if (instance) moveWorkspaceWidget(instance, targetTab, false);
+  };
+
+  const hideWorkspaceWidget = (instance) => {
+    if (!canHideWidget(workspaceLayout, workspaceMode, instance.type)) {
+      alert("Keep at least one visible copy of this core widget.");
+      return;
+    }
+    updateWidgetInstance(instance.id, { hidden: true });
+  };
+
+  const restoreWorkspaceWidget = (instance) => updateWidgetInstance(instance.id, { hidden: false });
+
+  const toggleWorkspaceWidget = (type) => {
+    saveWorkspace({ ...workspaceLayout, collapsed: { ...workspaceLayout.collapsed, [type]: !workspaceLayout.collapsed[type] } });
+  };
+
+  const resetWorkspaceTab = () => {
+    if (!window.confirm("Reset this tab's layout?")) return;
+    const defaults = createDefaultWorkspaceLayout();
+    const next = structuredClone(workspaceLayout);
+    next[workspaceMode][currentTab] = defaults[workspaceMode][currentTab] || [];
+    saveWorkspace(next);
+  };
+
+  const resetAllWorkspace = () => {
+    if (!window.confirm("Reset every desktop and mobile workspace layout?")) return;
+    saveWorkspace(createDefaultWorkspaceLayout());
+  };
+
   // ---------------------------------------------------------------------------
   // DERIVED DATA: FILTERING, SORTING, RECOMMENDATIONS, AND COUNTS
   // ---------------------------------------------------------------------------
@@ -3143,8 +3638,11 @@ function App() {
   // render the correct task screen before smoothly scrolling the card into view.
   const handleRecommendedTaskClick = (taskId) => {
     const targetTask = tasks.find((task) => task.id === taskId);
-    const targetTab =
-      getTaskStatus(targetTask) === "inProgress" ? "inProgress" : "todo";
+    const statusTab = getTaskStatus(targetTask) === "inProgress" ? "inProgress" : "todo";
+    const masterType = statusTab === "inProgress" ? "in-progress-master" : "todo-master";
+    const targetTab = Object.keys(workspaceLayout[workspaceMode] || {}).find((tab) =>
+      workspaceLayout[workspaceMode][tab].some((item) => item.type === masterType && !item.hidden),
+    ) || statusTab;
 
     resetFilters();
     setExpandedTaskId(taskId);
@@ -3152,7 +3650,7 @@ function App() {
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
-        document.getElementById(`${targetTab}-task-${taskId}`)?.scrollIntoView({
+        document.getElementById(`${statusTab}-task-${taskId}`)?.scrollIntoView({
           behavior: "smooth",
           block: "center",
         });
@@ -3272,6 +3770,31 @@ function App() {
         </button>
       </div>
     );
+  };
+
+  const handleCourseOverviewOpen = (course) => {
+    resetFilters();
+    setFilterCourse(course);
+    setFiltersOpen(true);
+    const targetTab = Object.keys(workspaceLayout[workspaceMode] || {}).find((tab) =>
+      workspaceLayout[workspaceMode][tab].some((item) => item.type === "todo-master" && !item.hidden),
+    ) || "todo";
+    const targetWidget = workspaceLayout[workspaceMode]?.[targetTab]?.find((item) => item.type === "todo-master" && !item.hidden);
+    setCurrentTab(targetTab);
+    if (targetWidget) {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+        document.querySelector(`[data-widget-id="${targetWidget.id}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }));
+    }
+  };
+
+  const renderAssignmentCountdown = (task, extraClassName = "") => {
+    if (getTaskStatus(task) === "completed") return null;
+    const deadline = getDeadlineDate(task?.dueMonth, task?.dueDay, task?.dueHour, task?.dueAmPm);
+    const label = formatAssignmentCountdown(deadline, checklistNow);
+    if (!label) return null;
+    const tone = getAssignmentCountdownTone(deadline, checklistNow);
+    return <p className={`assignment-countdown countdown-${tone} ${extraClassName}`.trim()} aria-label={`Time until ${task.title} is due: ${label}`}>{label}</p>;
   };
 
   /**
@@ -3439,6 +3962,46 @@ function App() {
   // Dashboard and Calendar share one form so assignment behavior stays aligned.
   const renderAddAssignmentForm = (formId) => (
     <form onSubmit={handleAddTask} className="card-form">
+      <section className="bulk-import-panel" aria-label="Paste assignment list">
+        <div className="bulk-import-heading">
+          <div><strong>Paste Assignment List</strong><p>Create several assignments from one line each, with a review before saving.</p></div>
+          <button type="button" className="btn btn-secondary" onClick={() => setBulkImportOpen((open) => !open)}>{bulkImportOpen ? "Close" : "Open Importer"}</button>
+        </div>
+        {bulkImportOpen && (
+          <div className="bulk-import-content">
+            <div className="syllabus-upload-panel">
+              <div><strong>Import a course syllabus</strong><p>PDF, DOCX, TXT, Markdown, or CSV · processed locally · 10 MB maximum</p></div>
+              <label><span>Course for imported work</span><select value={syllabusCourse || courses[0] || "Other"} onChange={(event) => setSyllabusCourse(event.target.value)}>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
+              <label className={`btn btn-secondary syllabus-file-button${syllabusImportStatus === "reading" ? " disabled" : ""}`}>
+                {syllabusImportStatus === "reading" ? "Reading syllabus…" : "Choose Syllabus File"}
+                <input type="file" accept=".pdf,.docx,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv" onChange={handleSyllabusFile} disabled={syllabusImportStatus === "reading"} />
+              </label>
+              {syllabusFileName && <span className="syllabus-file-name">{syllabusFileName}</span>}
+              {syllabusExtractedText && <button type="button" className="syllabus-full-text-button" onClick={() => { setBulkImportText(syllabusExtractedText); setBulkImportPreview([]); setBulkImportMessage("Showing all extracted syllabus text. Remove policy and schedule lines that are not assignments, then choose Review Assignments."); setSyllabusImportStatus("needs-review"); }}>Use full extracted text</button>}
+            </div>
+            <div className="bulk-import-divider"><span>or paste assignment lines</span></div>
+            <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\n\nEnglish: Essay draft due July 15"} rows={7} />
+            <div className="bulk-import-actions"><button type="button" className="btn btn-primary" onClick={handleParseBulkImport} disabled={!bulkImportText.trim()}>Review Assignments</button><small>One assignment per line. Course headings ending in a colon apply to the lines below them.</small></div>
+            {bulkImportMessage && <p className="bulk-import-message" role="status">{bulkImportMessage}</p>}
+            {bulkImportPreview.length > 0 && (
+              <div className="bulk-import-review">
+                {bulkImportPreview.map((item) => (
+                  <article key={item.previewId} className={item.selected ? "" : "is-skipped"}>
+                    <label className="bulk-import-select"><input type="checkbox" checked={item.selected} onChange={(event) => handleBulkPreviewChange(item.previewId, "selected", event.target.checked)} /><span>Import</span></label>
+                    <label><span>Title</span><input value={item.title || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "title", event.target.value)} /></label>
+                    <label><span>Course</span><select value={item.course || "Other"} onChange={(event) => handleBulkPreviewChange(item.previewId, "course", event.target.value)}>{[...new Set([...courses, item.course || "Other"])].map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
+                    <label><span>Month</span><input type="number" min="1" max="12" value={item.dueMonth || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueMonth", event.target.value)} /></label>
+                    <label><span>Day</span><input type="number" min="1" max="31" value={item.dueDay || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueDay", event.target.value)} /></label>
+                    <label><span>Priority</span><select value={item.priority || userSettings.defaultPriority || "MED"} onChange={(event) => handleBulkPreviewChange(item.previewId, "priority", event.target.value)}><option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option></select></label>
+                    <label><span>Minutes</span><input type="number" min="0" max="1440" value={item.estimatedMinutes ?? ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "estimatedMinutes", event.target.value)} /></label>
+                  </article>
+                ))}
+                <button type="button" className="btn btn-primary bulk-import-submit" onClick={handleBulkImportSubmit}>Add Selected to To Do</button>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
       {voiceRecordingSupported && (
         <section className="voice-assignment-panel" aria-label="Create assignments with voice">
           <div>
@@ -3850,9 +4413,9 @@ function App() {
   const quickMatchBackups = quickMatchResults.slice(1, 4);
 
   const renderQuickMatchCard = () => (
-    <section className="quick-match-card" aria-label="Quick Match">
+    <section className="quick-match-card" aria-label="What Should I Do?">
       <div className="quick-match-header">
-        <h2>Quick Match</h2>
+        <h2>What Should I Do?</h2>
         <p>Find the best assignment for the time you have.</p>
       </div>
       <form
@@ -3902,6 +4465,7 @@ function App() {
               <span>{quickMatchBest.dueLabel}</span>
               <span>{quickMatchBest.task.priority || "No"} priority</span>
             </div>
+            {renderAssignmentCountdown(quickMatchBest.task, "quick-match-countdown")}
             <p className="quick-match-reason">{getQuickMatchReason(quickMatchBest)}</p>
             {quickMatchBackups.length > 0 && (
               <div className="quick-match-backups">
@@ -3921,6 +4485,97 @@ function App() {
       </div>
     </section>
   );
+
+  const renderStandaloneChecklists = () => {
+    const selectedList = checklists.find((list) => list.id === selectedChecklistId);
+    const palette = [1, 2, 3, 4, 5].map((index) =>
+      userSettings.customColors?.[`checklistPalette${index}`] || THEME_COLOR_DEFAULTS[theme][`checklistPalette${index}`],
+    );
+
+    if (!selectedList) {
+      const orderedLists = [...checklists].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
+      return (
+        <section className="standalone-checklists" aria-label="Standalone checklists">
+          <div className="checklist-gallery-toolbar">
+            <div><h2>Checklists</h2><p>Quick lists that stay separate from assignments.</p></div>
+            <button type="button" className="btn btn-primary" onClick={handleCreateChecklist}>New list</button>
+          </div>
+          {orderedLists.length === 0 ? <p className="checklist-empty">No lists yet. Create one whenever something needs keeping track of.</p> : (
+            <div className="checklist-gallery">
+              {orderedLists.map((list) => (
+                <article
+                  key={list.id}
+                  className="checklist-gallery-card"
+                  data-reorder-id={list.id}
+                  style={{ backgroundColor: list.color, color: getContrastText(list.color) }}
+                  draggable
+                  onDragStart={(event) => event.dataTransfer.setData("text/checklist-list", list.id)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => handleReorderChecklist(event.dataTransfer.getData("text/checklist-list"), list.id)}
+                >
+                  <button type="button" className="checklist-list-grip" onPointerDown={(event) => startChecklistTouchReorder(event, ".checklist-gallery-card", list.id, handleReorderChecklist)} aria-label={`Reorder ${list.title}`}>⠿</button>
+                  <button type="button" className="checklist-card-open" onClick={() => setSelectedChecklistId(list.id)}>
+                    <strong>{list.pinned ? "📌 " : ""}{list.title || "Untitled checklist"}</strong>
+                    <span>{(list.items || []).filter((item) => item.isDone).length}/{(list.items || []).length} checked</span>
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+
+    return (
+      <section className="standalone-checklists checklist-editor" style={{ "--active-list-color": selectedList.color, "--active-list-text": getContrastText(selectedList.color) }}>
+        <div className="checklist-editor-toolbar">
+          <button type="button" className="btn btn-secondary" onClick={() => setSelectedChecklistId(null)}>← Lists</button>
+          <button type="button" className={`checklist-pin-button${selectedList.pinned ? " active" : ""}`} onClick={() => updateChecklist(selectedList.id, (list) => ({ ...list, pinned: !list.pinned }))}>{selectedList.pinned ? "Unpin" : "Pin"}</button>
+          <button type="button" className="btn btn-danger" onClick={() => handleDeleteChecklist(selectedList.id)}>Delete list</button>
+        </div>
+        <input className="checklist-title-input" value={selectedList.title} onChange={(event) => updateChecklist(selectedList.id, (list) => ({ ...list, title: event.target.value }))} aria-label="Checklist title" />
+        <div className="checklist-color-row">
+          {palette.map((color) => <button type="button" key={color} className="checklist-color-swatch" style={{ backgroundColor: color }} onClick={() => updateChecklist(selectedList.id, (list) => ({ ...list, color }))} aria-label={`Use color ${color}`} />)}
+          <label className="checklist-custom-color">Custom <input type="color" value={selectedList.color} onChange={(event) => updateChecklist(selectedList.id, (list) => ({ ...list, color: event.target.value }))} /></label>
+        </div>
+        <form className="checklist-new-item" onSubmit={(event) => {
+          event.preventDefault();
+          const input = event.currentTarget.elements.namedItem("checklistItem");
+          handleAddChecklistItem(selectedList.id, input.value);
+          input.value = "";
+          input.focus();
+        }}>
+          <input name="checklistItem" placeholder="Add a checklist item…" autoComplete="off" />
+          <button type="submit" className="btn btn-primary">Add</button>
+        </form>
+        {(selectedList.items || []).length === 0 ? <p className="checklist-empty">This list is empty.</p> : (
+          <ul className="standalone-checklist-items">
+            {(selectedList.items || []).map((item) => (
+              <li
+                key={item.id}
+                className={item.isDone ? "is-done" : ""}
+                data-reorder-id={item.id}
+                draggable
+                onDragStart={(event) => event.dataTransfer.setData("text/checklist-item", item.id)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => handleReorderChecklistItem(selectedList.id, event.dataTransfer.getData("text/checklist-item"), item.id)}
+              >
+                <button type="button" className="checklist-item-grip" title="Drag to reorder" onPointerDown={(event) => startChecklistTouchReorder(event, ".standalone-checklist-items li", item.id, (source, target) => handleReorderChecklistItem(selectedList.id, source, target))}>⠿</button>
+                <input type="checkbox" checked={item.isDone} onChange={(event) => handleUpdateChecklistItem(selectedList.id, item.id, "isDone", event.target.checked)} />
+                <input className="checklist-item-text" value={item.text} onChange={(event) => handleUpdateChecklistItem(selectedList.id, item.id, "text", event.target.value)} />
+                <div className="checklist-item-date-fields">
+                  <input type="date" value={item.dueDate || ""} onChange={(event) => handleUpdateChecklistItem(selectedList.id, item.id, "dueDate", event.target.value)} aria-label={`Due date for ${item.text}`} />
+                  {userSettings.checklistTimesEnabled && <input type="time" value={item.dueTime || ""} onChange={(event) => handleUpdateChecklistItem(selectedList.id, item.id, "dueTime", event.target.value)} aria-label={`Due time for ${item.text}`} />}
+                </div>
+                {item.dueDate && <div className="checklist-item-deadline"><strong>{formatChecklistDeadline(item)}</strong><span>{formatChecklistCountdown(item, checklistNow)}</span></div>}
+                <button type="button" className="checklist-item-delete" onClick={() => handleDeleteChecklistItem(selectedList.id, item.id)} aria-label={`Delete ${item.text}`}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    );
+  };
 
   const renderWorkspaceCalendar = () => (
     <section className="dashboard-calendar-card" aria-labelledby="dashboard-calendar-title">
@@ -3962,6 +4617,160 @@ function App() {
 
   const estimatedHours = Math.floor(totalEstimatedMinutes / 60);
   const estimatedMinutesLeft = totalEstimatedMinutes % 60;
+  const overviewCourse = courses.includes(courseOverviewSelection)
+    ? courseOverviewSelection
+    : courses[0] || "Other";
+  const overviewCourseTasks = activeDashboardTasks.filter((task) => task.course === overviewCourse);
+  const courseOverviewSummary = {
+    todo: overviewCourseTasks.filter((task) => getTaskStatus(task) === "todo").length,
+    inProgress: overviewCourseTasks.filter((task) => getTaskStatus(task) === "inProgress").length,
+    overdue: overviewCourseTasks.filter((task) => getTaskDueBucket(task).startsWith("Overdue")).length,
+    dueToday: overviewCourseTasks.filter((task) => getTaskDueBucket(task).startsWith("Due Today")).length,
+    noDate: overviewCourseTasks.filter((task) => getTaskDueBucket(task) === "No Due Date").length,
+  };
+
+  const widgetTitles = {
+    "quick-match": "What Should I Do?",
+    "stat-active": "Active",
+    "stat-today": "Due Today",
+    "stat-overdue": "Overdue",
+    "stat-workload": "Workload",
+    recommended: "Recommended Plan of Attack",
+    "mini-calendar": "Mini Calendar",
+    checklists: "Checklists",
+    "add-assignment": "Add Assignment",
+    "course-colors": "Course Colors",
+    "course-overview": "Course Overview",
+    "todo-master": "To Do",
+    "in-progress-master": "In Progress",
+    "completed-master": "Completed",
+    "settings-master": "Settings",
+  };
+  const bucketKeys = ["overdue", "today", "tomorrow", "this-week", "next-week", "later", "no-date"];
+  const getWorkspaceWidgetTitle = (type) => {
+    const bucketIndex = bucketKeys.findIndex((key) => type.endsWith(`-bucket-${key}`));
+    if (bucketIndex >= 0) return `${type.startsWith("in-progress") ? "In Progress" : "To Do"}: ${bucketsOrder[bucketIndex]}`;
+    return widgetTitles[type] || type;
+  };
+
+  const renderRecommendedWidget = () => recommendedTasks.length === 0 ? <p className="recommended-plan-empty">You have no incomplete assignments. Nice work!</p> : (
+    <ol className="recommended-plan-list portable-recommendations">
+      {recommendedTasks.map((task, index) => <li key={task.id} className="recommended-plan-item"><button type="button" className="recommended-plan-button" onClick={() => handleRecommendedTaskClick(task.id)}><span className="recommended-plan-rank">{index + 1}</span><div className="recommended-plan-content"><strong>{task.title}</strong><div className="recommended-plan-details"><span>{task.course}</span><span>{getTaskDueBucket(task)}</span><span>{task.priority} priority</span></div>{renderAssignmentCountdown(task, "recommended-countdown")}</div></button></li>)}
+    </ol>
+  );
+
+  const renderCourseColorsWidget = () => (
+    <div className="portable-course-colors">
+      <p className="hint-text">Customize course colors or remove courses you no longer need.</p>
+      {courses.map((course) => <div className="portable-course-color-row" key={course}><span style={{ backgroundColor: getCourseColor(course), color: getTextColorForCourse(course) }}>{course}</span><input type="color" value={getCourseColor(course)} onChange={(event) => handleCourseColorChange(course, event.target.value)} /><button type="button" className="btn btn-danger" disabled={course === "Other"} onClick={() => handleDeleteCourse(course)}>Delete</button></div>)}
+    </div>
+  );
+
+  const renderCourseOverviewWidget = () => {
+    const courseColor = getCourseColor(overviewCourse);
+    return (
+      <section className="course-overview-widget">
+        <label><span>Choose a course</span><select value={overviewCourse} onChange={(event) => setCourseOverviewSelection(event.target.value)}>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
+        <button type="button" className="course-overview-primary" style={{ "--course-overview-color": courseColor, "--course-overview-text": getTextColorForCourse(overviewCourse) }} onClick={() => handleCourseOverviewOpen(overviewCourse)}>
+          <span>Upcoming To Do</span>
+          <strong>{courseOverviewSummary.todo}</strong>
+          <small>Open {overviewCourse} in To Do →</small>
+        </button>
+        <div className="course-overview-breakdown">
+          <div><strong>{courseOverviewSummary.inProgress}</strong><span>In progress</span></div>
+          <div className={courseOverviewSummary.dueToday > 0 ? "has-warning" : ""}><strong>{courseOverviewSummary.dueToday}</strong><span>Due today</span></div>
+          <div className={courseOverviewSummary.overdue > 0 ? "has-danger" : ""}><strong>{courseOverviewSummary.overdue}</strong><span>Overdue</span></div>
+          <div><strong>{courseOverviewSummary.noDate}</strong><span>No date</span></div>
+        </div>
+      </section>
+    );
+  };
+
+  const renderTaskMasterWidget = (status, onlyBucket = null) => {
+    const allSource = status === "todo" ? sortedTodoTasks : status === "inProgress" ? sortedInProgressTasks : completedTasks;
+    const source = onlyBucket ? allSource.filter((task) => getTaskDueBucket(task) === onlyBucket) : allSource;
+    const grouped = status === "todo" ? groupedTasks : status === "inProgress" ? groupedInProgressTasks : null;
+    const renderCard = (task) => (
+      <li key={task.id} id={`${status}-task-${task.id}`} className={`task-card${status === "inProgress" ? " in-progress-task-card" : ""}${task.priority === "HIGH" ? " task-card-high" : ""}${expandedTaskId === task.id ? " expanded" : ""}`} onClick={() => toggleTaskExpansion(task.id)}>
+        <div><strong>{task.title}</strong><span className="course-name" style={{ backgroundColor: getCourseColor(task.course), color: getTextColorForCourse(task.course) }}>{task.course}</span><div className="task-details">{formatTaskDetails(task)}</div>{renderAssignmentCountdown(task)}{renderSubtaskProgressLine(task)}</div>
+        <div className="task-actions">
+          {status === "todo" && <button type="button" className="btn btn-secondary" onClick={(event) => { event.stopPropagation(); handleStartTask(task.id); }}>Start</button>}
+          {status === "inProgress" && <button type="button" className="btn btn-secondary" onClick={(event) => { event.stopPropagation(); handleMoveToTodo(task.id); }}>Move to To Do</button>}
+          {status !== "completed" && <button type="button" className="btn btn-primary" onClick={(event) => { event.stopPropagation(); handleComplete(task.id); }}>Complete</button>}
+          {status === "completed" && <button type="button" className="btn btn-warning" onClick={(event) => { event.stopPropagation(); handleUndo(task.id); }}>Mark Undone</button>}
+          <button type="button" className="btn btn-secondary" onClick={(event) => { event.stopPropagation(); handleEditStart(task); }}>Edit</button>
+          {status === "completed" && <button type="button" className="btn btn-secondary" onClick={(event) => { event.stopPropagation(); handleArchive(task.id); }}>Archive</button>}
+          {renderVoiceUndoAction(task)}
+          <button type="button" className="btn btn-danger" onClick={(event) => { event.stopPropagation(); handleDelete(task.id); }}>Move to Trash</button>
+        </div>
+        {expandedTaskId === task.id && <div className="task-notes-panel" onClick={(event) => event.stopPropagation()}>{renderExpandedTaskDetails(task, `${status}-widget-notes-${task.id}`)}</div>}
+      </li>
+    );
+    return (
+      <div className="task-master-widget">
+        {!onlyBucket && renderFilterToggle()}
+        <div className="task-master-heading"><h3>{status === "todo" ? `To Do (${source.length})` : status === "inProgress" ? `In Progress (${source.length})` : `Completed (${source.length})`}</h3>{status === "completed" && <button type="button" className="btn btn-secondary" onClick={handleArchiveAll} disabled={unarchivedCompletedCount === 0}>Archive All</button>}</div>
+        {!onlyBucket && renderFilterControls()}
+        {source.length === 0 ? <p className="placeholder-text">No assignments match your filters.</p> : (status === "completed" || onlyBucket) ? <ul className="task-list">{source.map(renderCard)}</ul> : <div>{bucketsOrder.map((bucket) => grouped[bucket]?.length ? <section className="bucket-section" key={bucket}><h4 className="bucket-title">{bucket}</h4><ul className="task-list">{grouped[bucket].map(renderCard)}</ul></section> : null)}</div>}
+      </div>
+    );
+  };
+
+  const renderWidgetContent = (type) => {
+    if (type === "quick-match") return renderQuickMatchCard();
+    if (type === "mini-calendar") return renderWorkspaceCalendar();
+    if (type === "checklists") return renderStandaloneChecklists();
+    if (type === "recommended") return renderRecommendedWidget();
+    if (type === "add-assignment") return renderAddAssignmentForm("workspace");
+    if (type === "course-colors") return renderCourseColorsWidget();
+    if (type === "course-overview") return renderCourseOverviewWidget();
+    if (type === "todo-master") return renderTaskMasterWidget("todo");
+    if (type === "in-progress-master") return renderTaskMasterWidget("inProgress");
+    if (type === "completed-master") return renderTaskMasterWidget("completed");
+    const bucketIndex = bucketKeys.findIndex((key) => type.endsWith(`-bucket-${key}`));
+    if (bucketIndex >= 0) return renderTaskMasterWidget(type.startsWith("in-progress") ? "inProgress" : "todo", bucketsOrder[bucketIndex]);
+    if (type === "settings-master") return <div className="widget-settings-shortcut"><p>Open TaskCabinet settings and personalization controls.</p><button type="button" className="btn btn-primary" onClick={() => setCurrentTab("settings")}>Open Settings</button></div>;
+    const statContent = {
+      "stat-active": [activeTasksCount, "Assignments left"],
+      "stat-today": [dueTodayCount, "Need attention"],
+      "stat-overdue": [overdueTasksCount, "Past deadline"],
+      "stat-workload": [`${estimatedHours}h ${estimatedMinutesLeft}m`, "Estimated remaining"],
+    }[type];
+    return statContent ? <div className="portable-stat"><strong>{statContent[0]}</strong><p>{statContent[1]}</p></div> : null;
+  };
+
+  const renderWorkspaceInstance = (instance) => (
+    <WorkspaceWidget
+      key={instance.id}
+      instance={instance}
+      title={getWorkspaceWidgetTitle(instance.type)}
+      collapsed={Boolean(workspaceLayout.collapsed[instance.type]) || (() => {
+        const bucketIndex = bucketKeys.findIndex((key) => instance.type.endsWith(`-bucket-${key}`));
+        if (bucketIndex < 0) return false;
+        const source = instance.type.startsWith("in-progress") ? sortedInProgressTasks : sortedTodoTasks;
+        return !source.some((task) => getTaskDueBucket(task) === bucketsOrder[bucketIndex]);
+      })()}
+      onToggle={() => toggleWorkspaceWidget(instance.type)}
+      onResize={(width, height) => updateWidgetInstance(instance.id, { width, height })}
+      onReorder={reorderWorkspaceWidgets}
+      onMove={(tab) => moveWorkspaceWidget(instance, tab, false)}
+      onCopy={(tab) => moveWorkspaceWidget(instance, tab, true)}
+      onHide={() => hideWorkspaceWidget(instance)}
+    >
+      {renderWidgetContent(instance.type)}
+    </WorkspaceWidget>
+  );
+
+  const renderWorkspaceForTab = (tab) => (
+    <WorkspaceCanvas>
+      {(workspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden).map(renderWorkspaceInstance)}
+    </WorkspaceCanvas>
+  );
+  const homeMasterByTab = { settings: "settings-master" };
+  const renderWorkspaceExtrasForTab = (tab) => {
+    const extras = (workspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden && item.type !== homeMasterByTab[tab]);
+    return extras.length > 0 ? <WorkspaceCanvas>{extras.map(renderWorkspaceInstance)}</WorkspaceCanvas> : null;
+  };
 
   if (!currentUser) {
     return (
@@ -4044,7 +4853,7 @@ function App() {
   const schoolLevelCopy =
     SCHOOL_LEVEL_COPY[userSettings.schoolLevel] || SCHOOL_LEVEL_COPY.high;
   return (
-    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} density-${userSettings.interfaceDensity || "comfortable"}${userSettings.reduceMotion ? " reduce-motion" : ""}`}>
+    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} font-${userSettings.fontFamily || "sans"} density-${userSettings.interfaceDensity || "comfortable"}${userSettings.reduceMotion ? " reduce-motion" : ""}`}>
       <div className="app-shell">
         {/* The header is always visible and identifies the active local profile. */}
         <header className="hero-card">
@@ -4076,6 +4885,9 @@ function App() {
         */}
         <div className="tab-row">
           <button
+            data-tab="dashboard"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => handleTabWidgetDrop(event, "dashboard")}
             className={`tab-button ${currentTab === "dashboard" ? "active" : ""}`}
             onClick={() => setCurrentTab("dashboard")}
           >
@@ -4083,6 +4895,9 @@ function App() {
           </button>
 
           <button
+            data-tab="todo"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => handleTabWidgetDrop(event, "todo")}
             className={`tab-button ${currentTab === "todo" ? "active" : ""}`}
             onClick={() => setCurrentTab("todo")}
           >
@@ -4090,6 +4905,9 @@ function App() {
           </button>
 
           <button
+            data-tab="inProgress"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => handleTabWidgetDrop(event, "inProgress")}
             className={`tab-button ${currentTab === "inProgress" ? "active" : ""}`}
             onClick={() => setCurrentTab("inProgress")}
           >
@@ -4097,6 +4915,9 @@ function App() {
           </button>
 
           <button
+            data-tab="completed"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => handleTabWidgetDrop(event, "completed")}
             className={`tab-button ${currentTab === "completed" ? "active" : ""}`}
             onClick={() => setCurrentTab("completed")}
           >
@@ -4111,12 +4932,19 @@ function App() {
           </button>
 
           <button
+            data-tab="settings"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => handleTabWidgetDrop(event, "settings")}
             className={`tab-button ${currentTab === "settings" ? "active" : ""}`}
             onClick={() => setCurrentTab("settings")}
             aria-label="Settings"
             title="Settings"
           >
             ⚙️ Settings
+          </button>
+
+          <button type="button" className="tab-button widgets-tray-button" onClick={() => setWidgetsTrayOpen((open) => !open)} aria-expanded={widgetsTrayOpen}>
+            ▦ Widgets
           </button>
 
           {currentUser && (
@@ -4126,18 +4954,18 @@ function App() {
           )}
         </div>
 
-        <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : ""}`}>
-          <aside className={`workspace-rail workspace-rail-left${currentTab === "dashboard" ? " workspace-rail-left-dashboard" : ""}`}>
-            {renderQuickMatchCard()}
-          </aside>
+        <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}`}>
           <main className="workspace-main">
+
+        {currentTab === "dashboard" && renderWorkspaceForTab("dashboard")}
+        {currentTab !== "dashboard" && currentTab !== "calendar" && renderWorkspaceExtrasForTab(currentTab)}
 
         {/*
           DASHBOARD VIEW
           Includes quick statistics, recommendations, assignment creation, and
           course customization. It does not replace the dedicated task tabs.
         */}
-        {currentTab === "dashboard" && (
+        {currentTab === "dashboard-legacy" && (
           <div>
             {/* Four summary cards calculated from the current task array. */}
             <div className="stats-grid">
@@ -4243,6 +5071,8 @@ function App() {
                                 <span>In progress</span>
                               )}
                             </div>
+
+                            {renderAssignmentCountdown(task, "recommended-countdown")}
 
                             {renderSubtaskProgressLine(
                               task,
@@ -4379,7 +5209,7 @@ function App() {
         */}
         <div>
           {/* TO DO: filtered incomplete tasks grouped into due-date buckets. */}
-          {currentTab === "todo" && (
+          {currentTab === "todo-legacy" && (
             <div>
               {renderFilterToggle()}
 
@@ -4534,7 +5364,7 @@ function App() {
           )}
 
           {/* IN PROGRESS: started assignments that are still incomplete. */}
-          {currentTab === "inProgress" && (
+          {currentTab === "inProgress-legacy" && (
             <div className="in-progress-tab-section">
               {renderFilterToggle()}
 
@@ -4692,7 +5522,7 @@ function App() {
           )}
 
           {/* COMPLETED: finished tasks with undo, edit, delete, and notes. */}
-          {currentTab === "completed" && (
+          {currentTab === "completed-legacy" && (
             <div>
               {renderFilterToggle()}
 
@@ -4914,6 +5744,7 @@ function App() {
                               <div className="task-details">
                                 {formatTaskDetails(task)}
                               </div>
+                              {renderAssignmentCountdown(task)}
                               {renderSubtaskProgressLine(task)}
                               <p
                                 className="hint-text"
@@ -5108,9 +5939,21 @@ function App() {
                             value={userSettings.textSize || "medium"}
                             onChange={(e) => handleAddFieldSettingChange("textSize", e.target.value)}
                           >
+                            <option value="xsmall">Extra Small (70%)</option>
                             <option value="small">Small</option>
                             <option value="medium">Medium</option>
                             <option value="large">Large</option>
+                            <option value="xlarge">Extra Large (150%)</option>
+                          </select>
+                        </label>
+                        <label className="settings-select-row settings-option-card">
+                          <span>App font</span>
+                          <select value={userSettings.fontFamily || "sans"} onChange={(e) => handleAddFieldSettingChange("fontFamily", e.target.value)}>
+                            <option value="sans">Modern Sans</option>
+                            <option value="rounded">Friendly Rounded</option>
+                            <option value="serif">Classic Serif</option>
+                            <option value="readable">Highly Readable</option>
+                            <option value="mono">Typewriter Mono</option>
                           </select>
                         </label>
                         <label className="settings-select-row settings-option-card">
@@ -5143,6 +5986,15 @@ function App() {
                       </label>
                     </div>
                   )}
+                </section>
+
+                <section className="settings-section personalization-tips" hidden={settingsSection !== "personalization"}>
+                  <h4>Personalization Tips</h4>
+                  <p className="hint-text">Learn how to reshape TaskCabinet around the way you work.</p>
+                  <input type="search" value={helpSearch} onChange={(event) => setHelpSearch(event.target.value)} placeholder="Search layout, colors, fonts, checklists…" aria-label="Search personalization help" />
+                  <div className="personalization-tip-grid">
+                    {PERSONALIZATION_TIPS.filter(([title, copy]) => `${title} ${copy}`.toLowerCase().includes(helpSearch.trim().toLowerCase())).map(([title, copy]) => <article key={title}><strong>{title}</strong><p>{copy}</p></article>)}
+                  </div>
                 </section>
 
                 <section className="settings-section color-studio-section" hidden={settingsSection !== "personalization"}>
@@ -5465,6 +6317,22 @@ function App() {
                   </label>
                 </section>
 
+                {settingsSection === "checklists" && (
+                  <>
+                    <SettingsCard title="Checklist Deadlines" description="Date-only checklist items are due at 11:59 PM in your local time.">
+                      <label className="settings-toggle settings-toggle-copy">
+                        <span><strong>Optional item times</strong><small>Show a time field beside checklist dates. New items do not receive a time automatically.</small></span>
+                        <input type="checkbox" checked={Boolean(userSettings.checklistTimesEnabled)} onChange={(event) => handleAddFieldSettingChange("checklistTimesEnabled", event.target.checked)} />
+                      </label>
+                      <p className="hint-text">Checklist reminders use the notification permission and reminder window under Reminders &amp; App.</p>
+                    </SettingsCard>
+                    <SettingsCard title="Checklist Appearance" description="Use the curated palette, choose a custom color on any list, or edit every swatch in Full Color Studio.">
+                      <div className="checklist-settings-preview">{[1, 2, 3, 4, 5].map((index) => { const color = userSettings.customColors?.[`checklistPalette${index}`] || THEME_COLOR_DEFAULTS[theme][`checklistPalette${index}`]; return <span key={color} style={{ backgroundColor: color }} />; })}</div>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setSettingsSection("personalization"); setColorStudioOpen(true); setColorGroupsOpen((groups) => ({ ...groups, Checklists: true })); }}>Open Checklist Color Studio</button>
+                    </SettingsCard>
+                  </>
+                )}
+
                 {settingsSection === "reminders" && (
                   <>
                     <SettingsCard title="Install TaskCabinet" description="Install the planner as a desktop or home-screen app with offline access.">
@@ -5760,12 +6628,17 @@ function App() {
           )}
           </div>
           </main>
-          {currentTab !== "calendar" && (
-            <aside className="workspace-rail workspace-rail-right">
-              {renderWorkspaceCalendar()}
-            </aside>
-          )}
         </div>
+
+        {widgetsTrayOpen && (
+          <section className="widgets-tray" aria-label="Workspace widgets">
+            <div><strong>Hidden widgets</strong><span>Restore sections for the {workspaceMode} layout.</span></div>
+            <div className="widgets-tray-list">
+              {Object.values(workspaceLayout[workspaceMode] || {}).flat().filter((item) => item.hidden).length === 0 ? <span>No hidden widgets.</span> : Object.values(workspaceLayout[workspaceMode] || {}).flat().filter((item) => item.hidden).map((item) => <button type="button" className="btn btn-secondary" key={item.id} onClick={() => restoreWorkspaceWidget(item)}>Restore {getWorkspaceWidgetTitle(item.type)}</button>)}
+            </div>
+            <div className="widgets-tray-actions"><button type="button" className="btn btn-secondary" disabled={currentTab === "calendar"} onClick={resetWorkspaceTab}>Reset this tab</button><button type="button" className="btn btn-danger" onClick={resetAllWorkspace}>Reset all layouts</button></div>
+          </section>
+        )}
         </div>
       {/*
         EDIT MODAL
