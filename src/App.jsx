@@ -5108,24 +5108,183 @@ setWorkspaceLayout(loadedWorkspace);
       </section>
     );
   };
+  const renderTaskActionButtons = (task, status) => {
+  const stopCardClick = (event, action) => {
+    event.stopPropagation();
+    action();
+  };
 
+  if (status === "todo") {
+    return (
+      <div className="task-actions">
+        <button
+          type="button"
+          className="btn btn-secondary status-action-button"
+          onClick={(event) => stopCardClick(event, () => handleStartTask(task.id))}
+        >
+          Start
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={(event) => stopCardClick(event, () => handleComplete(task.id))}
+        >
+          Complete ✅
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={(event) => stopCardClick(event, () => handleEditStart(task))}
+        >
+          ✏️ Edit
+        </button>
+
+        {renderVoiceUndoAction(task)}
+
+        <button
+          type="button"
+          className="btn btn-danger"
+          onClick={(event) => stopCardClick(event, () => handleDelete(task.id))}
+        >
+          Move to Trash
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "inProgress") {
+    return (
+      <div className="task-actions">
+        <button
+          type="button"
+          className="btn btn-warning status-action-button"
+          onClick={(event) => stopCardClick(event, () => handleMoveToTodo(task.id))}
+        >
+          Back to To Do
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={(event) => stopCardClick(event, () => handleComplete(task.id))}
+        >
+          Complete ✅
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={(event) => stopCardClick(event, () => handleEditStart(task))}
+        >
+          ✏️ Edit
+        </button>
+
+        {renderVoiceUndoAction(task)}
+
+        <button
+          type="button"
+          className="btn btn-danger"
+          onClick={(event) => stopCardClick(event, () => handleDelete(task.id))}
+        >
+          Move to Trash
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "completed") {
+    return (
+      <div className="task-actions">
+        <button
+          type="button"
+          className="btn btn-warning status-action-button"
+          onClick={(event) => stopCardClick(event, () => handleUndo(task.id))}
+        >
+          Back to In Progress
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={(event) => stopCardClick(event, () => handleArchive(task.id))}
+          disabled={task.isArchived}
+        >
+          Archive
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-danger"
+          onClick={(event) => stopCardClick(event, () => handleDelete(task.id))}
+        >
+          Move to Trash
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={(event) => stopCardClick(event, () => handleEditStart(task))}
+        >
+          ✏️ Edit
+        </button>
+      </div>
+    );
+  }
+
+  return null;
+};
   const renderTaskMasterWidget = (status, onlyBucket = null) => {
     const allSource = status === "todo" ? sortedTodoTasks : status === "inProgress" ? sortedInProgressTasks : completedTasks;
     const source = onlyBucket ? allSource.filter((task) => getTaskDueBucket(task) === onlyBucket) : allSource;
     const grouped = status === "todo" ? groupedTasks : status === "inProgress" ? groupedInProgressTasks : null;
     const renderCard = (task) => (
-      <li key={task.id} id={`${status}-task-${task.id}`} className={`task-card${status === "inProgress" ? " in-progress-task-card" : ""}${task.priority === "HIGH" ? " task-card-high" : ""}${expandedTaskId === task.id ? " expanded" : ""}`} onClick={() => toggleTaskExpansion(task.id)}>
-        <div>
-          <div className="task-title-row">
-            <strong className="task-title-text">{task.title}</strong>
-            {task.course ? <span className="task-course-pill" style={{ backgroundColor: getCourseColor(task.course), color: getTextColorForCourse(task.course) }}>{task.course}</span> : null}
-          </div>
-          <div className="task-details">{formatTaskDetails(task)}</div>
-          {renderAssignmentCountdown(task)}{renderSubtaskProgressLine(task)}
-        </div>
-        {expandedTaskId === task.id && <div className="task-notes-panel" onClick={(event) => event.stopPropagation()}>{renderExpandedTaskDetails(task, `${status}-widget-notes-${task.id}`)}</div>}
-      </li>
-    );
+  <li
+    key={task.id}
+    id={`${status}-task-${task.id}`}
+    className={`task-card${status === "inProgress" ? " in-progress-task-card" : ""}${task.priority === "HIGH" ? " task-card-high" : ""}${expandedTaskId === task.id ? " expanded" : ""}`}
+    onClick={() => toggleTaskExpansion(task.id)}
+  >
+    <div>
+      <div className="task-title-row">
+        <strong className="task-title-text">{task.title}</strong>
+
+        {task.course ? (
+          <span
+            className="task-course-pill"
+            style={{
+              backgroundColor: getCourseColor(task.course),
+              color: getTextColorForCourse(task.course),
+            }}
+          >
+            {task.course}
+          </span>
+        ) : null}
+
+        {status === "inProgress" ? (
+          <span className="in-progress-status-pill">In Progress</span>
+        ) : null}
+      </div>
+
+      <div className="task-details">{formatTaskDetails(task)}</div>
+
+      {renderAssignmentCountdown(task)}
+      {renderSubtaskProgressLine(task)}
+    </div>
+
+    {renderTaskActionButtons(task, status)}
+
+    {expandedTaskId === task.id && (
+      <div
+        className="task-notes-panel"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {renderExpandedTaskDetails(task, `${status}-widget-notes-${task.id}`)}
+      </div>
+    )}
+  </li>
+);
     return (
       <div className="task-master-widget">
         {!onlyBucket && renderFilterToggle()}
