@@ -1605,23 +1605,41 @@ function App() {
   }, [currentTab, workspaceMode]);
 
   useEffect(() => {
-    if (currentTab === "calendar" || currentTab === "settings" || workspaceCanvasWidth <= 0) return undefined;
-    const previousLayout = workspaceLayoutRef.current;
-    const preservePositions = shouldPreserveWidgetPositions(previousLayout, workspaceLayout, workspaceMode);
-    const next = normalizeWorkspaceLayout(structuredClone(workspaceLayout), {
-      mode: workspaceMode,
-      canvasWidth: workspaceCanvasWidth,
-      collapsed: workspaceLayout.collapsed,
-      preservePositions,
-    });
-    workspaceLayoutRef.current = workspaceLayout;
-    const hasChanges = JSON.stringify(next) !== JSON.stringify(workspaceLayout);
-    if (!hasChanges) return undefined;
-    setWorkspaceLayout(next);
-    try { localStorage.setItem(workspaceStorageKey, JSON.stringify(next)); }
-    catch (error) { console.error("Failed to save workspace layout:", error); }
+  workspaceLayoutRef.current = workspaceLayout;
+}, [workspaceLayout]);
+
+useEffect(() => {
+  if (
+    currentTab === "calendar" ||
+    currentTab === "settings" ||
+    workspaceCanvasWidth <= 0
+  ) {
     return undefined;
-  }, [currentTab, workspaceCanvasWidth, workspaceMode, workspaceLayout]);
+  }
+
+  const currentLayout = workspaceLayoutRef.current;
+
+  const next = normalizeWorkspaceLayout(structuredClone(currentLayout), {
+    mode: workspaceMode,
+    canvasWidth: workspaceCanvasWidth,
+    collapsed: currentLayout.collapsed,
+    preservePositions: true,
+  });
+
+  const hasChanges = JSON.stringify(next) !== JSON.stringify(currentLayout);
+  if (!hasChanges) return undefined;
+
+  workspaceLayoutRef.current = next;
+  setWorkspaceLayout(next);
+
+  try {
+    localStorage.setItem(workspaceStorageKey, JSON.stringify(next));
+  } catch (error) {
+    console.error("Failed to save workspace layout:", error);
+  }
+
+  return undefined;
+}, [currentTab, workspaceCanvasWidth, workspaceMode, workspaceStorageKey]);
 
   useEffect(() => {
     if (!currentUser || !userSettings.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted") return undefined;
@@ -1865,7 +1883,12 @@ function App() {
       const rawChecklists = localStorage.getItem(checklistStorageKey);
       setChecklists(rawChecklists ? JSON.parse(rawChecklists) : []);
       const rawWorkspace = localStorage.getItem(workspaceStorageKey);
-      setWorkspaceLayout(normalizeWorkspaceLayout(rawWorkspace ? JSON.parse(rawWorkspace) : null));
+      const loadedWorkspace = normalizeWorkspaceLayout(
+        rawWorkspace ? JSON.parse(rawWorkspace) : null,
+      );
+
+      workspaceLayoutRef.current = loadedWorkspace;
+      setWorkspaceLayout(loadedWorkspace);
       setSelectedChecklistId(null);
       setCategory(loadedSettings.defaultCategory);
       setPriority(loadedSettings.defaultPriority);
@@ -3484,35 +3507,70 @@ function App() {
     window.addEventListener("pointerup", stop);
   };
 
-  const saveWorkspace = (next, options = {}) => {
-    const normalized = normalizeWorkspaceLayout(next, {
+  const saveWorkspace = (nextOrUpdater, options = {}) => {
+  setWorkspaceLayout((previousLayout) => {
+    const nextLayout =
+      typeof nextOrUpdater === "function"
+        ? nextOrUpdater(previousLayout)
+        : nextOrUpdater;
+
+    const normalized = normalizeWorkspaceLayout(nextLayout, {
       mode: workspaceMode,
       canvasWidth: options.canvasWidth ?? workspaceCanvasWidth,
       activeId: options.activeId,
       reflowActiveWithNeighbors: options.reflowActiveWithNeighbors,
-      collapsed: options.collapsed ?? next?.collapsed,
-      preservePositions: options.preservePositions ?? !options.reflowActiveWithNeighbors,
+      collapsed: options.collapsed ?? nextLayout?.collapsed,
+      preservePositions: options.preservePositions ?? true,
     });
-    setWorkspaceLayout(normalized);
-    try { localStorage.setItem(workspaceStorageKey, JSON.stringify(normalized)); }
-    catch (error) { console.error("Failed to save workspace layout:", error); }
-  };
+
+    workspaceLayoutRef.current = normalized;
+
+    try {
+      localStorage.setItem(workspaceStorageKey, JSON.stringify(normalized));
+    } catch (error) {
+      console.error("Failed to save workspace layout:", error);
+    }
+
+    return normalized;
+  });
+};
 
   const updateWidgetInstance = (instanceId, changes, options = {}) => {
-    const next = structuredClone(workspaceLayout);
-    for (const tab of Object.keys(next[workspaceMode])) {
-      next[workspaceMode][tab] = next[workspaceMode][tab].map((item) => item.id === instanceId ? { ...item, ...changes } : item);
-    }
-    saveWorkspace(next, { ...options, activeId: instanceId });
-  };
+  saveWorkspace(
+    (previousLayout) => {
+      const next = structuredClone(previousLayout);
+      const modeLayout = next[workspaceMode] || {};
+
+      for (const tab of Object.keys(modeLayout)) {
+        modeLayout[tab] = modeLayout[tab].map((item) =>
+          item.id === instanceId ? { ...item, ...changes } : item,
+        );
+      }
+
+      return next;
+    },
+    {
+      ...options,
+      activeId: instanceId,
+      preservePositions: true,
+    },
+  );
+};
 
   const moveWorkspaceWidget = (instance, targetTab, copy = false) => {
-    if (targetTab === "calendar") return;
-    saveWorkspace(placeWidget(workspaceLayout, workspaceMode, targetTab, instance, { copy }), {
+  if (targetTab === "calendar") return;
+
+  saveWorkspace(
+    (previousLayout) =>
+      placeWidget(previousLayout, workspaceMode, targetTab, instance, { copy }),
+    {
       activeId: copy ? undefined : instance.id,
-    });
-    if (!copy) setCurrentTab(targetTab);
-  };
+      preservePositions: true,
+    },
+  );
+
+  if (!copy) setCurrentTab(targetTab);
+};
 
   const handleTabWidgetDrop = (event, targetTab) => {
     event.preventDefault();
@@ -3532,24 +3590,37 @@ function App() {
   const restoreWorkspaceWidget = (instance) => updateWidgetInstance(instance.id, { hidden: false });
 
   const toggleWorkspaceWidget = (instance) => {
-    const nextCollapsed = !Boolean(workspaceLayout.collapsed[instance.type]);
-    const nextLayout = setWidgetCollapsedState(workspaceLayout, workspaceMode, instance.id, nextCollapsed);
-    saveWorkspace(nextLayout, {
+  saveWorkspace(
+    (previousLayout) => {
+      const nextCollapsed = !Boolean(previousLayout.collapsed?.[instance.type]);
+      return setWidgetCollapsedState(
+        previousLayout,
+        workspaceMode,
+        instance.id,
+        nextCollapsed,
+      );
+    },
+    {
       activeId: instance.id,
-      collapsed: nextLayout.collapsed,
       preservePositions: true,
-    });
-  };
+    },
+  );
+};
 
   const toggleWorkspaceLock = () => {
-    saveWorkspace({
-      ...workspaceLayout,
+  saveWorkspace(
+    (previousLayout) => ({
+      ...previousLayout,
       locked: {
-        ...(workspaceLayout.locked || {}),
-        [workspaceMode]: !workspaceLayout.locked?.[workspaceMode],
+        ...(previousLayout.locked || {}),
+        [workspaceMode]: !previousLayout.locked?.[workspaceMode],
       },
-    });
-  };
+    }),
+    {
+      preservePositions: true,
+    },
+  );
+};
 
   const addWidgetToCurrentTab = (type) => {
     if (currentTab === "calendar") return;
