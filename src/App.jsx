@@ -1240,6 +1240,7 @@ function App() {
 
   const [isCustomCourse, setIsCustomCourse] = useState(false);
   const [customCourseName, setCustomCourseName] = useState("");
+  const [newCourseName, setNewCourseName] = useState("");
 
   // ---------------------------------------------------------------------------
   // ADD ASSIGNMENT FORM
@@ -2278,6 +2279,28 @@ useEffect(() => {
     } catch (error) {
       console.error("Failed to save courses to localStorage:", error);
     }
+  };
+
+  const handleAddCourse = (event) => {
+    event.preventDefault();
+
+    const trimmedCourseName = newCourseName.trim();
+
+    if (!trimmedCourseName) return;
+
+    const courseAlreadyExists = courses.some(
+      (course) => course.toLowerCase() === trimmedCourseName.toLowerCase(),
+    );
+
+    if (courseAlreadyExists) {
+      alert(`"${trimmedCourseName}" is already in your course list.`);
+      return;
+    }
+
+    const updatedCourses = [...courses, trimmedCourseName].sort();
+    setCourses(updatedCourses);
+    saveCoursesForCurrentUser(updatedCourses);
+    setNewCourseName("");
   };
 
   const handleApplyVoiceAssignments = (payload, createdAt, source = "voice") => {
@@ -5778,6 +5801,26 @@ useEffect(() => {
                       Customize course colors or delete courses you no longer
                       need. Assignments from deleted courses move to "Other".
                     </p>
+
+                    <form className="course-add-form" onSubmit={handleAddCourse}>
+                      <label htmlFor="new-course-name">Add course</label>
+
+                      <input
+                        id="new-course-name"
+                        type="text"
+                        value={newCourseName}
+                        onChange={(event) => setNewCourseName(event.target.value)}
+                        placeholder="Course name"
+                      />
+
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={!newCourseName.trim()}
+                      >
+                        Add Course
+                      </button>
+                    </form>
 
                     {courses.map((course) => (
                       <div

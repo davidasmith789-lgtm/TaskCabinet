@@ -1543,6 +1543,34 @@ html[data-theme] .react-calendar__month-view__weekdays abbr { color: var(--muted
   white-space: nowrap;
 }
 
+.course-add-form {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.course-add-form label {
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.course-add-form input {
+  min-width: 0;
+}
+
+.course-add-form .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .course-add-form {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
 /* ============================
    Professional Edit Modal
    ============================ */
