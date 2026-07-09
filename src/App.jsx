@@ -15,6 +15,7 @@ import {
   normalizeWorkspaceLayout,
   placeWidget,
   setWidgetCollapsedState,
+  shouldPreserveWidgetPositions,
 } from "./workspaceLayout.js";
 import { preparePastedAssignmentLines } from "./bulkImportUtils.js";
 import { extractSyllabusText, findLikelySyllabusAssignments } from "./syllabusImport.js";
@@ -1603,35 +1604,10 @@ function App() {
     };
   }, [currentTab, workspaceMode]);
 
-  const hasOnlyCollapseLikeChanges = (previous, current) => {
-    if (!previous || !current) return false;
-    const previousItems = Object.values(previous[workspaceMode] || {}).flat();
-    const currentItems = Object.values(current[workspaceMode] || {}).flat();
-    if (previousItems.length !== currentItems.length) return false;
-
-    const positionChanged = previousItems.some((item, index) => {
-      const nextItem = currentItems[index];
-      if (!nextItem) return true;
-      return Number(item.x) !== Number(nextItem.x) || Number(item.y) !== Number(nextItem.y);
-    });
-
-    if (positionChanged) return false;
-
-    const previousCollapsed = previous.collapsed || {};
-    const currentCollapsed = current.collapsed || {};
-    if (JSON.stringify(previousCollapsed) !== JSON.stringify(currentCollapsed)) return true;
-
-    return previousItems.some((item, index) => {
-      const nextItem = currentItems[index];
-      if (!nextItem) return true;
-      return Number(item.height) !== Number(nextItem.height) || Number(item.expandedHeight) !== Number(nextItem.expandedHeight);
-    });
-  };
-
   useEffect(() => {
     if (currentTab === "calendar" || currentTab === "settings" || workspaceCanvasWidth <= 0) return undefined;
     const previousLayout = workspaceLayoutRef.current;
-    const preservePositions = hasOnlyCollapseLikeChanges(previousLayout, workspaceLayout);
+    const preservePositions = shouldPreserveWidgetPositions(previousLayout, workspaceLayout, workspaceMode);
     const next = normalizeWorkspaceLayout(structuredClone(workspaceLayout), {
       mode: workspaceMode,
       canvasWidth: workspaceCanvasWidth,
@@ -3515,7 +3491,7 @@ function App() {
       activeId: options.activeId,
       reflowActiveWithNeighbors: options.reflowActiveWithNeighbors,
       collapsed: options.collapsed ?? next?.collapsed,
-      preservePositions: Boolean(options.preservePositions),
+      preservePositions: options.preservePositions ?? !options.reflowActiveWithNeighbors,
     });
     setWorkspaceLayout(normalized);
     try { localStorage.setItem(workspaceStorageKey, JSON.stringify(normalized)); }

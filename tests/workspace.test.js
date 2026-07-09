@@ -7,7 +7,7 @@ import { formatAssignmentCountdown, getAssignmentCountdownTone } from "../src/as
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "../src/calendarWeekUtils.js";
 import { rankQuickMatchCandidates, rankRecommendedTasks, summarizeRecommendationWorkload } from "../src/recommendationUtils.js";
 import { canUndoVoiceCreation, lockVoiceUndo } from "../src/voiceTaskUtils.js";
-import { canHideWidget, createDefaultWorkspaceLayout, normalizeWorkspaceLayout, placeWidget, setWidgetCollapsedState } from "../src/workspaceLayout.js";
+import { canHideWidget, createDefaultWorkspaceLayout, normalizeWorkspaceLayout, placeWidget, setWidgetCollapsedState, shouldPreserveWidgetPositions } from "../src/workspaceLayout.js";
 
 function findWidgetOverlaps(items) {
   const visible = items.filter((item) => !item.hidden);
@@ -251,6 +251,14 @@ test("collapse toggles preserve existing widget positions", () => {
   assert.equal(widgetA.y, 40);
   assert.equal(widgetB.x, 460);
   assert.equal(widgetB.y, 40);
+});
+
+test("lock changes keep widget positions stable", () => {
+  const previous = createDefaultWorkspaceLayout();
+  const current = structuredClone(previous);
+  current.locked.desktop = true;
+
+  assert.equal(shouldPreserveWidgetPositions(previous, current, "desktop"), true);
 });
 
 test("active widget collision resolution preserves the active widget and moves the other one", () => {

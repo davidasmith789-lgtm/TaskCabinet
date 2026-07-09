@@ -269,6 +269,19 @@ function packVisibleWidgets(items, mode, options = {}) {
   });
 }
 
+export function shouldPreserveWidgetPositions(previousLayout, currentLayout, mode = "desktop") {
+  const previousItems = Object.values(previousLayout?.[mode] || {}).flat();
+  const currentItems = Object.values(currentLayout?.[mode] || {}).flat();
+
+  if (previousItems.length !== currentItems.length) return false;
+
+  return previousItems.every((item, index) => {
+    const nextItem = currentItems[index];
+    if (!nextItem) return false;
+    return item.id === nextItem.id && item.type === nextItem.type;
+  });
+}
+
 export function setWidgetCollapsedState(layout, mode, instanceId, collapsed) {
   const next = structuredClone(layout);
   const activeItem = Object.values(next[mode] || {})
