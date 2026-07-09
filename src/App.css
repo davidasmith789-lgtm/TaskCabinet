@@ -126,7 +126,7 @@ body,
 }
 
 .task-card-high {
-  background: var(--priority-high-bg);
+  background: var(--card-background);
 }
 
 .task-actions {
@@ -597,6 +597,7 @@ textarea {
 }
 
 .task-card-high {
+  background: var(--card-bg);
   border-left: 5px solid #ef4444;
 }
 
@@ -1021,7 +1022,7 @@ body {
 
 .task-card { background: var(--task-bg); color: var(--text-color); }
 .task-card-high {
-  background: var(--priority-high-bg);
+  background: var(--task-bg);
   border-left-color: var(--danger-color);
 }
 .task-card:hover,
@@ -2627,7 +2628,7 @@ html[data-theme] .in-progress-status-pill {
 .modal-backdrop { background: color-mix(in srgb, var(--backdrop-color) 76%, transparent) !important; }
 .edit-modal { background: var(--modal-bg) !important; color: var(--text-color); }
 .task-card { background: var(--task-bg) !important; }
-.task-card-high { background: var(--priority-high-bg) !important; border-left-color: var(--danger-color) !important; }
+.task-card-high { background: var(--task-bg) !important; border-left-color: var(--danger-color) !important; }
 .tab-row { background: color-mix(in srgb, var(--nav-bg) 88%, transparent) !important; }
 .hero-card { background: var(--accent-gradient) !important; color: var(--hero-text) !important; }
 
@@ -3186,9 +3187,9 @@ html[data-theme="dark"] {
 
 .workspace-widget.is-collapsed .workspace-widget-header { border-bottom: 0; }
 .workspace-widget-header > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.widget-collapse-hint { color: var(--muted-text); font-size: 0.68rem; white-space: nowrap; }
 
 .widget-drag-grip,
+.widget-collapse-button,
 .widget-menu summary {
   display: inline-grid;
   width: 32px;
@@ -3199,8 +3200,10 @@ html[data-theme="dark"] {
   border-radius: 9px;
   background: var(--surface-alt);
   color: var(--text-color);
-  cursor: grab;
 }
+.widget-drag-grip { cursor: grab; }
+.widget-collapse-button,
+.widget-menu summary { cursor: pointer; }
 .widget-drag-grip:active { cursor: grabbing; }
 .widget-drag-grip { touch-action: none; }
 .workspace-widget.is-locked .widget-drag-grip { display: none; }
@@ -3409,10 +3412,46 @@ html[data-theme="dark"] .school-guide-college .school-guide-level { color: #d8b4
 .checklist-settings-preview { display: flex; gap: 8px; margin-bottom: 12px; }
 .checklist-settings-preview span { width: 42px; height: 42px; border: 1px solid var(--border-color); border-radius: 10px; }
 
-.personalization-tips > input { width: 100%; margin: 12px 0; }
+.personalization-tips-content { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.personalization-tips-content > input { width: 100%; margin: 10px 0; }
 .personalization-tip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
 .personalization-tip-grid article { padding: 12px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-alt); }
 .personalization-tip-grid p { margin: 6px 0 0; color: var(--muted-text); font-size: 0.82rem; line-height: 1.45; }
+
+@media (min-width: 1050px) {
+  .settings-grid-personalization {
+    grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+    align-items: stretch;
+  }
+
+  .settings-grid-personalization .personalization-top-section {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .settings-grid-personalization .personalization-tip-grid {
+    flex: 1;
+    max-height: 520px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    overflow: auto;
+    padding-right: 4px;
+  }
+
+  .settings-grid-personalization .personalization-tip-grid article {
+    padding: 10px;
+  }
+
+  .settings-grid-personalization .personalization-tip-grid p {
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .settings-grid-personalization .color-studio-section {
+    grid-column: 1 / -1;
+  }
+}
 
 /* The full Calendar is a fixed page, never a side-rail workspace. */
 .workspace-calendar-only .workspace-main { width: 100%; }
@@ -3449,7 +3488,6 @@ html[data-theme="dark"] .school-guide-college .school-guide-level { color: #d8b4
   .workspace-layout.workspace-customizable,
   .workspace-calendar-only { width: 100%; }
   .workspace-widget { max-width: 100%; }
-  .widget-collapse-hint { display: none; }
   .standalone-checklist-items li { grid-template-columns: auto auto minmax(0, 1fr) auto; }
   .checklist-item-date-fields,
   .checklist-item-deadline { grid-column: 3 / -1; text-align: left; }

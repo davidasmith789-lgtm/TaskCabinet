@@ -8,6 +8,28 @@ import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "../src/calen
 import { canUndoVoiceCreation, lockVoiceUndo } from "../src/voiceTaskUtils.js";
 import { canHideWidget, createDefaultWorkspaceLayout, normalizeWorkspaceLayout, placeWidget } from "../src/workspaceLayout.js";
 
+function findWidgetOverlaps(items) {
+  const visible = items.filter((item) => !item.hidden);
+  const overlaps = [];
+
+  for (let i = 0; i < visible.length; i += 1) {
+    for (let j = i + 1; j < visible.length; j += 1) {
+      const a = visible[i];
+      const b = visible[j];
+      if (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      ) {
+        overlaps.push([a.type, b.type]);
+      }
+    }
+  }
+
+  return overlaps;
+}
+
 test("date-only checklist deadlines use the end of the local day", () => {
   const deadline = getChecklistDeadline({ dueDate: "2026-07-06", dueTime: "" });
   assert.equal(deadline.getHours(), 23);
@@ -44,6 +66,94 @@ test("new widget types are added without resetting a saved layout", () => {
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "school-guide"), true);
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "reminders"), true);
   assert.equal(normalized.locked.desktop, false);
+});
+
+test("default desktop and mobile workspace layouts do not overlap", () => {
+  const layout = createDefaultWorkspaceLayout();
+
+  assert.deepEqual(findWidgetOverlaps(layout.desktop.dashboard), []);
+  assert.deepEqual(findWidgetOverlaps(layout.mobile.dashboard), []);
+});
+
+test("workspace normalization separates overlapping visible widgets", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard[0] = {
+    ...saved.desktop.dashboard[0],
+    x: 0,
+    y: 0,
+    width: 420,
+    height: 260,
+  };
+  saved.desktop.dashboard[1] = {
+    ...saved.desktop.dashboard[1],
+    x: 120,
+    y: 80,
+    width: 420,
+    height: 260,
+  };
+
+  const normalized = normalizeWorkspaceLayout(saved, { mode: "desktop", canvasWidth: 900 });
+  assert.deepEqual(findWidgetOverlaps(normalized.desktop.dashboard), []);
+});
+
+test("active widget collision resolution nudges only the changed widget", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard = saved.desktop.dashboard.map((item, index) => (
+    index > 1 ? { ...item, hidden: true } : item
+  ));
+  const stationaryId = saved.desktop.dashboard[0].id;
+  const activeId = saved.desktop.dashboard[1].id;
+  saved.desktop.dashboard[0] = {
+    ...saved.desktop.dashboard[0],
+    x: 0,
+    y: 0,
+    width: 300,
+    height: 200,
+  };
+  saved.desktop.dashboard[1] = {
+    ...saved.desktop.dashboard[1],
+    x: 280,
+    y: 0,
+    width: 300,
+    height: 200,
+  };
+
+  const normalized = normalizeWorkspaceLayout(saved, { mode: "desktop", canvasWidth: 900, activeId });
+  const stationary = normalized.desktop.dashboard.find((item) => item.id === stationaryId);
+  const active = normalized.desktop.dashboard.find((item) => item.id === activeId);
+
+  assert.equal(stationary.x, 0);
+  assert.equal(stationary.y, 0);
+  assert.equal(active.x, 318);
+  assert.equal(active.y, 0);
+});
+
+test("active widget keeps its exact position when it is already open", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard = saved.desktop.dashboard.map((item, index) => (
+    index > 1 ? { ...item, hidden: true } : item
+  ));
+  const activeId = saved.desktop.dashboard[1].id;
+  saved.desktop.dashboard[0] = {
+    ...saved.desktop.dashboard[0],
+    x: 0,
+    y: 0,
+    width: 300,
+    height: 200,
+  };
+  saved.desktop.dashboard[1] = {
+    ...saved.desktop.dashboard[1],
+    x: 360,
+    y: 70,
+    width: 300,
+    height: 200,
+  };
+
+  const normalized = normalizeWorkspaceLayout(saved, { mode: "desktop", canvasWidth: 900, activeId });
+  const active = normalized.desktop.dashboard.find((item) => item.id === activeId);
+
+  assert.equal(active.x, 360);
+  assert.equal(active.y, 70);
 });
 
 test("pasted assignment lists preserve course headings and remove bullets", () => {

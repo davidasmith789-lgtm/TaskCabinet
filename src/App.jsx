@@ -275,12 +275,57 @@ function stopControlDoubleClick(event) {
   event.stopPropagation();
 }
 
+const WORKSPACE_COLLISION_GAP = 18;
+
+function getWorkspaceObstacleRects(widget, canvas) {
+  const canvasBounds = canvas.getBoundingClientRect();
+  return [...canvas.querySelectorAll(".workspace-widget")]
+    .filter((item) => item !== widget)
+    .map((item) => {
+      const bounds = item.getBoundingClientRect();
+      return {
+        x: bounds.left - canvasBounds.left,
+        y: bounds.top - canvasBounds.top,
+        width: Number(item.dataset.widgetWidth) || bounds.width,
+        height: Number(item.dataset.expandedHeight) || bounds.height,
+      };
+    });
+}
+
+function workspaceRectsOverlap(a, b, gap = WORKSPACE_COLLISION_GAP) {
+  return (
+    a.x < b.x + b.width + gap &&
+    a.x + a.width + gap > b.x &&
+    a.y < b.y + b.height + gap &&
+    a.y + a.height + gap > b.y
+  );
+}
+
+function isWorkspaceRectOpen(rect, obstacles) {
+  return !obstacles.some((obstacle) => workspaceRectsOverlap(rect, obstacle));
+}
+
+function chooseLegalWorkspaceRect(desired, xOnly, yOnly, lastSafe, obstacles) {
+  if (isWorkspaceRectOpen(desired, obstacles)) return desired;
+
+  const candidates = [xOnly, yOnly].filter((candidate) =>
+    isWorkspaceRectOpen(candidate, obstacles)
+  );
+  if (candidates.length === 0) return lastSafe;
+
+  return candidates.sort((a, b) => {
+    const aDistance = Math.abs(a.x - desired.x) + Math.abs(a.y - desired.y);
+    const bDistance = Math.abs(b.x - desired.x) + Math.abs(b.y - desired.y);
+    return aDistance - bDistance;
+  })[0];
+}
+
 function SettingsCard({ title, description, className = "", children }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
     <section className={`settings-section ${className}`.trim()}>
-      <div className="settings-collapse-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setIsOpen((open) => !open))} title="Double-click to expand or minimize">
+      <div className="settings-collapse-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setIsOpen((open) => !open))} title="Use the button to expand or minimize">
         <h4>{title}</h4>
         <button
           type="button"
@@ -846,7 +891,7 @@ const PERSONALIZATION_TIPS = [
   ["Add features anywhere", "Search the Workspace Organizer and add any available widget to the current tab. Existing copies stay synchronized."],
   ["Resize anything", "Drag the bottom-right corner of a widget. Desktop and mobile sizes save independently."],
   ["Copy across tabs", "Open a widget's three-dot menu and choose a destination under Copy to. Its content stays synchronized."],
-  ["Minimize sections", "Double-click or double-tap a widget header. Every copy of that widget uses the same minimized state."],
+  ["Minimize sections", "Use the + or - button in a widget header. Double-click still works as a shortcut."],
   ["Hide and restore", "Choose Hide widget, then use the Widgets button beside navigation to restore it later."],
   ["Reset layouts", "The Widgets tray can reset the current tab or every desktop and mobile layout without deleting data."],
   ["Fonts and text", "Choose an app-wide font and a text scale from 70% to 150% in Appearance."],
@@ -872,17 +917,52 @@ function WorkspaceWidget({
   const resizeStart = (event) => {
     event.preventDefault();
     event.stopPropagation();
+    const widget = event.currentTarget.closest(".workspace-widget");
+    const canvas = widget?.closest(".workspace-widget-canvas");
     const startX = event.clientX;
     const startY = event.clientY;
     const startWidth = instance.width;
     const startHeight = instance.height;
-    const move = (moveEvent) => onResize(
-      Math.max(190, startWidth + moveEvent.clientX - startX),
-      Math.max(58, startHeight + moveEvent.clientY - startY),
-    );
+    const obstacles = widget && canvas ? getWorkspaceObstacleRects(widget, canvas) : [];
+    const widgetBounds = widget?.getBoundingClientRect();
+    const canvasBounds = canvas?.getBoundingClientRect();
+    const widgetX = widgetBounds && canvasBounds ? widgetBounds.left - canvasBounds.left : 0;
+    const widgetY = widgetBounds && canvasBounds ? widgetBounds.top - canvasBounds.top : 0;
+    let nextWidth = startWidth;
+    let nextHeight = startHeight;
+    let lastSafe = {
+      x: widgetX,
+      y: widgetY,
+      width: startWidth,
+      height: startHeight,
+    };
+    const move = (moveEvent) => {
+      const maxWidth = canvas ? Math.max(190, canvas.clientWidth - widgetX) : Number.POSITIVE_INFINITY;
+      const desired = {
+        x: widgetX,
+        y: widgetY,
+        width: Math.min(maxWidth, Math.max(190, startWidth + moveEvent.clientX - startX)),
+        height: Math.max(58, startHeight + moveEvent.clientY - startY),
+      };
+      const legal = chooseLegalWorkspaceRect(
+        desired,
+        { ...desired, height: lastSafe.height },
+        { ...desired, width: lastSafe.width },
+        lastSafe,
+        obstacles,
+      );
+      nextWidth = legal.width;
+      nextHeight = legal.height;
+      lastSafe = legal;
+      if (widget) {
+        widget.style.width = `${nextWidth}px`;
+        widget.style.height = `${nextHeight}px`;
+      }
+    };
     const stop = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
+      onResize(nextWidth, nextHeight, canvas?.clientWidth);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
@@ -904,11 +984,31 @@ function WorkspaceWidget({
     let nextX = initialX;
     let nextY = initialY;
     let targetTab = null;
+    const obstacles = getWorkspaceObstacleRects(widget, canvas);
+    let lastSafe = {
+      x: initialX,
+      y: initialY,
+      width: Number(widget.dataset.widgetWidth) || widget.offsetWidth,
+      height: Number(widget.dataset.expandedHeight) || widget.offsetHeight,
+    };
     widget.classList.add("is-dragging");
     const move = (moveEvent) => {
       const maxX = Math.max(0, canvas.clientWidth - widget.offsetWidth);
-      nextX = Math.max(0, Math.min(maxX, initialX + moveEvent.clientX - startX));
-      nextY = Math.max(0, initialY + moveEvent.clientY - startY);
+      const desired = {
+        ...lastSafe,
+        x: Math.max(0, Math.min(maxX, initialX + moveEvent.clientX - startX)),
+        y: Math.max(0, initialY + moveEvent.clientY - startY),
+      };
+      const legal = chooseLegalWorkspaceRect(
+        desired,
+        { ...desired, y: lastSafe.y },
+        { ...desired, x: lastSafe.x },
+        lastSafe,
+        obstacles,
+      );
+      nextX = legal.x;
+      nextY = legal.y;
+      lastSafe = legal;
       widget.style.left = `${nextX}px`;
       widget.style.top = `${nextY}px`;
       targetTab = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest?.("[data-tab]")?.dataset.tab || null;
@@ -928,9 +1028,11 @@ function WorkspaceWidget({
     <section
       className={`workspace-widget${collapsed ? " is-collapsed" : ""}${locked ? " is-locked" : ""}`}
       data-widget-id={instance.id}
-      style={{ left: `max(0px, min(${Number.isFinite(instance.xRatio) ? instance.xRatio * 100 : 0}%, calc(100% - ${instance.width}px)))`, top: `${instance.y || 0}px`, zIndex: instance.zIndex || 1, width: `${instance.width}px`, height: collapsed ? "58px" : `${instance.height}px` }}
+      data-widget-width={instance.width}
+      data-expanded-height={instance.height}
+      style={{ left: `${Math.max(0, Number(instance.x) || 0)}px`, top: `${instance.y || 0}px`, zIndex: instance.zIndex || 1, width: `${instance.width}px`, height: collapsed ? "58px" : `${instance.height}px` }}
     >
-      <header className="workspace-widget-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, onToggle)} title="Double-click to expand or minimize">
+      <header className="workspace-widget-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, onToggle)}>
         <button
           type="button"
           className="widget-drag-grip"
@@ -943,14 +1045,24 @@ function WorkspaceWidget({
           ⠿
         </button>
         <strong>{title}</strong>
-        <span className="widget-collapse-hint">Double-click to {collapsed ? "expand" : "minimize"}</span>
+        <button
+          type="button"
+          className="widget-collapse-button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle();
+          }}
+          onDoubleClick={stopControlDoubleClick}
+          aria-label={`${collapsed ? "Expand" : "Minimize"} ${title}`}
+          title={collapsed ? "Expand" : "Minimize"}
+        >
+          {collapsed ? "+" : "-"}
+        </button>
         <details className="widget-menu" onDoubleClick={(event) => event.stopPropagation()}>
           <summary aria-label={`${title} options`}>•••</summary>
           <div className="widget-menu-popover">
-            <strong>Move to</strong>
-            {WORKSPACE_TABS.map(([tab, label]) => <button type="button" key={`move-${tab}`} onClick={() => onMove(tab)}>{label}</button>)}
             <strong>Copy to</strong>
-            {WORKSPACE_TABS.map(([tab, label]) => <button type="button" key={`copy-${tab}`} onClick={() => onCopy(tab)}>{label}</button>)}
+            {WORKSPACE_TABS.filter(([tab]) => tab !== "calendar").map(([tab, label]) => <button type="button" key={`copy-${tab}`} onClick={() => onCopy(tab)}>{label}</button>)}
             <button type="button" className="widget-hide-action" onClick={onHide}>Hide widget</button>
           </div>
         </details>
@@ -1317,7 +1429,8 @@ function App() {
   const [storageView, setStorageView] = useState(null);
   const [draggedSettingsSection, setDraggedSettingsSection] = useState(null);
   const [settingsDropTarget, setSettingsDropTarget] = useState(null);
-  const [appearanceSettingsOpen, setAppearanceSettingsOpen] = useState(false);
+  const [appearanceSettingsOpen, setAppearanceSettingsOpen] = useState(true);
+  const [personalizationTipsOpen, setPersonalizationTipsOpen] = useState(true);
   const [colorStudioOpen, setColorStudioOpen] = useState(false);
   const [colorGroupsOpen, setColorGroupsOpen] = useState({});
   const [colorTextDrafts, setColorTextDrafts] = useState({});
@@ -3380,23 +3493,30 @@ function App() {
     window.addEventListener("pointerup", stop);
   };
 
-  const saveWorkspace = (next) => {
-    setWorkspaceLayout(next);
-    try { localStorage.setItem(workspaceStorageKey, JSON.stringify(next)); }
+  const saveWorkspace = (next, options = {}) => {
+    const normalized = normalizeWorkspaceLayout(next, {
+      mode: workspaceMode,
+      canvasWidth: options.canvasWidth,
+      activeId: options.activeId,
+    });
+    setWorkspaceLayout(normalized);
+    try { localStorage.setItem(workspaceStorageKey, JSON.stringify(normalized)); }
     catch (error) { console.error("Failed to save workspace layout:", error); }
   };
 
-  const updateWidgetInstance = (instanceId, changes) => {
+  const updateWidgetInstance = (instanceId, changes, options = {}) => {
     const next = structuredClone(workspaceLayout);
     for (const tab of Object.keys(next[workspaceMode])) {
       next[workspaceMode][tab] = next[workspaceMode][tab].map((item) => item.id === instanceId ? { ...item, ...changes } : item);
     }
-    saveWorkspace(next);
+    saveWorkspace(next, { ...options, activeId: instanceId });
   };
 
   const moveWorkspaceWidget = (instance, targetTab, copy = false) => {
     if (targetTab === "calendar") return;
-    saveWorkspace(placeWidget(workspaceLayout, workspaceMode, targetTab, instance, { copy }));
+    saveWorkspace(placeWidget(workspaceLayout, workspaceMode, targetTab, instance, { copy }), {
+      activeId: copy ? undefined : instance.id,
+    });
     if (!copy) setCurrentTab(targetTab);
   };
 
@@ -4704,6 +4824,7 @@ function App() {
   const courseOverviewSummary = {
     todo: overviewCourseTasks.filter((task) => getTaskStatus(task) === "todo").length,
     inProgress: overviewCourseTasks.filter((task) => getTaskStatus(task) === "inProgress").length,
+    upcoming: overviewCourseTasks.filter((task) => ["todo", "inProgress"].includes(getTaskStatus(task))).length,
     overdue: overviewCourseTasks.filter((task) => getTaskDueBucket(task).startsWith("Overdue")).length,
     dueToday: overviewCourseTasks.filter((task) => getTaskDueBucket(task).startsWith("Due Today")).length,
     noDate: overviewCourseTasks.filter((task) => getTaskDueBucket(task) === "No Due Date").length,
@@ -4774,8 +4895,8 @@ function App() {
         <label><span>Choose a {schoolLevelCopy.courseLabel.toLowerCase()}</span><select value={overviewCourse} onChange={(event) => setCourseOverviewSelection(event.target.value)}>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
         <button type="button" className="course-overview-primary" style={{ "--course-overview-color": courseColor, "--course-overview-text": getTextColorForCourse(overviewCourse) }} onClick={() => handleCourseOverviewOpen(overviewCourse)}>
           <span>Upcoming {schoolLevelCopy.taskPlural}</span>
-          <strong>{courseOverviewSummary.todo}</strong>
-          <small>Open {overviewCourse} in {schoolLevelCopy.todoLabel} →</small>
+          <strong>{courseOverviewSummary.upcoming}</strong>
+          <small>Includes {schoolLevelCopy.todoLabel.toLowerCase()} and in progress</small>
         </button>
         <div className="course-overview-breakdown">
           <div><strong>{courseOverviewSummary.inProgress}</strong><span>In progress</span></div>
@@ -4890,10 +5011,10 @@ function App() {
         return !source.some((task) => getTaskDueBucket(task) === bucketsOrder[bucketIndex]);
       })()}
       onToggle={() => toggleWorkspaceWidget(instance.type)}
-      onResize={(width, height) => updateWidgetInstance(instance.id, { width, height })}
+      onResize={(width, height, canvasWidth) => updateWidgetInstance(instance.id, { width, height }, { canvasWidth })}
       onPosition={(x, y, canvasWidth) => {
         const highestLayer = Math.max(1, ...Object.values(workspaceLayout[workspaceMode] || {}).flat().map((item) => Number(item.zIndex) || 1));
-        updateWidgetInstance(instance.id, { x, xRatio: canvasWidth > 0 ? x / canvasWidth : 0, y, zIndex: highestLayer + 1 });
+        updateWidgetInstance(instance.id, { x, xRatio: canvasWidth > 0 ? x / canvasWidth : 0, y, zIndex: highestLayer + 1 }, { canvasWidth });
       }}
       onMove={(tab) => moveWorkspaceWidget(instance, tab, false)}
       onCopy={(tab) => moveWorkspaceWidget(instance, tab, true)}
@@ -6095,14 +6216,18 @@ function App() {
                   ))}
                 </nav>}
                 <div className="settings-content">
-                  <div className={`settings-grid${storageView ? " settings-grid-hidden" : ""}`}>
-                <section className="settings-section" hidden={settingsSection !== "personalization"}>
-                  <div className="settings-collapse-header">
+                  <div className={`settings-grid${storageView ? " settings-grid-hidden" : ""}${settingsSection === "personalization" ? " settings-grid-personalization" : ""}`}>
+                <section className="settings-section personalization-top-section appearance-settings-section" hidden={settingsSection !== "personalization"}>
+                  <div
+                    className="settings-collapse-header double-click-collapse-header"
+                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setAppearanceSettingsOpen((isOpen) => !isOpen))}
+                    title="Double-click to expand or minimize"
+                  >
                     <h4>Appearance</h4>
                     <button
                       type="button"
                       className="settings-collapse-button"
-                      onClick={() => setAppearanceSettingsOpen((isOpen) => !isOpen)}
+                      onClick={(event) => toggleFromCollapseButton(event, () => setAppearanceSettingsOpen((isOpen) => !isOpen))}
                       aria-expanded={appearanceSettingsOpen}
                       aria-controls="appearance-settings-content"
                       aria-label={`${appearanceSettingsOpen ? "Shrink" : "Enlarge"} Appearance`}
@@ -6201,22 +6326,47 @@ function App() {
                   )}
                 </section>
 
-                <section className="settings-section personalization-tips" hidden={settingsSection !== "personalization"}>
-                  <h4>Personalization Tips</h4>
-                  <p className="hint-text">Learn how to reshape TaskCabinet around the way you work.</p>
-                  <input type="search" value={helpSearch} onChange={(event) => setHelpSearch(event.target.value)} placeholder="Search layout, colors, fonts, checklists…" aria-label="Search personalization help" />
-                  <div className="personalization-tip-grid">
-                    {PERSONALIZATION_TIPS.filter(([title, copy]) => `${title} ${copy}`.toLowerCase().includes(helpSearch.trim().toLowerCase())).map(([title, copy]) => <article key={title}><strong>{title}</strong><p>{copy}</p></article>)}
+                <section className="settings-section personalization-top-section personalization-tips" hidden={settingsSection !== "personalization"}>
+                  <div
+                    className="settings-collapse-header double-click-collapse-header"
+                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setPersonalizationTipsOpen((isOpen) => !isOpen))}
+                    title="Double-click to expand or minimize"
+                  >
+                    <h4>Personalization Tips</h4>
+                    <button
+                      type="button"
+                      className="settings-collapse-button"
+                      onClick={(event) => toggleFromCollapseButton(event, () => setPersonalizationTipsOpen((isOpen) => !isOpen))}
+                      aria-expanded={personalizationTipsOpen}
+                      aria-controls="personalization-tips-content"
+                      aria-label={`${personalizationTipsOpen ? "Shrink" : "Enlarge"} Personalization Tips`}
+                      title={`${personalizationTipsOpen ? "Shrink" : "Enlarge"} Personalization Tips`}
+                    >
+                      {personalizationTipsOpen ? "−" : "+"}
+                    </button>
                   </div>
+                  {personalizationTipsOpen && (
+                    <div id="personalization-tips-content" className="settings-collapsible-content personalization-tips-content">
+                      <p className="hint-text">Learn how to reshape TaskCabinet around the way you work.</p>
+                      <input type="search" value={helpSearch} onChange={(event) => setHelpSearch(event.target.value)} placeholder="Search layout, colors, fonts, checklists…" aria-label="Search personalization help" />
+                      <div className="personalization-tip-grid">
+                        {PERSONALIZATION_TIPS.filter(([title, copy]) => `${title} ${copy}`.toLowerCase().includes(helpSearch.trim().toLowerCase())).map(([title, copy]) => <article key={title}><strong>{title}</strong><p>{copy}</p></article>)}
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 <section className="settings-section color-studio-section" hidden={settingsSection !== "personalization"}>
-                  <div className="color-studio-header">
+                  <div
+                    className="color-studio-header double-click-collapse-header"
+                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setColorStudioOpen((isOpen) => !isOpen))}
+                    title="Double-click to expand or minimize"
+                  >
                     <h4>Full Color Studio</h4>
                     <button
                       type="button"
                       className="settings-collapse-button"
-                      onClick={() => setColorStudioOpen((isOpen) => !isOpen)}
+                      onClick={(event) => toggleFromCollapseButton(event, () => setColorStudioOpen((isOpen) => !isOpen))}
                       aria-expanded={colorStudioOpen}
                       aria-controls="color-studio-content"
                       aria-label={`${colorStudioOpen ? "Shrink" : "Enlarge"} Full Color Studio`}
