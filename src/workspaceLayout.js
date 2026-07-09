@@ -458,7 +458,9 @@ export function normalizeWorkspaceLayout(value, options = {}) {
       value[mode][tab] = addMissingPositions(value[mode][tab], mode, {
         ...options,
         collapsed: collapsedState,
-        preservePositions: userCustomized || options.preservePositions,
+        preservePositions: options.reflowForCanvas
+          ? false
+          : userCustomized || options.preservePositions,
       });
     }
   }

@@ -811,6 +811,10 @@ const WORKSPACE_TABS = [
   ["settings", "Settings"],
 ];
 
+const WORKSPACE_COMPACT_BREAKPOINT = 1100;
+const getWorkspaceModeForWidth = (width) =>
+  Number(width) < WORKSPACE_COMPACT_BREAKPOINT ? "mobile" : "desktop";
+
 const PERSONALIZATION_TIPS = [
   ["Move widgets", "Drag the dotted grip to place a widget anywhere on the canvas. Moved widgets come to the front; drag over a navigation tab to relocate them."],
   ["Lock a finished layout", "Open Widgets and choose Lock Layout to hide move and resize controls while keeping every widget interactive."],
@@ -1370,7 +1374,7 @@ function App() {
   const [widgetsTrayOpen, setWidgetsTrayOpen] = useState(false);
   const [widgetSearch, setWidgetSearch] = useState("");
   const [helpSearch, setHelpSearch] = useState("");
-  const [workspaceMode, setWorkspaceMode] = useState(() => window.innerWidth < 768 ? "mobile" : "desktop");
+  const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(window.innerWidth));
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(0);
   const workspaceMainRef = useRef(null);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -1591,7 +1595,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const handleResize = () => setWorkspaceMode(window.innerWidth < 768 ? "mobile" : "desktop");
+    const handleResize = () => setWorkspaceMode(getWorkspaceModeForWidth(window.innerWidth));
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -1600,7 +1604,11 @@ function App() {
     const node = workspaceMainRef.current;
     if (!node) return undefined;
     const updateCanvasWidth = () => {
-      setWorkspaceCanvasWidth(node.clientWidth || 0);
+      const nextWidth = node.clientWidth || 0;
+      setWorkspaceCanvasWidth(nextWidth);
+      if (nextWidth > 0) {
+        setWorkspaceMode(getWorkspaceModeForWidth(nextWidth));
+      }
     };
     updateCanvasWidth();
     const resizeObserver = new ResizeObserver(updateCanvasWidth);
@@ -1631,7 +1639,8 @@ useEffect(() => {
     mode: workspaceMode,
     canvasWidth: workspaceCanvasWidth,
     collapsed: currentLayout.collapsed,
-    preservePositions: true,
+    preservePositions: false,
+    reflowForCanvas: true,
   });
 
   const hasChanges = JSON.stringify(next) !== JSON.stringify(currentLayout);
