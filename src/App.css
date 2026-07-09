@@ -2020,11 +2020,41 @@ html[data-theme="dark"] .edit-notes-side {
   font-weight: 700;
 }
 
+.quick-match-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.quick-match-presets button {
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--surface-alt);
+  color: var(--text-color);
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quick-match-presets button:hover,
+.quick-match-presets button.active {
+  border-color: var(--focus-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+}
+
 .quick-match-reason {
   margin: 9px 0 0;
   color: var(--muted-text);
   font-size: 0.76rem;
   line-height: 1.4;
+}
+
+.quick-match-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .quick-match-backups {
@@ -2042,11 +2072,26 @@ html[data-theme="dark"] .edit-notes-side {
 }
 
 .quick-match-backups li {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 8px;
   font-size: 0.74rem;
+}
+
+.quick-match-backup-main {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-match-backup-main:hover strong {
+  color: var(--primary-color);
 }
 
 .quick-match-backups li strong {
@@ -2058,6 +2103,21 @@ html[data-theme="dark"] .edit-notes-side {
 .quick-match-backups li small {
   flex: 0 0 auto;
   color: var(--muted-text);
+}
+
+.quick-match-backup-start {
+  padding: 5px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quick-match-backup-start:hover {
+  border-color: var(--focus-color);
 }
 
 .dashboard-calendar-header {
@@ -2186,6 +2246,33 @@ html[data-theme="dark"] .edit-notes-side {
   font-weight: 800;
 }
 
+.recommended-plan-workload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: -6px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface-alt);
+}
+
+.recommended-plan-workload.compact {
+  margin: 0 0 10px;
+}
+
+.recommended-plan-workload strong {
+  color: var(--text-color);
+  font-size: 1rem;
+}
+
+.recommended-plan-workload span {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .recommended-plan-list {
   display: grid;
   gap: 10px;
@@ -2273,6 +2360,37 @@ html[data-theme="dark"] .edit-notes-side {
   font-size: 13px;
 }
 
+.recommended-plan-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.recommended-plan-reasons span {
+  padding: 4px 7px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, var(--border-color));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-color) 9%, var(--card-bg));
+  color: var(--text-color);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.recommended-plan-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 14px 14px 62px;
+}
+
+.recommended-plan-actions .btn {
+  min-height: 30px;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  font-size: 0.72rem;
+}
+
 .recommended-plan-empty {
   margin: 0;
   padding: 18px;
@@ -2299,6 +2417,11 @@ html[data-theme="dark"] .recommended-plan-count {
 
   .recommended-plan-button {
     align-items: flex-start;
+  }
+
+  .recommended-plan-actions {
+    justify-content: flex-start;
+    padding-left: 14px;
   }
 }
 
@@ -3008,6 +3131,22 @@ a,
 .bulk-import-actions small { color: var(--muted-text); text-align: right; }
 .bulk-import-message { margin: 0; padding: 9px 11px; border-radius: 9px; background: var(--surface-alt); color: var(--text-color); }
 .bulk-import-review { display: grid; gap: 9px; }
+.bulk-import-review-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  background: var(--surface-alt);
+}
+.bulk-import-review-toolbar span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
 .bulk-import-review article {
   display: grid;
   grid-template-columns: auto minmax(170px, 2fr) minmax(120px, 1fr) 80px 80px 110px 90px;
@@ -3024,6 +3163,21 @@ a,
 .bulk-import-review select { min-width: 0; padding: 7px; }
 .bulk-import-select { align-self: center; justify-items: center; }
 .bulk-import-select input { width: auto; }
+.bulk-import-warnings {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 6px;
+}
+.bulk-import-warnings span {
+  padding: 5px 7px;
+  border: 1px solid color-mix(in srgb, var(--warning-color) 45%, var(--border-color));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning-color) 11%, var(--card-bg));
+  color: var(--text-color);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
 .bulk-import-submit { justify-self: end; }
 
 @media (max-width: 900px) {
@@ -3332,20 +3486,52 @@ html[data-theme="dark"] {
 .course-overview-breakdown .has-warning { border-color: color-mix(in srgb, var(--warning-color) 55%, var(--border-color)); }
 .course-overview-breakdown .has-danger { border-color: color-mix(in srgb, var(--danger-color) 55%, var(--border-color)); }
 .course-overview-breakdown .has-danger strong { color: var(--danger-color); }
-
-.school-guide-widget { display: grid; gap: 11px; }
-.school-guide-widget h3 { margin: 0; font-size: 1.35rem; }
-.school-guide-widget > p { margin: 0; color: var(--muted-text); line-height: 1.55; }
-.school-guide-widget ul { display: grid; gap: 7px; margin: 0; padding-left: 20px; }
-.school-guide-widget li { line-height: 1.35; }
-.school-guide-widget .btn { justify-self: start; }
-.school-guide-level { width: fit-content; padding: 5px 9px; border-radius: 999px; font-size: 0.7rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; }
-.school-guide-middle .school-guide-level { background: color-mix(in srgb, #16a34a 16%, var(--card-bg)); color: #15803d; }
-.school-guide-high .school-guide-level { background: color-mix(in srgb, #4f46e5 16%, var(--card-bg)); color: #4f46e5; }
-.school-guide-college .school-guide-level { background: color-mix(in srgb, #7c3aed 16%, var(--card-bg)); color: #7c3aed; }
-html[data-theme="dark"] .school-guide-middle .school-guide-level { color: #86efac; }
-html[data-theme="dark"] .school-guide-high .school-guide-level { color: #c7d2fe; }
-html[data-theme="dark"] .school-guide-college .school-guide-level { color: #d8b4fe; }
+.course-overview-next {
+  display: grid;
+  gap: 6px;
+  padding: 11px;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  background: var(--card-bg);
+}
+.course-overview-next > span {
+  color: var(--muted-text);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.course-overview-next > strong {
+  overflow: hidden;
+  color: var(--text-color);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.course-overview-next > small {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+}
+.course-overview-countdown { margin: 0; }
+.course-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.course-overview-actions .btn {
+  min-height: 30px;
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  font-size: 0.72rem;
+}
+.course-overview-empty {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: 11px;
+  color: var(--muted-text);
+  text-align: center;
+}
 
 .school-level-preview { margin: 10px 0 14px; padding: 12px; border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 11px; background: var(--surface-alt); }
 .school-level-preview p { margin: 5px 0; color: var(--text-color); }
@@ -3363,11 +3549,16 @@ html[data-theme="dark"] .school-guide-college .school-guide-level { color: #d8b4
 .reminder-widget-summary .has-danger { border-color: color-mix(in srgb, var(--danger-color) 55%, var(--border-color)); }
 .reminder-widget-summary .has-danger strong { color: var(--danger-color); }
 .reminder-horizon-control { display: grid; grid-template-columns: auto minmax(150px, 1fr); align-items: center; gap: 10px; color: var(--muted-text); font-size: 0.76rem; font-weight: 800; }
+.reminder-widget-group { display: grid; gap: 7px; }
+.reminder-widget-group h4 { margin: 0; color: var(--muted-text); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .reminder-widget-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
-.reminder-widget-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border-color); border-radius: 11px; background: var(--card-bg); color: var(--text-color); text-align: left; cursor: pointer; }
-.reminder-widget-list button:hover { border-color: var(--focus-color); background: var(--surface-alt); }
-.reminder-widget-list button > span { display: grid; gap: 3px; min-width: 0; }
-.reminder-widget-list button > span:last-child { flex: 0 0 auto; text-align: right; }
+.reminder-widget-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.reminder-widget-main { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border-color); border-radius: 11px; background: var(--card-bg); color: var(--text-color); text-align: left; cursor: pointer; }
+.reminder-widget-main:hover,
+.reminder-widget-start:hover { border-color: var(--focus-color); background: var(--surface-alt); }
+.reminder-widget-main > span { display: grid; gap: 3px; min-width: 0; }
+.reminder-widget-main > span:last-child { flex: 0 0 auto; text-align: right; }
+.reminder-widget-start { align-self: stretch; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 11px; background: var(--card-bg); color: var(--text-color); font-size: 0.7rem; font-weight: 800; cursor: pointer; }
 .reminder-widget-list strong { overflow: hidden; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
 .reminder-widget-list small { color: var(--muted-text); font-size: 0.67rem; }
 .reminder-widget-list .is-overdue strong { color: var(--danger-color); }
@@ -3376,6 +3567,8 @@ html[data-theme="dark"] .school-guide-college .school-guide-level { color: #d8b4
 @media (max-width: 500px) {
   .reminder-widget-summary { grid-template-columns: 1fr; }
   .reminder-horizon-control { grid-template-columns: 1fr; }
+  .reminder-widget-list li { grid-template-columns: 1fr; }
+  .reminder-widget-start { min-height: 32px; }
 }
 
 .standalone-checklists { color: var(--checklist-text); }

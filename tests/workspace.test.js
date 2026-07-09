@@ -5,6 +5,7 @@ import { preparePastedAssignmentLines } from "../src/bulkImportUtils.js";
 import { findLikelySyllabusAssignments, getSyllabusFileKind } from "../src/syllabusImport.js";
 import { formatAssignmentCountdown, getAssignmentCountdownTone } from "../src/assignmentCountdown.js";
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "../src/calendarWeekUtils.js";
+import { rankQuickMatchCandidates, rankRecommendedTasks, summarizeRecommendationWorkload } from "../src/recommendationUtils.js";
 import { canUndoVoiceCreation, lockVoiceUndo } from "../src/voiceTaskUtils.js";
 import { canHideWidget, createDefaultWorkspaceLayout, normalizeWorkspaceLayout, placeWidget } from "../src/workspaceLayout.js";
 
@@ -57,15 +58,24 @@ test("the last protected widget cannot be hidden", () => {
 
 test("new widget types are added without resetting a saved layout", () => {
   const saved = createDefaultWorkspaceLayout();
-  saved.desktop.dashboard = saved.desktop.dashboard.filter((item) => !["course-overview", "school-guide", "reminders"].includes(item.type));
+  saved.desktop.dashboard = saved.desktop.dashboard.filter((item) => !["course-overview", "reminders"].includes(item.type));
   saved.desktop.dashboard[0].width = 333;
   const normalized = normalizeWorkspaceLayout(saved);
   assert.equal(normalized.desktop.dashboard[0].width, 333);
   assert.equal(Number.isFinite(normalized.desktop.dashboard[0].xRatio), true);
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "course-overview"), true);
-  assert.equal(normalized.desktop.dashboard.some((item) => item.type === "school-guide"), true);
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "reminders"), true);
   assert.equal(normalized.locked.desktop, false);
+});
+
+test("school guide widget is removed from defaults and saved layouts", () => {
+  const layout = createDefaultWorkspaceLayout();
+  assert.equal(layout.desktop.dashboard.some((item) => item.type === "school-guide"), false);
+
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard.push({ id: "school-guide-old", type: "school-guide", x: 468, y: 611, width: 466, height: 340 });
+  const normalized = normalizeWorkspaceLayout(saved);
+  assert.equal(normalized.desktop.dashboard.some((item) => item.type === "school-guide"), false);
 });
 
 test("default desktop and mobile workspace layouts do not overlap", () => {
@@ -73,6 +83,44 @@ test("default desktop and mobile workspace layouts do not overlap", () => {
 
   assert.deepEqual(findWidgetOverlaps(layout.desktop.dashboard), []);
   assert.deepEqual(findWidgetOverlaps(layout.mobile.dashboard), []);
+});
+
+test("desktop dashboard defaults use the full landscape canvas", () => {
+  const layout = createDefaultWorkspaceLayout();
+  const rightEdge = Math.max(...layout.desktop.dashboard.filter((item) => !item.hidden).map((item) => item.x + item.width));
+  assert.ok(rightEdge >= 1680);
+});
+
+test("old default desktop dashboard migrates to the balanced full-width layout", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard = [
+    { id: "recommended-0", type: "recommended", width: 640, height: 430, x: 0, y: 0 },
+    { id: "quick-match-1", type: "quick-match", width: 360, height: 430, x: 658, y: 0 },
+    { id: "mini-calendar-2", type: "mini-calendar", width: 330, height: 430, x: 1036, y: 0 },
+    { id: "stat-active-3", type: "stat-active", width: 220, height: 145, x: 0, y: 448 },
+    { id: "stat-today-4", type: "stat-today", width: 220, height: 145, x: 238, y: 448 },
+    { id: "stat-overdue-5", type: "stat-overdue", width: 220, height: 145, x: 476, y: 448 },
+    { id: "stat-workload-6", type: "stat-workload", width: 220, height: 145, x: 714, y: 448 },
+    { id: "reminders-7", type: "reminders", width: 414, height: 360, x: 952, y: 448 },
+    { id: "course-overview-8", type: "course-overview", width: 450, height: 340, x: 0, y: 611 },
+    { id: "school-guide-9", type: "school-guide", width: 466, height: 340, x: 468, y: 611 },
+    { id: "checklists-10", type: "checklists", width: 414, height: 480, x: 952, y: 826 },
+    { id: "add-assignment-11", type: "add-assignment", width: 820, height: 620, x: 0, y: 969 },
+    { id: "course-colors-12", type: "course-colors", width: 528, height: 460, x: 838, y: 969 },
+  ];
+
+  const normalized = normalizeWorkspaceLayout(saved);
+  const rightEdge = Math.max(...normalized.desktop.dashboard.filter((item) => !item.hidden).map((item) => item.x + item.width));
+  assert.equal(normalized.desktop.dashboard.some((item) => item.type === "school-guide"), false);
+  assert.ok(rightEdge >= 1680);
+});
+
+test("desktop master widgets are centered on single-widget tabs", () => {
+  const layout = createDefaultWorkspaceLayout();
+  assert.equal(layout.desktop.todo.find((item) => item.type === "todo-master").x, 315);
+  assert.equal(layout.desktop.inProgress.find((item) => item.type === "in-progress-master").x, 315);
+  assert.equal(layout.desktop.completed.find((item) => item.type === "completed-master").x, 315);
+  assert.equal(layout.desktop.settings.find((item) => item.type === "settings-master").x, 250);
 });
 
 test("workspace normalization separates overlapping visible widgets", () => {
@@ -194,4 +242,39 @@ test("voice undo permanently locks once work starts", () => {
   const started = { ...lockVoiceUndo(untouched), status: "inProgress" };
   assert.equal(canUndoVoiceCreation(started), false);
   assert.equal(canUndoVoiceCreation({ ...started, status: "todo" }), false);
+});
+
+test("recommended plan explains urgency and totals known workload", () => {
+  const tasks = [
+    { id: "essay", title: "Essay", due: new Date("2026-07-10T23:00:00"), bucket: "Due Tomorrow", priority: "MED", estimatedMinutes: 120, status: "todo" },
+    { id: "quiz", title: "Quiz", due: new Date("2026-07-09T12:00:00"), bucket: "Due Today", priority: "HIGH", estimatedMinutes: 25, status: "inProgress", subtasks: [{ isDone: true }, { isDone: false }] },
+    { id: "reading", title: "Reading", due: null, bucket: "No Due Date", priority: "LOW", estimatedMinutes: "", status: "todo" },
+  ];
+
+  const ranked = rankRecommendedTasks(tasks, {
+    getDueBucket: (task) => task.bucket,
+    getDeadline: (task) => task.due,
+    getStatus: (task) => task.status,
+  });
+  const workload = summarizeRecommendationWorkload(ranked);
+
+  assert.equal(ranked[0].task.id, "quiz");
+  assert.deepEqual(ranked[0].reasons, ["Due today", "High priority", "In progress", "Short win"]);
+  assert.equal(workload.knownMinutes, 145);
+  assert.equal(workload.unknownCount, 1);
+});
+
+test("quick match picks fitting work first and urgent work when nothing fits", () => {
+  const tasks = [
+    { id: "urgent", title: "Urgent", bucket: "Due Today", due: new Date("2026-07-09T15:00:00"), priority: "HIGH", estimatedMinutes: 90, status: "todo" },
+    { id: "small", title: "Small", bucket: "Due Later", due: new Date("2026-08-01T15:00:00"), priority: "LOW", estimatedMinutes: 20, status: "todo" },
+  ];
+  const options = {
+    getDueBucket: (task) => task.bucket,
+    getDeadline: (task) => task.due,
+    getStatus: (task) => task.status,
+  };
+
+  assert.equal(rankQuickMatchCandidates(tasks, 30, options)[0].task.id, "small");
+  assert.equal(rankQuickMatchCandidates(tasks, 10, options)[0].task.id, "urgent");
 });

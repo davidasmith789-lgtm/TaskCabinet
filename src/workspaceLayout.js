@@ -8,32 +8,40 @@ export const PROTECTED_WIDGETS = new Set([
   "completed-master",
 ]);
 
+const REMOVED_WIDGET_TYPES = new Set(["school-guide"]);
+
+const OLD_DEFAULT_DASHBOARD_MARKERS = [
+  ["recommended", 0, 0],
+  ["quick-match", 658, 0],
+  ["mini-calendar", 1036, 0],
+  ["school-guide", 468, 611],
+];
+
 export const DEFAULT_WIDGET_LAYOUT = {
   dashboard: [
-    { type: "recommended", width: 640, height: 430, desktopX: 0, desktopY: 0 },
-    { type: "quick-match", width: 360, height: 430, desktopX: 658, desktopY: 0 },
-    { type: "mini-calendar", width: 330, height: 430, desktopX: 1036, desktopY: 0 },
-    { type: "stat-active", width: 220, height: 145, desktopX: 0, desktopY: 448 },
-    { type: "stat-today", width: 220, height: 145, desktopX: 238, desktopY: 448 },
-    { type: "stat-overdue", width: 220, height: 145, desktopX: 476, desktopY: 448 },
-    { type: "stat-workload", width: 220, height: 145, desktopX: 714, desktopY: 448 },
-    { type: "reminders", width: 414, height: 360, desktopX: 952, desktopY: 448 },
-    { type: "course-overview", width: 450, height: 340, desktopX: 0, desktopY: 611 },
-    { type: "school-guide", width: 466, height: 340, desktopX: 468, desktopY: 611 },
-    { type: "checklists", width: 414, height: 480, desktopX: 952, desktopY: 826 },
-    { type: "add-assignment", width: 820, height: 620, desktopX: 0, desktopY: 969 },
-    { type: "course-colors", width: 528, height: 460, desktopX: 838, desktopY: 969 },
+    { type: "recommended", width: 680, height: 460, desktopX: 0, desktopY: 0 },
+    { type: "quick-match", width: 470, height: 460, desktopX: 698, desktopY: 0 },
+    { type: "mini-calendar", width: 494, height: 460, desktopX: 1186, desktopY: 0 },
+    { type: "stat-active", width: 240, height: 145, desktopX: 0, desktopY: 478 },
+    { type: "stat-today", width: 240, height: 145, desktopX: 258, desktopY: 478 },
+    { type: "stat-overdue", width: 240, height: 145, desktopX: 516, desktopY: 478 },
+    { type: "stat-workload", width: 240, height: 145, desktopX: 774, desktopY: 478 },
+    { type: "reminders", width: 648, height: 390, desktopX: 1032, desktopY: 478 },
+    { type: "course-overview", width: 540, height: 430, desktopX: 0, desktopY: 886 },
+    { type: "checklists", width: 540, height: 520, desktopX: 558, desktopY: 886 },
+    { type: "course-colors", width: 564, height: 460, desktopX: 1116, desktopY: 886 },
+    { type: "add-assignment", width: 1680, height: 620, desktopX: 0, desktopY: 1424 },
   ],
   todo: [
-    { type: "todo-master", width: 1050, height: 760 },
+    { type: "todo-master", width: 1050, height: 760, desktopX: 315, desktopY: 0 },
     ...["overdue", "today", "tomorrow", "this-week", "next-week", "later", "no-date"].map((bucket) => ({ type: `todo-bucket-${bucket}`, width: 480, height: 430, hidden: true })),
   ],
   inProgress: [
-    { type: "in-progress-master", width: 1050, height: 760 },
+    { type: "in-progress-master", width: 1050, height: 760, desktopX: 315, desktopY: 0 },
     ...["overdue", "today", "tomorrow", "this-week", "next-week", "later", "no-date"].map((bucket) => ({ type: `in-progress-bucket-${bucket}`, width: 480, height: 430, hidden: true })),
   ],
-  completed: [{ type: "completed-master", width: 1050, height: 760 }],
-  settings: [{ type: "settings-master", width: 1180, height: 820 }],
+  completed: [{ type: "completed-master", width: 1050, height: 760, desktopX: 315, desktopY: 0 }],
+  settings: [{ type: "settings-master", width: 1180, height: 820, desktopX: 250, desktopY: 0 }],
 };
 
 const makeInstance = (item, index) => ({
@@ -43,7 +51,7 @@ const makeInstance = (item, index) => ({
 });
 
 const getCanvasWidth = (mode, override) => {
-  const fallback = mode === "mobile" ? 720 : 1600;
+  const fallback = mode === "mobile" ? 720 : 1680;
   return Math.max(320, Number.isFinite(override) ? override : fallback);
 };
 
@@ -54,6 +62,37 @@ const finiteNumber = (value, fallback) => (
 );
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+const closeTo = (value, expected, tolerance = 6) => (
+  Math.abs(finiteNumber(value, Number.NaN) - expected) <= tolerance
+);
+
+function withoutRemovedWidgets(items) {
+  return Array.isArray(items)
+    ? items.filter((item) => !REMOVED_WIDGET_TYPES.has(item.type))
+    : [];
+}
+
+function isOldDefaultDashboard(items) {
+  if (!Array.isArray(items)) return false;
+  return OLD_DEFAULT_DASHBOARD_MARKERS.every(([type, expectedX, expectedY]) => {
+    const item = items.find((candidate) => candidate.type === type);
+    return item && closeTo(item.x, expectedX) && closeTo(item.y, expectedY);
+  });
+}
+
+function isDefaultLikeCenteredTab(tab, items) {
+  const primaryTypes = {
+    todo: "todo-master",
+    inProgress: "in-progress-master",
+    completed: "completed-master",
+    settings: "settings-master",
+  };
+  const primary = Array.isArray(items)
+    ? items.find((item) => item.type === primaryTypes[tab])
+    : null;
+  return Boolean(primary) && closeTo(primary.x, 0) && closeTo(primary.y, 0);
+}
 
 const rectsOverlap = (a, b, gap) => (
   a.x < b.x + b.width + gap &&
@@ -239,13 +278,29 @@ export function normalizeWorkspaceLayout(value, options = {}) {
 
   const modes = options.mode ? [options.mode] : ["desktop", "mobile"];
   for (const mode of modes) {
-    const existingTypes = new Set(Object.values(value?.[mode] || {}).flat().map((item) => item.type));
+    value[mode] = value[mode] || {};
+    const existingTypes = new Set(
+      Object.values(value?.[mode] || {})
+        .flat()
+        .filter((item) => !REMOVED_WIDGET_TYPES.has(item.type))
+        .map((item) => item.type),
+    );
     for (const tab of Object.keys(DEFAULT_WIDGET_LAYOUT)) {
       if (!Array.isArray(value?.[mode]?.[tab])) {
         value[mode] = { ...(value[mode] || {}), [tab]: defaults[mode][tab] };
         defaults[mode][tab].forEach((item) => existingTypes.add(item.type));
         continue;
       }
+      if (
+        (mode === "desktop" && tab === "dashboard" && isOldDefaultDashboard(value[mode][tab])) ||
+        (mode === "desktop" && isDefaultLikeCenteredTab(tab, value[mode][tab]))
+      ) {
+        value[mode][tab] = defaults[mode][tab];
+        defaults[mode][tab].forEach((item) => existingTypes.add(item.type));
+        continue;
+      }
+      value[mode][tab] = withoutRemovedWidgets(value[mode][tab]);
+      value[mode][tab].forEach((item) => existingTypes.add(item.type));
       const missing = defaults[mode][tab].filter((item) => !existingTypes.has(item.type));
       if (missing.length > 0) {
         value[mode][tab] = [...value[mode][tab], ...missing];

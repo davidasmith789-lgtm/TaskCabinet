@@ -19,6 +19,13 @@ import { extractSyllabusText, findLikelySyllabusAssignments } from "./syllabusIm
 import { formatAssignmentCountdown, getAssignmentCountdownTone } from "./assignmentCountdown.js";
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "./calendarWeekUtils.js";
 import { canUndoVoiceCreation, lockVoiceUndo } from "./voiceTaskUtils.js";
+import {
+  getQuickMatchReason,
+  getValidEstimate,
+  rankQuickMatchCandidates,
+  rankRecommendedTasks,
+  summarizeRecommendationWorkload,
+} from "./recommendationUtils.js";
 const DEFAULT_USER_SETTINGS = {
   showPriority: true,
   showRepeat: true,
@@ -665,95 +672,6 @@ function getTaskStatus(task) {
   if (task?.isCompleted) return "completed";
   if (task?.status === "inProgress") return "inProgress";
   return "todo";
-}
-
-function getQuickMatchEstimate(task) {
-  const estimate = Number(task?.estimatedMinutes);
-  return Number.isFinite(estimate) && estimate > 0
-    ? estimate
-    : Number.POSITIVE_INFINITY;
-}
-
-function getQuickMatchDueRank(bucket) {
-  if (bucket.startsWith("Overdue")) return 0;
-  if (bucket.startsWith("Due Today")) return 1;
-  if (bucket.startsWith("Due Tomorrow")) return 2;
-  if (bucket === "Due This Week") return 3;
-  if (bucket === "Due Next Week") return 4;
-  if (bucket === "Due Later") return 5;
-  return 6;
-}
-
-function getQuickMatchDueLabel(bucket) {
-  if (bucket.startsWith("Overdue")) return "Overdue";
-  if (bucket.startsWith("Due Today")) return "Due Today";
-  if (bucket.startsWith("Due Tomorrow")) return "Due Tomorrow";
-  return bucket;
-}
-
-function rankQuickMatchCandidates(taskList, availableMinutes, getDueBucket) {
-  const priorityRank = { HIGH: 0, MED: 1, LOW: 2 };
-  const candidates = taskList.map((task) => {
-    const estimate = getQuickMatchEstimate(task);
-    const dueBucket = getDueBucket(task);
-    const hasEstimate = Number.isFinite(estimate);
-    return {
-      task,
-      estimate,
-      dueBucket,
-      dueLabel: getQuickMatchDueLabel(dueBucket),
-      hasEstimate,
-      fits: hasEstimate && estimate <= availableMinutes,
-    };
-  });
-
-  const compareCandidates = (a, b) => {
-    const dueDifference = getQuickMatchDueRank(a.dueBucket) - getQuickMatchDueRank(b.dueBucket);
-    if (dueDifference) return dueDifference;
-
-    const deadlineDifference =
-      (getEffectiveDeadline(a.task)?.getTime() ?? Infinity) -
-      (getEffectiveDeadline(b.task)?.getTime() ?? Infinity);
-    if (deadlineDifference) return deadlineDifference;
-
-    const priorityDifference =
-      (priorityRank[a.task.priority] ?? 3) - (priorityRank[b.task.priority] ?? 3);
-    if (priorityDifference) return priorityDifference;
-
-    const fitDifferenceA = a.fits
-      ? availableMinutes - a.estimate
-      : a.estimate - availableMinutes;
-    const fitDifferenceB = b.fits
-      ? availableMinutes - b.estimate
-      : b.estimate - availableMinutes;
-    if (fitDifferenceA !== fitDifferenceB) return fitDifferenceA - fitDifferenceB;
-
-    const statusDifference =
-      (getTaskStatus(a.task) === "inProgress" ? 0 : 1) -
-      (getTaskStatus(b.task) === "inProgress" ? 0 : 1);
-    if (statusDifference) return statusDifference;
-
-    return (a.task.title || "").localeCompare(b.task.title || "");
-  };
-
-  const fitting = candidates.filter((candidate) => candidate.fits).sort(compareCandidates);
-  const oversized = candidates
-    .filter((candidate) => candidate.hasEstimate && !candidate.fits)
-    .sort(compareCandidates);
-  const missingEstimate = candidates
-    .filter((candidate) => !candidate.hasEstimate)
-    .sort(compareCandidates);
-
-  return [...fitting, ...oversized, ...missingEstimate].slice(0, 4);
-}
-
-function getQuickMatchReason(match) {
-  if (!match.hasEstimate) return "Time is unknown, but this is the most urgent task to start.";
-  if (!match.fits) return "This may not fit completely, but it is your best use of this time.";
-  if (getTaskStatus(match.task) === "inProgress") return "Fits your time and you already have momentum.";
-  if (match.dueLabel === "Overdue") return "Fits your time and is overdue.";
-  if (match.dueLabel === "Due Today") return "Fits your time and is due today.";
-  return "Fits your time and is one of your most urgent tasks.";
 }
 
 /**
@@ -1405,6 +1323,7 @@ function App() {
   const [bulkImportText, setBulkImportText] = useState("");
   const [bulkImportPreview, setBulkImportPreview] = useState([]);
   const [bulkImportMessage, setBulkImportMessage] = useState("");
+  const [bulkImportIssuesOnly, setBulkImportIssuesOnly] = useState(false);
   const [syllabusCourse, setSyllabusCourse] = useState("");
   const [syllabusFileName, setSyllabusFileName] = useState("");
   const [syllabusImportStatus, setSyllabusImportStatus] = useState("idle");
@@ -2385,6 +2304,7 @@ function App() {
 
   const parseBulkImportText = (value, forcedCourse = "") => {
     setBulkImportMessage("");
+    setBulkImportIssuesOnly(false);
     const prepared = preparePastedAssignmentLines(value);
     const parsed = prepared.flatMap((entry, index) => {
       let text = entry.text;
@@ -2446,6 +2366,32 @@ function App() {
     setBulkImportPreview((items) => items.map((item) => item.previewId === previewId ? { ...item, [field]: value } : item));
   };
 
+  const handleBulkPreviewSelectAll = (selected) => {
+    setBulkImportPreview((items) => items.map((item) => ({ ...item, selected })));
+  };
+
+  const handleBulkPreviewSelectReady = () => {
+    setBulkImportPreview((items) => items.map((item) => ({
+      ...item,
+      selected: getBulkImportWarnings(item).length === 0,
+    })));
+    setBulkImportIssuesOnly(true);
+  };
+
+  const getBulkImportWarnings = (item) => {
+    const currentYear = new Date().getFullYear();
+    const warnings = new Set(
+      (Array.isArray(item.assumptions) ? item.assumptions : [])
+        .filter(Boolean)
+        .map((warning) => String(warning)),
+    );
+    if (!item.dueMonth || !item.dueDay) warnings.add("Missing due date. Add month and day before importing if this should appear on the calendar.");
+    if (Number(item.dueYear) && Number(item.dueYear) !== currentYear) warnings.add(`${item.dueYear} date will be skipped until TaskCabinet supports full-year dates.`);
+    if (!item.course || item.course === "Other") warnings.add("Course is unclear. Choose a course if this belongs somewhere specific.");
+    if (!item.estimatedMinutes) warnings.add("No estimate yet. Recommendations work better with minutes.");
+    return [...warnings];
+  };
+
   const handleBulkImportSubmit = () => {
     const selected = bulkImportPreview.filter((item) => item.selected && String(item.title || "").trim());
     if (selected.length === 0) {
@@ -2456,6 +2402,7 @@ function App() {
       const count = handleApplyVoiceAssignments({ assignments: selected, skipped: [] }, crypto.randomUUID(), "paste");
       setBulkImportPreview([]);
       setBulkImportText("");
+      setBulkImportIssuesOnly(false);
       setSyllabusFileName("");
       setSyllabusImportStatus("idle");
       setSyllabusExtractedText("");
@@ -3748,56 +3695,25 @@ function App() {
   const sortedInProgressTasks =
     sortAssignmentsByDuePriorityEstimate(inProgressTasks);
 
-  const recommendationPriorityOrder = { HIGH: 0, MED: 1, LOW: 2 };
-
-  // Infinity deliberately places missing, zero, negative, or invalid estimates
-  // after real estimates when estimated time is used as the final tie-breaker.
-  const getRecommendationEstimate = (task) => {
-    const estimatedMinutes = Number(task.estimatedMinutes);
-    return Number.isFinite(estimatedMinutes) && estimatedMinutes > 0
-      ? estimatedMinutes
-      : Number.POSITIVE_INFINITY;
-  };
-
-  /**
-   * Dashboard recommendation rules, in order:
-   * 1. Most urgent due-date bucket
-   * 2. HIGH, then MED, then LOW priority
-   * 3. Shortest valid estimated time
-   * 4. Alphabetical title for a stable final tie
-   */
-  const recommendedTasks = tasks
-    .filter(
+  const recommendationItems = rankRecommendedTasks(
+    tasks.filter(
       (task) =>
         !task.isArchived &&
         !task.isDeleted &&
         getTaskStatus(task) !== "completed",
-    )
-    .sort((a, b) => {
-      const bucketA = bucketsOrder.indexOf(getTaskDueBucket(a));
-      const bucketB = bucketsOrder.indexOf(getTaskDueBucket(b));
-      const safeBucketA = bucketA === -1 ? bucketsOrder.length : bucketA;
-      const safeBucketB = bucketB === -1 ? bucketsOrder.length : bucketB;
-
-      if (safeBucketA !== safeBucketB) return safeBucketA - safeBucketB;
-
-      const deadlineA = getEffectiveDeadline(a)?.getTime() ?? Infinity;
-      const deadlineB = getEffectiveDeadline(b)?.getTime() ?? Infinity;
-      if (deadlineA !== deadlineB) return deadlineA - deadlineB;
-
-      const priorityA = recommendationPriorityOrder[a.priority] ?? 3;
-      const priorityB = recommendationPriorityOrder[b.priority] ?? 3;
-
-      if (priorityA !== priorityB) return priorityA - priorityB;
-
-      const estimateA = getRecommendationEstimate(a);
-      const estimateB = getRecommendationEstimate(b);
-
-      if (estimateA !== estimateB) return estimateA - estimateB;
-
-      return (a.title || "").localeCompare(b.title || "");
-    })
-    .slice(0, 5);
+    ),
+    {
+      getDueBucket: getTaskDueBucket,
+      getDeadline: getEffectiveDeadline,
+      getStatus: getTaskStatus,
+      limit: 5,
+    },
+  );
+  const recommendedTasks = recommendationItems.map((item) => item.task);
+  const recommendationWorkload = summarizeRecommendationWorkload(recommendationItems);
+  const recommendationWorkloadLabel = recommendationWorkload.knownMinutes > 0
+    ? `${Math.floor(recommendationWorkload.knownMinutes / 60)}h ${recommendationWorkload.knownMinutes % 60}m`
+    : "No estimates";
 
   // Create an object with one array per due-date heading, then fill those arrays
   // from an already sorted list. This powers the grouped task screens.
@@ -3835,9 +3751,9 @@ function App() {
   // A recommendation click clears filters so the target cannot be hidden,
   // opens its notes, changes tabs, and waits two animation frames for React to
   // render the correct task screen before smoothly scrolling the card into view.
-  const handleRecommendedTaskClick = (taskId) => {
+  const handleTaskFocus = (taskId, forcedStatus = null) => {
     const targetTask = tasks.find((task) => task.id === taskId);
-    const statusTab = getTaskStatus(targetTask) === "inProgress" ? "inProgress" : "todo";
+    const statusTab = forcedStatus || (getTaskStatus(targetTask) === "inProgress" ? "inProgress" : "todo");
     const masterType = statusTab === "inProgress" ? "in-progress-master" : "todo-master";
     const targetTab = Object.keys(workspaceLayout[workspaceMode] || {}).find((tab) =>
       workspaceLayout[workspaceMode][tab].some((item) => item.type === masterType && !item.hidden),
@@ -3856,6 +3772,17 @@ function App() {
       });
     });
   };
+
+  const handleRecommendedTaskClick = (taskId) => {
+    handleTaskFocus(taskId);
+  };
+
+  const handleQuickMatchStart = (taskId) => {
+    handleStartTask(taskId);
+    handleTaskFocus(taskId, "inProgress");
+  };
+
+  const getFocusActionLabel = (task) => getTaskStatus(task) === "inProgress" ? "Continue" : "Open";
 
   // These small render helpers keep the identical filter interface shared by
   // the To Do and Completed tabs in one place.
@@ -4160,6 +4087,15 @@ function App() {
   );
 
   // Dashboard and Calendar share one form so assignment behavior stays aligned.
+  const bulkImportRowsWithWarnings = bulkImportPreview.map((item) => ({
+    item,
+    warnings: getBulkImportWarnings(item),
+  }));
+  const bulkImportIssueCount = bulkImportRowsWithWarnings.filter(({ warnings }) => warnings.length > 0).length;
+  const visibleBulkImportRows = bulkImportIssuesOnly
+    ? bulkImportRowsWithWarnings.filter(({ warnings }) => warnings.length > 0)
+    : bulkImportRowsWithWarnings;
+
   const renderAddAssignmentForm = (formId) => (
     <form onSubmit={handleAddTask} className="card-form">
       <section className="bulk-import-panel" aria-label="Paste assignment list">
@@ -4185,17 +4121,30 @@ function App() {
             {bulkImportMessage && <p className="bulk-import-message" role="status">{bulkImportMessage}</p>}
             {bulkImportPreview.length > 0 && (
               <div className="bulk-import-review">
-                {bulkImportPreview.map((item) => (
-                  <article key={item.previewId} className={item.selected ? "" : "is-skipped"}>
-                    <label className="bulk-import-select"><input type="checkbox" checked={item.selected} onChange={(event) => handleBulkPreviewChange(item.previewId, "selected", event.target.checked)} /><span>Import</span></label>
-                    <label><span>Title</span><input value={item.title || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "title", event.target.value)} /></label>
-                    <label><span>Course</span><select value={item.course || "Other"} onChange={(event) => handleBulkPreviewChange(item.previewId, "course", event.target.value)}>{[...new Set([...courses, item.course || "Other"])].map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
-                    <label><span>Month</span><input type="number" min="1" max="12" value={item.dueMonth || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueMonth", event.target.value)} /></label>
-                    <label><span>Day</span><input type="number" min="1" max="31" value={item.dueDay || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueDay", event.target.value)} /></label>
-                    <label><span>Priority</span><select value={item.priority || userSettings.defaultPriority || "MED"} onChange={(event) => handleBulkPreviewChange(item.previewId, "priority", event.target.value)}><option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option></select></label>
-                    <label><span>Minutes</span><input type="number" min="0" max="1440" value={item.estimatedMinutes ?? ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "estimatedMinutes", event.target.value)} /></label>
-                  </article>
-                ))}
+                <div className="bulk-import-review-toolbar">
+                  <strong>{bulkImportPreview.filter((item) => item.selected).length}/{bulkImportPreview.length} selected | {bulkImportIssueCount} need review</strong>
+                  <span>
+                    <button type="button" className={`btn ${bulkImportIssuesOnly ? "btn-primary" : "btn-secondary"}`} onClick={() => setBulkImportIssuesOnly((value) => !value)} disabled={bulkImportIssueCount === 0}>{bulkImportIssuesOnly ? "Show all" : "Issues only"}</button>
+                    <button type="button" className="btn btn-secondary" onClick={handleBulkPreviewSelectReady} disabled={bulkImportIssueCount === bulkImportPreview.length}>Select ready</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => handleBulkPreviewSelectAll(true)}>Select all</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => handleBulkPreviewSelectAll(false)}>Skip all</button>
+                  </span>
+                </div>
+                {visibleBulkImportRows.length === 0 && <p className="bulk-import-message">No rows need review right now.</p>}
+                {visibleBulkImportRows.map(({ item, warnings }) => {
+                  return (
+                    <article key={item.previewId} className={item.selected ? "" : "is-skipped"}>
+                      <label className="bulk-import-select"><input type="checkbox" checked={item.selected} onChange={(event) => handleBulkPreviewChange(item.previewId, "selected", event.target.checked)} /><span>{item.selected ? "Import" : "Skipped"}</span></label>
+                      <label><span>Title</span><input value={item.title || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "title", event.target.value)} /></label>
+                      <label><span>Course</span><select value={item.course || "Other"} onChange={(event) => handleBulkPreviewChange(item.previewId, "course", event.target.value)}>{[...new Set([...courses, item.course || "Other"])].map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
+                      <label><span>Month</span><input type="number" min="1" max="12" value={item.dueMonth || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueMonth", event.target.value)} /></label>
+                      <label><span>Day</span><input type="number" min="1" max="31" value={item.dueDay || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueDay", event.target.value)} /></label>
+                      <label><span>Priority</span><select value={item.priority || userSettings.defaultPriority || "MED"} onChange={(event) => handleBulkPreviewChange(item.previewId, "priority", event.target.value)}><option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option></select></label>
+                      <label><span>Minutes</span><input type="number" min="0" max="1440" value={item.estimatedMinutes ?? ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "estimatedMinutes", event.target.value)} /></label>
+                      {warnings.length > 0 && <div className="bulk-import-warnings">{warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>}
+                    </article>
+                  );
+                })}
                 <button type="button" className="btn btn-primary bulk-import-submit" onClick={handleBulkImportSubmit}>Add Selected to To Do</button>
               </div>
             )}
@@ -4602,15 +4551,25 @@ function App() {
   const quickMatchInputNumber = Number(quickMatchMinutes);
   const quickMatchInputIsValid =
     Number.isInteger(quickMatchInputNumber) && quickMatchInputNumber > 0;
+  const quickMatchPresets = [15, 30, 45, 60];
   const quickMatchResults = quickMatchSubmittedMinutes
     ? rankQuickMatchCandidates(
         activeDashboardTasks,
         quickMatchSubmittedMinutes,
-        getTaskDueBucket,
+        {
+          getDueBucket: getTaskDueBucket,
+          getDeadline: getEffectiveDeadline,
+          getStatus: getTaskStatus,
+        },
       )
     : [];
   const quickMatchBest = quickMatchResults[0] || null;
   const quickMatchBackups = quickMatchResults.slice(1, 4);
+
+  const handleQuickMatchPreset = (minutes) => {
+    setQuickMatchMinutes(String(minutes));
+    setQuickMatchSubmittedMinutes(minutes);
+  };
 
   const renderQuickMatchCard = () => (
     <section className="quick-match-card" aria-label="What Should I Do?">
@@ -4640,6 +4599,18 @@ function App() {
         </label>
         <button type="submit" className="btn btn-primary" disabled={!quickMatchInputIsValid}>Find Task</button>
       </form>
+      <div className="quick-match-presets" aria-label="Quick time choices">
+        {quickMatchPresets.map((minutes) => (
+          <button
+            type="button"
+            key={minutes}
+            className={quickMatchSubmittedMinutes === minutes ? "active" : ""}
+            onClick={() => handleQuickMatchPreset(minutes)}
+          >
+            {minutes} min
+          </button>
+        ))}
+      </div>
       <div className="quick-match-result" aria-live="polite">
         {quickMatchSubmittedMinutes === null ? (
           <p className="quick-match-placeholder">Enter your available time to get a match.</p>
@@ -4667,14 +4638,25 @@ function App() {
             </div>
             {renderAssignmentCountdown(quickMatchBest.task, "quick-match-countdown")}
             <p className="quick-match-reason">{getQuickMatchReason(quickMatchBest)}</p>
+            <div className="quick-match-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(quickMatchBest.task.id)}>{getFocusActionLabel(quickMatchBest.task)}</button>
+              {getTaskStatus(quickMatchBest.task) === "todo" && (
+                <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(quickMatchBest.task.id)}>Start this</button>
+              )}
+            </div>
             {quickMatchBackups.length > 0 && (
               <div className="quick-match-backups">
                 <span>Backups</span>
                 <ul>
                   {quickMatchBackups.map((match) => (
                     <li key={match.task.id}>
-                      <strong>{match.task.title}</strong>
-                      <small>{match.hasEstimate ? `${match.estimate} min` : "No estimate"}</small>
+                      <button type="button" className="quick-match-backup-main" onClick={() => handleRecommendedTaskClick(match.task.id)}>
+                        <strong>{match.task.title}</strong>
+                        <small>{match.hasEstimate ? `${match.estimate} min` : "No estimate"} | {match.dueLabel}</small>
+                      </button>
+                      {getTaskStatus(match.task) === "todo" && (
+                        <button type="button" className="quick-match-backup-start" onClick={() => handleQuickMatchStart(match.task.id)}>Start</button>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -4821,6 +4803,10 @@ function App() {
     ? courseOverviewSelection
     : courses[0] || "Other";
   const overviewCourseTasks = activeDashboardTasks.filter((task) => task.course === overviewCourse);
+  const sortedOverviewCourseTasks = sortAssignmentsByDuePriorityEstimate(overviewCourseTasks);
+  const overviewNextTask = sortedOverviewCourseTasks[0] || null;
+  const overviewCourseEstimatedMinutes = overviewCourseTasks.reduce((total, task) => total + (Number(task.estimatedMinutes) || 0), 0);
+  const overviewCourseWorkloadLabel = `${Math.floor(overviewCourseEstimatedMinutes / 60)}h ${overviewCourseEstimatedMinutes % 60}m`;
   const courseOverviewSummary = {
     todo: overviewCourseTasks.filter((task) => getTaskStatus(task) === "todo").length,
     inProgress: overviewCourseTasks.filter((task) => getTaskStatus(task) === "inProgress").length,
@@ -4854,7 +4840,6 @@ function App() {
     "add-assignment": schoolLevelCopy.addLabel,
     "course-colors": "Course Colors",
     "course-overview": `${schoolLevelCopy.courseLabel} Overview`,
-    "school-guide": schoolLevelCopy.guideTitle,
     reminders: "Reminders",
     "todo-master": schoolLevelCopy.todoLabel,
     "in-progress-master": "In Progress",
@@ -4875,10 +4860,29 @@ function App() {
   );
   const hiddenWorkspaceWidgets = Object.values(workspaceLayout[workspaceMode] || {}).flat().filter((item) => item.hidden);
 
-  const renderRecommendedWidget = () => recommendedTasks.length === 0 ? <p className="recommended-plan-empty">You have no incomplete assignments. Nice work!</p> : (
-    <ol className="recommended-plan-list portable-recommendations">
-      {recommendedTasks.map((task, index) => <li key={task.id} className="recommended-plan-item"><button type="button" className="recommended-plan-button" onClick={() => handleRecommendedTaskClick(task.id)}><span className="recommended-plan-rank">{index + 1}</span><div className="recommended-plan-content"><strong>{task.title}</strong><div className="recommended-plan-details"><span>{task.course}</span><span>{getTaskDueBucket(task)}</span><span>{task.priority} priority</span></div>{renderAssignmentCountdown(task, "recommended-countdown")}</div></button></li>)}
-    </ol>
+  const renderRecommendedWidget = () => recommendationItems.length === 0 ? <p className="recommended-plan-empty">You have no incomplete assignments. Nice work!</p> : (
+    <>
+      <div className="recommended-plan-workload compact"><strong>{recommendationWorkloadLabel}</strong><span>Top-plan workload{recommendationWorkload.unknownCount > 0 ? ` + ${recommendationWorkload.unknownCount} unestimated` : ""}</span></div>
+      <ol className="recommended-plan-list portable-recommendations">
+        {recommendationItems.map((item, index) => (
+          <li key={item.task.id} className="recommended-plan-item">
+            <button type="button" className="recommended-plan-button" onClick={() => handleRecommendedTaskClick(item.task.id)}>
+              <span className="recommended-plan-rank">{index + 1}</span>
+              <div className="recommended-plan-content">
+                <strong>{item.task.title}</strong>
+                <div className="recommended-plan-details"><span>{item.task.course}</span><span>{item.dueLabel}</span><span>{item.task.priority} priority</span></div>
+                <div className="recommended-plan-reasons">{item.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+                {renderAssignmentCountdown(item.task, "recommended-countdown")}
+              </div>
+            </button>
+            <div className="recommended-plan-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(item.task.id)}>{getFocusActionLabel(item.task)}</button>
+              {getTaskStatus(item.task) === "todo" && <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(item.task.id)}>Start</button>}
+            </div>
+          </li>
+        ))}
+      </ol>
+    </>
   );
 
   const renderCourseColorsWidget = () => (
@@ -4902,42 +4906,63 @@ function App() {
           <div><strong>{courseOverviewSummary.inProgress}</strong><span>In progress</span></div>
           <div className={courseOverviewSummary.dueToday > 0 ? "has-warning" : ""}><strong>{courseOverviewSummary.dueToday}</strong><span>Due today</span></div>
           <div className={courseOverviewSummary.overdue > 0 ? "has-danger" : ""}><strong>{courseOverviewSummary.overdue}</strong><span>Overdue</span></div>
-          <div><strong>{courseOverviewSummary.noDate}</strong><span>No date</span></div>
+          <div><strong>{overviewCourseEstimatedMinutes > 0 ? overviewCourseWorkloadLabel : courseOverviewSummary.noDate}</strong><span>{overviewCourseEstimatedMinutes > 0 ? "Estimated" : "No date"}</span></div>
         </div>
+        {overviewNextTask ? (
+          <article className="course-overview-next">
+            <span>Next up</span>
+            <strong>{overviewNextTask.title}</strong>
+            <small>{getTaskDueBucket(overviewNextTask)} | {overviewNextTask.priority || "No"} priority</small>
+            {renderAssignmentCountdown(overviewNextTask, "course-overview-countdown")}
+            <div className="course-overview-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(overviewNextTask.id)}>{getFocusActionLabel(overviewNextTask)}</button>
+              {getTaskStatus(overviewNextTask) === "todo" && <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(overviewNextTask.id)}>Start</button>}
+            </div>
+          </article>
+        ) : (
+          <p className="course-overview-empty">No active assignments for this {schoolLevelCopy.courseLabel.toLowerCase()}.</p>
+        )}
       </section>
     );
   };
 
-  const renderSchoolGuideWidget = () => (
-    <section className={`school-guide-widget school-guide-${userSettings.schoolLevel || "high"}`}>
-      <span className="school-guide-level">{userSettings.schoolLevel === "middle" ? "Middle School" : userSettings.schoolLevel === "college" ? "College" : "High School"} mode</span>
-      <h3>{schoolLevelCopy.guideTitle}</h3>
-      <p>{schoolLevelCopy.guideCopy}</p>
-      <ul>{schoolLevelCopy.guidePrompts.map((prompt) => <li key={prompt}>{prompt}</li>)}</ul>
-      <button type="button" className="btn btn-secondary" onClick={() => setCurrentTab("settings")}>Change school level</button>
-    </section>
-  );
-
   const renderRemindersWidget = () => {
-    const reminderItems = [
-      ...dashboardOverdueTasks.slice(0, 3).map((item) => ({ ...item, overdue: true })),
-      ...dashboardReminderTasks,
-    ].slice(0, 10);
+    const overdueItems = dashboardOverdueTasks.slice(0, 4).map((item) => ({ ...item, overdue: true }));
+    const upcomingItems = dashboardReminderTasks.slice(0, 6).map((item) => ({ ...item, overdue: false }));
     const rangeLabel = dashboardReminderHours < 72
       ? `${dashboardReminderHours} hours`
       : `${dashboardReminderHours / 24} days`;
+    const reminderWorkloadMinutes = dashboardReminderTasks.reduce((total, { task }) => total + (Number(task.estimatedMinutes) || 0), 0);
+    const reminderWorkloadLabel = `${Math.floor(reminderWorkloadMinutes / 60)}h ${reminderWorkloadMinutes % 60}m`;
+    const renderReminderGroup = (title, items) => items.length > 0 && (
+      <div className="reminder-widget-group">
+        <h4>{title}</h4>
+        <ul className="reminder-widget-list">
+          {items.map(({ task, deadline, overdue }) => (
+            <li key={`${overdue ? "overdue" : "upcoming"}-${task.id}`}>
+              <button type="button" className="reminder-widget-main" onClick={() => handleRecommendedTaskClick(task.id)}>
+                <span><strong>{task.title}</strong><small>{task.course}</small></span>
+                <span className={overdue ? "is-overdue" : ""}><strong>{formatAssignmentCountdown(deadline, checklistNow)}</strong><small>{deadline.toLocaleDateString(undefined, { month: "short", day: "numeric" })} | {deadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small></span>
+              </button>
+              {getTaskStatus(task) === "todo" && <button type="button" className="reminder-widget-start" onClick={() => handleQuickMatchStart(task.id)}>Start</button>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
     return (
       <section className="dashboard-reminders-widget">
         <div className="reminder-widget-summary">
           <div className={dueTodayCount > 0 ? "has-warning" : ""}><strong>{dueTodayCount}</strong><span>Due today</span></div>
           <div className={dashboardOverdueTasks.length > 0 ? "has-danger" : ""}><strong>{dashboardOverdueTasks.length}</strong><span>Overdue</span></div>
-          <div><strong>{dashboardReminderTasks.length}</strong><span>Next {rangeLabel}</span></div>
+          <div><strong>{reminderWorkloadMinutes > 0 ? reminderWorkloadLabel : dashboardReminderTasks.length}</strong><span>{reminderWorkloadMinutes > 0 ? `Next ${rangeLabel}` : "Upcoming"}</span></div>
         </div>
         <label className="reminder-horizon-control"><span>Upcoming window</span><select value={dashboardReminderHours} onChange={(event) => handleAddFieldSettingChange("dashboardReminderHours", Number(event.target.value))}><option value={24}>Next 24 hours</option><option value={48}>Next 48 hours</option><option value={72}>Next 3 days</option><option value={168}>Next 7 days</option><option value={336}>Next 14 days</option><option value={720}>Next 30 days</option></select></label>
-        {reminderItems.length === 0 ? <p className="reminder-widget-empty">Nothing is due inside this window.</p> : (
-          <ul className="reminder-widget-list">
-            {reminderItems.map(({ task, deadline, overdue }) => <li key={`${overdue ? "overdue" : "upcoming"}-${task.id}`}><button type="button" onClick={() => handleRecommendedTaskClick(task.id)}><span><strong>{task.title}</strong><small>{task.course}</small></span><span className={overdue ? "is-overdue" : ""}><strong>{formatAssignmentCountdown(deadline, checklistNow)}</strong><small>{deadline.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {deadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small></span></button></li>)}
-          </ul>
+        {overdueItems.length === 0 && upcomingItems.length === 0 ? <p className="reminder-widget-empty">Nothing is due inside this window.</p> : (
+          <>
+            {renderReminderGroup("Overdue", overdueItems)}
+            {renderReminderGroup(`Due in the next ${rangeLabel}`, upcomingItems)}
+          </>
         )}
       </section>
     );
@@ -4981,7 +5006,6 @@ function App() {
     if (type === "add-assignment") return renderAddAssignmentForm("workspace");
     if (type === "course-colors") return renderCourseColorsWidget();
     if (type === "course-overview") return renderCourseOverviewWidget();
-    if (type === "school-guide") return renderSchoolGuideWidget();
     if (type === "reminders") return renderRemindersWidget();
     if (type === "todo-master") return renderTaskMasterWidget("todo");
     if (type === "in-progress-master") return renderTaskMasterWidget("inProgress");
@@ -5302,6 +5326,17 @@ function App() {
                   Top {recommendedTasks.length}
                 </span>
               </div>
+              {recommendationItems.length > 0 && (
+                <div className="recommended-plan-workload">
+                  <strong>{recommendationWorkloadLabel}</strong>
+                  <span>
+                    Estimated across the top plan
+                    {recommendationWorkload.unknownCount > 0
+                      ? `, plus ${recommendationWorkload.unknownCount} without estimates`
+                      : ""}
+                  </span>
+                </div>
+              )}
 
               {recommendedTasks.length === 0 ? (
                 <p className="recommended-plan-empty">
@@ -5309,8 +5344,9 @@ function App() {
                 </p>
               ) : (
                 <ol className="recommended-plan-list">
-                  {recommendedTasks.map((task, index) => {
-                    const estimatedMinutes = getRecommendationEstimate(task);
+                  {recommendationItems.map((item, index) => {
+                    const task = item.task;
+                    const estimatedMinutes = getValidEstimate(task);
                     const taskStatus = getTaskStatus(task);
 
                     return (
@@ -5360,6 +5396,11 @@ function App() {
                             </div>
 
                             {renderAssignmentCountdown(task, "recommended-countdown")}
+                            <div className="recommended-plan-reasons">
+                              {item.reasons.map((reason) => (
+                                <span key={reason}>{reason}</span>
+                              ))}
+                            </div>
 
                             {renderSubtaskProgressLine(
                               task,
@@ -5367,6 +5408,12 @@ function App() {
                             )}
                           </div>
                         </button>
+                        <div className="recommended-plan-actions">
+                          <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(task.id)}>{getFocusActionLabel(task)}</button>
+                          {taskStatus === "todo" && (
+                            <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(task.id)}>Start</button>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
