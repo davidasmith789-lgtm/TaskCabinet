@@ -195,24 +195,49 @@ function packVisibleWidgets(items, mode, options = {}) {
   const gap = getGap(mode);
   const collapsed = options.collapsed || {};
   const sanitized = items.map((item, index) => {
-    const normalized = normalizeItemPosition(item, canvasWidth, 320);
-    const height = getEffectiveWidgetHeight(item, collapsed);
+  const height = getEffectiveWidgetHeight(item, collapsed);
+
+  if (options.preservePositions) {
+    const width = clamp(finiteNumber(item.width, 320), 190, canvasWidth);
+    const maxX = Math.max(0, canvasWidth - width);
+    const rawX = finiteNumber(item.x, 0);
+    const x = clamp(rawX, 0, maxX);
+    const savedRatio = finiteNumber(item.xRatio, Number.NaN);
+
     return {
-      ...normalized,
+      ...item,
+      width,
+      x,
+      xRatio: Number.isFinite(savedRatio)
+        ? savedRatio
+        : canvasWidth > 0
+          ? x / canvasWidth
+          : 0,
       height,
       y: Math.max(0, finiteNumber(item.y, 0)),
       zIndex: Math.max(1, finiteNumber(item.zIndex, 1)),
       __order: index,
     };
-  });
-
-  if (options.preservePositions) {
-    return sanitized.map((item) => {
-      const cleanItem = { ...item };
-      delete cleanItem.__order;
-      return cleanItem;
-    });
   }
+
+  const normalized = normalizeItemPosition(item, canvasWidth, 320);
+
+  return {
+    ...normalized,
+    height,
+    y: Math.max(0, finiteNumber(item.y, 0)),
+    zIndex: Math.max(1, finiteNumber(item.zIndex, 1)),
+    __order: index,
+  };
+});
+
+if (options.preservePositions) {
+  return sanitized.map((item) => {
+    const cleanItem = { ...item };
+    delete cleanItem.__order;
+    return cleanItem;
+  });
+}
 
   const active = options.activeId
     ? sanitized.find((item) => item.id === options.activeId && !item.hidden)
