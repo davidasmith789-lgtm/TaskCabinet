@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import "./App.css";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Analytics } from "@vercel/analytics/react";
 import {
   formatChecklistCountdown,
