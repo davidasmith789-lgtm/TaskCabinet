@@ -63,6 +63,15 @@ const finiteNumber = (value, fallback) => (
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+const getEffectiveWidgetHeight = (item, collapsed = {}) => {
+  const isCollapsed = Boolean(collapsed?.[item.type]);
+  if (isCollapsed) return 58;
+  const explicitExpandedHeight = finiteNumber(item.expandedHeight, Number.NaN);
+  return Number.isFinite(explicitExpandedHeight)
+    ? Math.max(58, explicitExpandedHeight)
+    : Math.max(58, finiteNumber(item.height, 320));
+};
+
 const closeTo = (value, expected, tolerance = 6) => (
   Math.abs(finiteNumber(value, Number.NaN) - expected) <= tolerance
 );
@@ -159,38 +168,83 @@ function findNearestOpenPosition(item, obstacles, canvasWidth, gap) {
   return { ...item, x: desiredX, y: fallbackY, xRatio: canvasWidth > 0 ? desiredX / canvasWidth : 0 };
 }
 
+function resolveWidgetX(item, canvasWidth, width, explicitX = undefined) {
+  const maxX = Math.max(0, canvasWidth - width);
+  const previousX = finiteNumber(item.x, Number.NaN);
+  const previousRatio = finiteNumber(item.xRatio, Number.NaN);
+  const shouldUseRatio = Number.isFinite(previousRatio) && (!Number.isFinite(previousX) || previousX > canvasWidth || previousX + width > canvasWidth + 18);
+  if (shouldUseRatio) return clamp(previousRatio * canvasWidth, 0, maxX);
+  if (Number.isFinite(explicitX)) return clamp(explicitX, 0, maxX);
+  if (Number.isFinite(previousX)) return clamp(previousX, 0, maxX);
+  return 0;
+}
+
+function normalizeItemPosition(item, canvasWidth, fallbackWidth = 320) {
+  const width = clamp(finiteNumber(item.width, fallbackWidth), 190, canvasWidth);
+  const x = resolveWidgetX(item, canvasWidth, width);
+  return {
+    ...item,
+    width,
+    x,
+    xRatio: canvasWidth > 0 ? x / canvasWidth : 0,
+  };
+}
+
 function packVisibleWidgets(items, mode, options = {}) {
   const canvasWidth = getCanvasWidth(mode, options.canvasWidth);
   const gap = getGap(mode);
+  const collapsed = options.collapsed || {};
   const sanitized = items.map((item, index) => {
-    const width = clamp(finiteNumber(item.width, 320), 190, canvasWidth);
-    const height = Math.max(58, finiteNumber(item.height, 320));
-    const maxX = Math.max(0, canvasWidth - width);
-    const x = clamp(finiteNumber(item.x, finiteNumber(item.xRatio, 0) * canvasWidth), 0, maxX);
+    const normalized = normalizeItemPosition(item, canvasWidth, 320);
+    const height = getEffectiveWidgetHeight(item, collapsed);
     return {
-      ...item,
-      width,
+      ...normalized,
       height,
-      x,
-      xRatio: canvasWidth > 0 ? x / canvasWidth : 0,
       y: Math.max(0, finiteNumber(item.y, 0)),
       zIndex: Math.max(1, finiteNumber(item.zIndex, 1)),
       __order: index,
     };
   });
 
+  if (options.preservePositions) {
+    return sanitized.map((item) => {
+      const cleanItem = { ...item };
+      delete cleanItem.__order;
+      return cleanItem;
+    });
+  }
+
   const active = options.activeId
     ? sanitized.find((item) => item.id === options.activeId && !item.hidden)
     : null;
 
-  if (active) {
-    const visibleObstacles = sanitized.filter((item) => !item.hidden && item.id !== active.id);
-    const adjustedActive = findNearestOpenPosition(active, visibleObstacles, canvasWidth, gap);
+  if (active && options.reflowActiveWithNeighbors) {
+    const placed = [active];
+    const packedById = new Map([[active.id, active]]);
+    const visible = sanitized
+      .filter((item) => !item.hidden && item.id !== active.id)
+      .sort((a, b) => a.y - b.y || a.x - b.x || a.__order - b.__order);
+
+    for (const item of visible) {
+      const next = findNearestOpenPosition(item, placed, canvasWidth, gap);
+      next.xRatio = canvasWidth > 0 ? next.x / canvasWidth : 0;
+      placed.push(next);
+      packedById.set(next.id, next);
+    }
+
     return sanitized.map((item) => {
-      const cleanItem = item.id === active.id ? adjustedActive : item;
-      const result = { ...cleanItem };
-      delete result.__order;
-      return result;
+      const packed = packedById.get(item.id) || item;
+      const cleanItem = { ...packed };
+      delete cleanItem.__order;
+      return cleanItem;
+    });
+  }
+
+  if (active) {
+    return sanitized.map((item) => {
+      const cleanItem = { ...item };
+      delete cleanItem.__order;
+      return cleanItem;
     });
   }
 
@@ -213,6 +267,37 @@ function packVisibleWidgets(items, mode, options = {}) {
     delete cleanItem.__order;
     return cleanItem;
   });
+}
+
+export function setWidgetCollapsedState(layout, mode, instanceId, collapsed) {
+  const next = structuredClone(layout);
+  const activeItem = Object.values(next[mode] || {})
+    .flat()
+    .find((item) => item.id === instanceId);
+
+  if (!activeItem) return next;
+
+  const explicitExpandedHeight = finiteNumber(activeItem.expandedHeight, Number.NaN);
+  const fallbackExpandedHeight = Number.isFinite(explicitExpandedHeight)
+    ? explicitExpandedHeight
+    : finiteNumber(activeItem.height, 320);
+  const nextExpandedHeight = Number.isFinite(fallbackExpandedHeight)
+    ? Math.max(58, fallbackExpandedHeight)
+    : 320;
+
+  next.collapsed = { ...(next.collapsed || {}), [activeItem.type]: Boolean(collapsed) };
+
+  for (const tab of Object.keys(next[mode] || {})) {
+    next[mode][tab] = next[mode][tab].map((item) => item.id === instanceId
+      ? {
+          ...item,
+          expandedHeight: nextExpandedHeight,
+          height: nextExpandedHeight,
+        }
+      : item);
+  }
+
+  return next;
 }
 
 function addMissingPositions(items, mode, options = {}) {
@@ -239,12 +324,11 @@ function addMissingPositions(items, mode, options = {}) {
       : mode === "desktop" && Number.isFinite(item.desktopY)
         ? item.desktopY
         : undefined;
+    const resolvedX = resolveWidgetX(item, canvasWidth, width, explicitX);
     const positioned = {
       ...item,
-      x: Number.isFinite(explicitX) ? explicitX : x,
-      xRatio: Number.isFinite(item.xRatio)
-        ? item.xRatio
-        : Math.max(0, Math.min(1, (Number.isFinite(explicitX) ? explicitX : x) / canvasWidth)),
+      x: resolvedX,
+      xRatio: canvasWidth > 0 ? resolvedX / canvasWidth : 0,
       y: Number.isFinite(explicitY) ? explicitY : y,
       zIndex: Number.isFinite(item.zIndex) ? item.zIndex : 1,
     };
@@ -277,6 +361,7 @@ export function normalizeWorkspaceLayout(value, options = {}) {
   if (!value || value.version !== WORKSPACE_LAYOUT_VERSION) return defaults;
 
   const modes = options.mode ? [options.mode] : ["desktop", "mobile"];
+  const collapsedState = options.collapsed ?? value?.collapsed ?? {};
   for (const mode of modes) {
     value[mode] = value[mode] || {};
     const existingTypes = new Set(
@@ -306,7 +391,7 @@ export function normalizeWorkspaceLayout(value, options = {}) {
         value[mode][tab] = [...value[mode][tab], ...missing];
         missing.forEach((item) => existingTypes.add(item.type));
       }
-      value[mode][tab] = addMissingPositions(value[mode][tab], mode, options);
+      value[mode][tab] = addMissingPositions(value[mode][tab], mode, { ...options, collapsed: collapsedState });
     }
   }
   return { ...defaults, ...value, collapsed: value.collapsed || {}, locked: { ...defaults.locked, ...(value.locked || {}) } };

@@ -7,7 +7,7 @@ import { formatAssignmentCountdown, getAssignmentCountdownTone } from "../src/as
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "../src/calendarWeekUtils.js";
 import { rankQuickMatchCandidates, rankRecommendedTasks, summarizeRecommendationWorkload } from "../src/recommendationUtils.js";
 import { canUndoVoiceCreation, lockVoiceUndo } from "../src/voiceTaskUtils.js";
-import { canHideWidget, createDefaultWorkspaceLayout, normalizeWorkspaceLayout, placeWidget } from "../src/workspaceLayout.js";
+import { canHideWidget, createDefaultWorkspaceLayout, normalizeWorkspaceLayout, placeWidget, setWidgetCollapsedState } from "../src/workspaceLayout.js";
 
 function findWidgetOverlaps(items) {
   const visible = items.filter((item) => !item.hidden);
@@ -117,10 +117,14 @@ test("old default desktop dashboard migrates to the balanced full-width layout",
 
 test("desktop master widgets are centered on single-widget tabs", () => {
   const layout = createDefaultWorkspaceLayout();
-  assert.equal(layout.desktop.todo.find((item) => item.type === "todo-master").x, 315);
-  assert.equal(layout.desktop.inProgress.find((item) => item.type === "in-progress-master").x, 315);
-  assert.equal(layout.desktop.completed.find((item) => item.type === "completed-master").x, 315);
-  assert.equal(layout.desktop.settings.find((item) => item.type === "settings-master").x, 250);
+  const desktopCanvas = 1680;
+  const widgetWidth = layout.desktop.todo.find((item) => item.type === "todo-master").width;
+  const expectedX = Math.max(0, (desktopCanvas - widgetWidth) / 2);
+  assert.equal(layout.desktop.todo.find((item) => item.type === "todo-master").x, expectedX);
+  assert.equal(layout.desktop.inProgress.find((item) => item.type === "in-progress-master").x, expectedX);
+  assert.equal(layout.desktop.completed.find((item) => item.type === "completed-master").x, expectedX);
+  const settingsWidth = layout.desktop.settings.find((item) => item.type === "settings-master").width;
+  assert.equal(layout.desktop.settings.find((item) => item.type === "settings-master").x, Math.max(0, (desktopCanvas - settingsWidth) / 2));
 });
 
 test("workspace normalization separates overlapping visible widgets", () => {
@@ -144,7 +148,112 @@ test("workspace normalization separates overlapping visible widgets", () => {
   assert.deepEqual(findWidgetOverlaps(normalized.desktop.dashboard), []);
 });
 
-test("active widget collision resolution nudges only the changed widget", () => {
+test("workspace normalization re-centers widgets based on the actual canvas width", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard[0] = {
+    ...saved.desktop.dashboard[0],
+    x: 1200,
+    xRatio: 0.714,
+    y: 0,
+    width: 680,
+    height: 460,
+  };
+
+  const normalized = normalizeWorkspaceLayout(saved, { mode: "desktop", canvasWidth: 900 });
+  const widget = normalized.desktop.dashboard[0];
+
+  assert.equal(widget.x, 220);
+  assert.equal(widget.xRatio, 0.24444444444444444);
+});
+
+test("collapsed widgets reserve only their compact header footprint", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard = [
+    { id: "collapsed-a", type: "recommended", x: 0, y: 0, width: 320, height: 260 },
+    { id: "floating-b", type: "quick-match", x: 0, y: 80, width: 240, height: 180 },
+  ];
+
+  const normalized = normalizeWorkspaceLayout(saved, {
+    mode: "desktop",
+    canvasWidth: 900,
+    collapsed: { recommended: true },
+  });
+  const moved = normalized.desktop.dashboard.find((item) => item.id === "floating-b");
+
+  assert.equal(moved.x, 0);
+  assert.equal(moved.y, 80);
+});
+
+test("expanding a widget restores its expanded height", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard = [
+    { id: "expanded-a", type: "recommended", x: 0, y: 0, width: 320, height: 260, expandedHeight: 260 },
+  ];
+
+  const collapsed = normalizeWorkspaceLayout(saved, {
+    mode: "desktop",
+    canvasWidth: 900,
+    collapsed: { recommended: true },
+  });
+  const expanded = normalizeWorkspaceLayout(collapsed, {
+    mode: "desktop",
+    canvasWidth: 900,
+    activeId: "expanded-a",
+    reflowActiveWithNeighbors: true,
+    collapsed: { recommended: false },
+  });
+  const widget = expanded.desktop.dashboard.find((item) => item.id === "expanded-a");
+
+  assert.equal(widget.height, 260);
+});
+
+test("collapsing and expanding a widget preserves its size and nearby widgets", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard = [
+    { id: "widget-a", type: "recommended", x: 0, y: 0, width: 320, height: 260 },
+    { id: "widget-b", type: "quick-match", x: 0, y: 80, width: 240, height: 180 },
+  ];
+
+  const collapsed = setWidgetCollapsedState(saved, "desktop", "widget-a", true);
+  const collapsedItem = collapsed.desktop.dashboard.find((item) => item.id === "widget-a");
+  const neighbor = collapsed.desktop.dashboard.find((item) => item.id === "widget-b");
+  assert.equal(collapsedItem.expandedHeight, 260);
+  assert.equal(collapsedItem.height, 260);
+  assert.equal(neighbor.x, 0);
+  assert.equal(neighbor.y, 80);
+
+  const expanded = setWidgetCollapsedState(collapsed, "desktop", "widget-a", false);
+  const expandedItem = expanded.desktop.dashboard.find((item) => item.id === "widget-a");
+  const expandedNeighbor = expanded.desktop.dashboard.find((item) => item.id === "widget-b");
+  assert.equal(expandedItem.height, 260);
+  assert.equal(expandedItem.expandedHeight, 260);
+  assert.equal(expandedNeighbor.x, 0);
+  assert.equal(expandedNeighbor.y, 80);
+});
+
+test("collapse toggles preserve existing widget positions", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard = [
+    { id: "widget-a", type: "recommended", x: 120, y: 40, width: 320, height: 260 },
+    { id: "widget-b", type: "quick-match", x: 460, y: 40, width: 240, height: 180 },
+  ];
+
+  const collapsed = normalizeWorkspaceLayout(saved, {
+    mode: "desktop",
+    canvasWidth: 900,
+    collapsed: { recommended: true },
+    preservePositions: true,
+  });
+  const widgetA = collapsed.desktop.dashboard.find((item) => item.id === "widget-a");
+  const widgetB = collapsed.desktop.dashboard.find((item) => item.id === "widget-b");
+
+  assert.equal(widgetA.x, 120);
+  assert.equal(widgetA.y, 40);
+  assert.equal(widgetB.x, 460);
+  assert.equal(widgetB.y, 40);
+});
+
+test("active widget collision resolution preserves the active widget and moves the other one", () => {
   const saved = createDefaultWorkspaceLayout();
   saved.desktop.dashboard = saved.desktop.dashboard.map((item, index) => (
     index > 1 ? { ...item, hidden: true } : item
@@ -166,14 +275,13 @@ test("active widget collision resolution nudges only the changed widget", () => 
     height: 200,
   };
 
-  const normalized = normalizeWorkspaceLayout(saved, { mode: "desktop", canvasWidth: 900, activeId });
+  const normalized = normalizeWorkspaceLayout(saved, { mode: "desktop", canvasWidth: 900, activeId, reflowActiveWithNeighbors: true });
   const stationary = normalized.desktop.dashboard.find((item) => item.id === stationaryId);
   const active = normalized.desktop.dashboard.find((item) => item.id === activeId);
 
-  assert.equal(stationary.x, 0);
-  assert.equal(stationary.y, 0);
-  assert.equal(active.x, 318);
+  assert.equal(active.x, 280);
   assert.equal(active.y, 0);
+  assert.ok(stationary.x === 0 && stationary.y > 0 || stationary.x > 0 || stationary.y > 0);
 });
 
 test("active widget keeps its exact position when it is already open", () => {

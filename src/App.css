@@ -3322,6 +3322,8 @@ html[data-theme="dark"] {
   border-radius: 18px;
   background: var(--card-bg);
   box-shadow: var(--shadow-card);
+  transition: height 220ms cubic-bezier(0.2, 0.8, 0.2, 1), width 220ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 220ms ease, border-color 220ms ease, transform 220ms ease;
+  will-change: height, width, box-shadow;
 }
 .workspace-widget.is-dragging { z-index: 10000 !important; opacity: 0.94; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28); }
 
@@ -3337,6 +3339,7 @@ html[data-theme="dark"] {
   border-bottom: 1px solid var(--border-color);
   cursor: default;
   user-select: none;
+  transition: border-color 220ms ease, padding 220ms ease, min-height 220ms ease;
 }
 
 .workspace-widget.is-collapsed .workspace-widget-header { border-bottom: 0; }
@@ -3391,6 +3394,7 @@ html[data-theme="dark"] {
   flex: 1;
   padding: 14px;
   overflow: auto;
+  transition: opacity 180ms ease, padding 220ms ease;
 }
 .workspace-widget-body > .quick-match-card,
 .workspace-widget-body > .dashboard-calendar-card { padding: 0; border: 0; border-radius: 0; box-shadow: none; }

@@ -13,6 +13,7 @@ import {
   createDefaultWorkspaceLayout,
   normalizeWorkspaceLayout,
   placeWidget,
+  setWidgetCollapsedState,
 } from "./workspaceLayout.js";
 import { preparePastedAssignmentLines } from "./bulkImportUtils.js";
 import { extractSyllabusText, findLikelySyllabusAssignments } from "./syllabusImport.js";
@@ -290,11 +291,14 @@ function getWorkspaceObstacleRects(widget, canvas) {
     .filter((item) => item !== widget)
     .map((item) => {
       const bounds = item.getBoundingClientRect();
+      const isCollapsed = item.classList.contains("is-collapsed");
+      const expandedHeight = Number(item.dataset.expandedHeight);
+      const effectiveHeight = isCollapsed ? bounds.height : Number.isFinite(expandedHeight) ? expandedHeight : bounds.height;
       return {
         x: bounds.left - canvasBounds.left,
         y: bounds.top - canvasBounds.top,
         width: Number(item.dataset.widgetWidth) || bounds.width,
-        height: Number(item.dataset.expandedHeight) || bounds.height,
+        height: effectiveHeight,
       };
     });
 }
@@ -1316,6 +1320,7 @@ function App() {
       return createDefaultWorkspaceLayout();
     }
   });
+  const workspaceLayoutRef = useRef(workspaceLayout);
   const [voiceStatus, setVoiceStatus] = useState("idle");
   const [voiceElapsed, setVoiceElapsed] = useState(0);
   const [voiceError, setVoiceError] = useState("");
@@ -1359,6 +1364,8 @@ function App() {
   const [widgetSearch, setWidgetSearch] = useState("");
   const [helpSearch, setHelpSearch] = useState("");
   const [workspaceMode, setWorkspaceMode] = useState(() => window.innerWidth < 768 ? "mobile" : "desktop");
+  const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(0);
+  const workspaceMainRef = useRef(null);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isStandalone, setIsStandalone] = useState(() =>
     window.matchMedia?.("(display-mode: standalone)").matches ||
@@ -1578,6 +1585,66 @@ function App() {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  useEffect(() => {
+    const node = workspaceMainRef.current;
+    if (!node) return undefined;
+    const updateCanvasWidth = () => {
+      setWorkspaceCanvasWidth(node.clientWidth || 0);
+    };
+    updateCanvasWidth();
+    const resizeObserver = new ResizeObserver(updateCanvasWidth);
+    resizeObserver.observe(node);
+    window.addEventListener("resize", updateCanvasWidth);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updateCanvasWidth);
+    };
+  }, [currentTab, workspaceMode]);
+
+  const hasOnlyCollapseLikeChanges = (previous, current) => {
+    if (!previous || !current) return false;
+    const previousItems = Object.values(previous[workspaceMode] || {}).flat();
+    const currentItems = Object.values(current[workspaceMode] || {}).flat();
+    if (previousItems.length !== currentItems.length) return false;
+
+    const positionChanged = previousItems.some((item, index) => {
+      const nextItem = currentItems[index];
+      if (!nextItem) return true;
+      return Number(item.x) !== Number(nextItem.x) || Number(item.y) !== Number(nextItem.y);
+    });
+
+    if (positionChanged) return false;
+
+    const previousCollapsed = previous.collapsed || {};
+    const currentCollapsed = current.collapsed || {};
+    if (JSON.stringify(previousCollapsed) !== JSON.stringify(currentCollapsed)) return true;
+
+    return previousItems.some((item, index) => {
+      const nextItem = currentItems[index];
+      if (!nextItem) return true;
+      return Number(item.height) !== Number(nextItem.height) || Number(item.expandedHeight) !== Number(nextItem.expandedHeight);
+    });
+  };
+
+  useEffect(() => {
+    if (currentTab === "calendar" || currentTab === "settings" || workspaceCanvasWidth <= 0) return undefined;
+    const previousLayout = workspaceLayoutRef.current;
+    const preservePositions = hasOnlyCollapseLikeChanges(previousLayout, workspaceLayout);
+    const next = normalizeWorkspaceLayout(structuredClone(workspaceLayout), {
+      mode: workspaceMode,
+      canvasWidth: workspaceCanvasWidth,
+      collapsed: workspaceLayout.collapsed,
+      preservePositions,
+    });
+    workspaceLayoutRef.current = workspaceLayout;
+    const hasChanges = JSON.stringify(next) !== JSON.stringify(workspaceLayout);
+    if (!hasChanges) return undefined;
+    setWorkspaceLayout(next);
+    try { localStorage.setItem(workspaceStorageKey, JSON.stringify(next)); }
+    catch (error) { console.error("Failed to save workspace layout:", error); }
+    return undefined;
+  }, [currentTab, workspaceCanvasWidth, workspaceMode, workspaceLayout]);
 
   useEffect(() => {
     if (!currentUser || !userSettings.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted") return undefined;
@@ -3443,8 +3510,11 @@ function App() {
   const saveWorkspace = (next, options = {}) => {
     const normalized = normalizeWorkspaceLayout(next, {
       mode: workspaceMode,
-      canvasWidth: options.canvasWidth,
+      canvasWidth: options.canvasWidth ?? workspaceCanvasWidth,
       activeId: options.activeId,
+      reflowActiveWithNeighbors: options.reflowActiveWithNeighbors,
+      collapsed: options.collapsed ?? next?.collapsed,
+      preservePositions: Boolean(options.preservePositions),
     });
     setWorkspaceLayout(normalized);
     try { localStorage.setItem(workspaceStorageKey, JSON.stringify(normalized)); }
@@ -3484,8 +3554,14 @@ function App() {
 
   const restoreWorkspaceWidget = (instance) => updateWidgetInstance(instance.id, { hidden: false });
 
-  const toggleWorkspaceWidget = (type) => {
-    saveWorkspace({ ...workspaceLayout, collapsed: { ...workspaceLayout.collapsed, [type]: !workspaceLayout.collapsed[type] } });
+  const toggleWorkspaceWidget = (instance) => {
+    const nextCollapsed = !Boolean(workspaceLayout.collapsed[instance.type]);
+    const nextLayout = setWidgetCollapsedState(workspaceLayout, workspaceMode, instance.id, nextCollapsed);
+    saveWorkspace(nextLayout, {
+      activeId: instance.id,
+      collapsed: nextLayout.collapsed,
+      preservePositions: true,
+    });
   };
 
   const toggleWorkspaceLock = () => {
@@ -5034,7 +5110,7 @@ function App() {
         const source = instance.type.startsWith("in-progress") ? sortedInProgressTasks : sortedTodoTasks;
         return !source.some((task) => getTaskDueBucket(task) === bucketsOrder[bucketIndex]);
       })()}
-      onToggle={() => toggleWorkspaceWidget(instance.type)}
+      onToggle={() => toggleWorkspaceWidget(instance)}
       onResize={(width, height, canvasWidth) => updateWidgetInstance(instance.id, { width, height }, { canvasWidth })}
       onPosition={(x, y, canvasWidth) => {
         const highestLayer = Math.max(1, ...Object.values(workspaceLayout[workspaceMode] || {}).flat().map((item) => Number(item.zIndex) || 1));
@@ -5266,7 +5342,7 @@ function App() {
         )}
 
         <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}`}>
-          <main className="workspace-main">
+          <main className="workspace-main" ref={workspaceMainRef}>
 
         {currentTab === "dashboard" && renderWorkspaceForTab("dashboard")}
         {currentTab !== "dashboard" && currentTab !== "calendar" && renderWorkspaceExtrasForTab(currentTab)}
