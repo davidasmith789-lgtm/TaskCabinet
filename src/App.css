@@ -3553,6 +3553,10 @@ html[data-theme="dark"] {
 .portable-task-list button { display: grid; width: 100%; gap: 4px; padding: 11px; border: 1px solid var(--border-color); border-radius: 11px; background: var(--task-bg); color: var(--text-color); text-align: left; cursor: pointer; }
 .portable-task-list span { color: var(--muted-text); font-size: 0.78rem; }
 .portable-course-colors { display: grid; gap: 9px; }
+.portable-course-add-form {
+  grid-template-columns: 1fr;
+  margin-bottom: 4px;
+}
 .portable-course-color-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; }
 .portable-course-color-row > span { overflow: hidden; padding: 6px 9px; border-radius: 999px; text-overflow: ellipsis; white-space: nowrap; }
 .portable-course-color-row .btn { padding: 6px 8px; }

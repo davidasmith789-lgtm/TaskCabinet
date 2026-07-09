@@ -5064,6 +5064,17 @@ useEffect(() => {
   const renderCourseColorsWidget = () => (
     <div className="portable-course-colors">
       <p className="hint-text">Customize course colors or remove courses you no longer need.</p>
+      <form className="course-add-form portable-course-add-form" onSubmit={handleAddCourse}>
+        <label htmlFor="portable-new-course-name">Add course</label>
+        <input
+          id="portable-new-course-name"
+          type="text"
+          value={newCourseName}
+          onChange={(event) => setNewCourseName(event.target.value)}
+          placeholder="Course name"
+        />
+        <button type="submit" className="btn btn-primary" disabled={!newCourseName.trim()}>Add</button>
+      </form>
       {courses.map((course) => <div className="portable-course-color-row" key={course}><span style={{ backgroundColor: getCourseColor(course), color: getTextColorForCourse(course) }}>{course}</span><input type="color" value={getCourseColor(course)} onChange={(event) => handleCourseColorChange(course, event.target.value)} /><button type="button" className="btn btn-danger" disabled={course === "Other"} onClick={() => handleDeleteCourse(course)}>Delete</button></div>)}
     </div>
   );
