@@ -7138,11 +7138,6 @@ function App() {
                           <option value="college">College</option>
                         </select>
                       </label>
-                      <div className={`school-level-preview school-level-preview-${userSettings.schoolLevel || "high"}`}>
-                        <strong>{schoolLevelCopy.guideTitle}</strong>
-                        <p>{schoolLevelCopy.subtitle}</p>
-                        <small>Changes terminology and planning guidance only. Your saved work and available features stay intact.</small>
-                      </div>
                       <div className="settings-option-grid">
                         <label className="settings-select-row settings-option-card">
                           <span>Text size</span>

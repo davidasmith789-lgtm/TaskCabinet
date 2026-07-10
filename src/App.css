@@ -3858,12 +3858,6 @@ html[data-theme="dark"] {
   text-align: center;
 }
 
-.school-level-preview { margin: 10px 0 14px; padding: 12px; border: 1px solid var(--border-color); border-left-width: 4px; border-radius: 11px; background: var(--surface-alt); }
-.school-level-preview p { margin: 5px 0; color: var(--text-color); }
-.school-level-preview small { color: var(--muted-text); }
-.school-level-preview-middle { border-left-color: #16a34a; }
-.school-level-preview-high { border-left-color: #4f46e5; }
-.school-level-preview-college { border-left-color: #7c3aed; }
 
 .dashboard-reminders-widget { display: grid; gap: 12px; }
 .reminder-widget-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
