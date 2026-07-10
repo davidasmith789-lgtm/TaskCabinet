@@ -4010,3 +4010,118 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
     grid-column: 1 / -1;
   }
 }
+
+/* ========================================================================== */
+/* Mobile app shell                                                           */
+/* ========================================================================== */
+
+@media (max-width: 700px) {
+  body { overscroll-behavior-y: contain; }
+
+  .app-shell {
+    width: 100%;
+    gap: 12px;
+    padding: 8px 10px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .hero-card {
+    gap: 12px;
+    margin: 0;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .hero-card .app-title { font-size: clamp(1.8rem, 9vw, 2.5rem); }
+  .hero-subtitle { margin-top: 7px; font-size: 0.88rem; line-height: 1.4; }
+  .user-pill { width: 100%; padding: 8px 11px; text-align: center; }
+
+  .tab-row {
+    position: fixed;
+    z-index: 5000;
+    right: 10px;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 10px;
+    display: flex;
+    flex-flow: row nowrap;
+    gap: 4px;
+    margin: 0;
+    padding: 6px;
+    overflow-x: auto;
+    border-radius: 18px;
+    box-shadow: 0 16px 45px rgba(0, 0, 0, 0.28);
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-row::-webkit-scrollbar { display: none; }
+  .tab-row .tab-button {
+    width: auto;
+    min-width: 84px;
+    min-height: 48px;
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border-radius: 13px;
+    font-size: 0.78rem;
+  }
+
+  input,
+  select,
+  textarea { min-height: 44px; font-size: 16px; }
+
+  .workspace-layout.workspace-customizable,
+  .workspace-calendar-only { width: 100%; }
+  .workspace-widget { border-radius: 16px; }
+  .workspace-widget-header { min-height: 54px; padding: 8px 9px; }
+  .workspace-widget-body { padding: 11px; }
+  .widget-drag-grip,
+  .widget-collapse-button,
+  .widget-menu summary { width: 36px; height: 36px; }
+  .mobile-widget-resize-controls { position: sticky; bottom: 0; padding: 7px 9px 9px; }
+  .mobile-widget-resize-controls button { min-width: 48px; min-height: 44px; }
+
+  .task-card { padding: 13px; border-radius: 15px; }
+  .task-actions,
+  .App.task-actions-stacked .task-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .task-actions .btn { width: 100%; min-height: 44px; }
+
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .edit-modal {
+    width: 100%;
+    max-height: 96dvh;
+    padding: 18px 14px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0;
+  }
+  .edit-modal-header { position: sticky; z-index: 2; top: -18px; padding-top: 8px; background: var(--modal-bg); }
+  .modal-close-button { width: 44px; height: 44px; flex: 0 0 44px; }
+
+  .settings-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .settings-sidebar .eyebrow { grid-column: 1 / -1; }
+  .settings-nav-button { min-height: 58px; padding: 9px; }
+  .settings-section { padding: 12px; }
+
+  .calendar-panel { padding: 12px; }
+  .calendar-view-toggle { width: 100%; }
+  .calendar-view-toggle button { min-height: 44px; flex: 1; }
+  .weekly-calendar-grid { min-width: 620px; grid-template-columns: repeat(7, minmax(78px, 1fr)); }
+  .weekly-calendar-grid > button { min-height: 145px; padding: 10px 6px; }
+
+  .workspace-organizer { max-height: min(72dvh, 620px); overflow-y: auto; }
+  .widget-library-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 420px) {
+  .app-shell { padding-inline: 7px; }
+  .hero-card { padding: 14px; }
+  .tab-row { right: 7px; left: 7px; }
+  .tab-row .tab-button { min-width: 78px; }
+  .settings-sidebar { grid-template-columns: 1fr; }
+  .task-actions,
+  .App.task-actions-stacked .task-actions { grid-template-columns: 1fr; }
+}

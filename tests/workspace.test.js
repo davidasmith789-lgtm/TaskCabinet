@@ -99,6 +99,35 @@ test("course colors stays available but is hidden in a default dashboard", () =>
   }
 });
 
+test("new mobile layouts start with compact app-sized widgets", () => {
+  const layout = createDefaultWorkspaceLayout();
+  const dashboard = layout.mobile.dashboard;
+
+  assert.ok(dashboard.every((item) => item.width <= 420));
+  assert.equal(dashboard.find((item) => item.type === "recommended").height, 400);
+  assert.equal(dashboard.find((item) => item.type === "stat-active").height, 140);
+  assert.equal(dashboard.find((item) => item.type === "add-assignment").height, 560);
+});
+
+test("compact mobile defaults do not rewrite an existing customized mobile layout", () => {
+  const saved = createDefaultWorkspaceLayout();
+  const recommended = saved.mobile.dashboard.find((item) => item.type === "recommended");
+  Object.assign(recommended, { x: 77, y: 33, width: 600, height: 710, expandedHeight: 710 });
+  saved.userCustomized = true;
+
+  const normalized = normalizeWorkspaceLayout(saved, {
+    mode: "mobile",
+    canvasWidth: 720,
+    preservePositions: true,
+  });
+  const preserved = normalized.mobile.dashboard.find((item) => item.type === "recommended");
+
+  assert.equal(preserved.x, 77);
+  assert.equal(preserved.y, 33);
+  assert.equal(preserved.width, 600);
+  assert.equal(preserved.height, 710);
+});
+
 test("default desktop and mobile workspace layouts do not overlap", () => {
   const layout = createDefaultWorkspaceLayout();
 

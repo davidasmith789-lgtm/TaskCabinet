@@ -78,6 +78,35 @@ const makeInstance = (item, index) => ({
   hidden: item.hidden ?? false,
 });
 
+const MOBILE_DEFAULT_HEIGHTS = {
+  recommended: 400,
+  "quick-match": 390,
+  "mini-calendar": 410,
+  "stat-active": 118,
+  "stat-today": 118,
+  "stat-overdue": 118,
+  "stat-workload": 118,
+  reminders: 350,
+  "course-overview": 380,
+  checklists: 440,
+  "course-colors": 400,
+  "add-assignment": 560,
+  "todo-master": 620,
+  "in-progress-master": 620,
+  "completed-master": 620,
+};
+
+/** Create compact new-layout geometry without rewriting a saved mobile layout. */
+const getModeDefaultItem = (item, mode) => mode === "mobile"
+  ? {
+      ...item,
+      width: Math.min(Number(item.width) || 360, 420),
+      height: item.type?.includes("-bucket-")
+        ? 360
+        : MOBILE_DEFAULT_HEIGHTS[item.type] || Math.min(Number(item.height) || 320, 420),
+    }
+  : item;
+
 const getCanvasWidth = (mode, override) => {
   const fallback = mode === "mobile" ? 720 : 1680;
   const measuredWidth = Number(override);
@@ -429,7 +458,7 @@ export function createDefaultWorkspaceLayout() {
   const makeMode = (mode) => Object.fromEntries(
     Object.entries(DEFAULT_WIDGET_LAYOUT).map(([tab, items]) => [
       tab,
-      addMissingPositions(items.map(makeInstance), mode),
+      addMissingPositions(items.map((item, index) => makeInstance(getModeDefaultItem(item, mode), index)), mode),
     ]),
   );
 
