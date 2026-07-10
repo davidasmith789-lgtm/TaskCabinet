@@ -1,4 +1,22 @@
+/* Pure ranking and preset helpers for Plan of Attack and What Should I Do. */
 const PRIORITY_RANK = { HIGH: 0, MED: 1, LOW: 2 };
+const DEFAULT_QUICK_MATCH_PRESETS = [15, 30, 45, 60];
+
+export function getQuickMatchPresets(customPresets = []) {
+  const validCustomPresets = Array.isArray(customPresets)
+    ? customPresets
+      .map(Number)
+      .filter((minutes) => Number.isInteger(minutes) && minutes > 0 && minutes <= 1440)
+    : [];
+
+  return [...new Set([...DEFAULT_QUICK_MATCH_PRESETS, ...validCustomPresets])]
+    .sort((a, b) => a - b);
+}
+
+export function getQuickMatchCustomPresets(customPresets = []) {
+  const defaults = new Set(DEFAULT_QUICK_MATCH_PRESETS);
+  return getQuickMatchPresets(customPresets).filter((minutes) => !defaults.has(minutes));
+}
 
 export function getValidEstimate(task) {
   const estimate = Number(task?.estimatedMinutes);

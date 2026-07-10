@@ -1,3 +1,4 @@
+/* Date-only helpers for the fixed Calendar page's weekly view. */
 export function getWeekDates(anchorDate, weekStartsOn = "sunday") {
   const anchor = anchorDate instanceof Date && !Number.isNaN(anchorDate.getTime())
     ? new Date(anchorDate.getFullYear(), anchorDate.getMonth(), anchorDate.getDate())
@@ -25,4 +26,3 @@ export function isSameCalendarDay(first, second) {
     && first.getMonth() === second.getMonth()
     && first.getDate() === second.getDate();
 }
-

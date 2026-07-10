@@ -1,3 +1,4 @@
+/* Shared human-readable urgency labels used by cards and dashboard widgets. */
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
@@ -38,4 +39,3 @@ export function getAssignmentCountdownTone(deadline, now = new Date()) {
     && deadline.getDate() === now.getDate();
   return sameDay ? "today" : "future";
 }
-

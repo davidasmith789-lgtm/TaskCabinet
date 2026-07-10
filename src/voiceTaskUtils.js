@@ -1,3 +1,4 @@
+/* Rules for the short-lived undo action attached to browser-voice assignments. */
 export function canUndoVoiceCreation(task) {
   return Boolean(
     task?.createdByVoice
@@ -12,4 +13,3 @@ export function canUndoVoiceCreation(task) {
 export function lockVoiceUndo(task) {
   return task?.createdByVoice ? { ...task, voiceUndoLocked: true } : task;
 }
-

@@ -1,3 +1,4 @@
+/* Deadline parsing and display helpers for standalone checklist items. */
 export function getChecklistDeadline(item) {
   if (!item?.dueDate) return null;
 
@@ -39,4 +40,3 @@ export function formatChecklistDeadline(item) {
   if (!item.dueTime) return dateLabel;
   return `${dateLabel} · ${deadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
-

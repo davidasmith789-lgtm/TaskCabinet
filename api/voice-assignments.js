@@ -1,5 +1,11 @@
 import process from "node:process";
 
+/*
+ * Optional Vercel server endpoint for recorded-audio transcription and parsing.
+ * The current client primarily uses browser SpeechRecognition, but this module
+ * remains isolated so a hosted audio workflow can be enabled without exposing
+ * an API key to the browser.
+ */
 const MAX_AUDIO_BYTES = 4 * 1024 * 1024;
 const MAX_ASSIGNMENTS = 10;
 

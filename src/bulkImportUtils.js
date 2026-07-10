@@ -1,5 +1,6 @@
 const BULLET_PREFIX = /^\s*(?:[-*•▪◦]|\d+[.)]|[a-z][.)])\s*/i;
 
+/** Parse pasted bullets or semicolon-separated text into assignment candidates. */
 export function preparePastedAssignmentLines(value, maxItems = 50) {
   const normalized = String(value || "").replace(/\r/g, "").trim();
   if (!normalized) return [];
@@ -27,4 +28,3 @@ export function preparePastedAssignmentLines(value, maxItems = 50) {
 
   return results;
 }
-

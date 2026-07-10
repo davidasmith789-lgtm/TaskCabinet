@@ -5,7 +5,7 @@ import { preparePastedAssignmentLines } from "../src/bulkImportUtils.js";
 import { findLikelySyllabusAssignments, getSyllabusFileKind } from "../src/syllabusImport.js";
 import { formatAssignmentCountdown, getAssignmentCountdownTone } from "../src/assignmentCountdown.js";
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "../src/calendarWeekUtils.js";
-import { rankQuickMatchCandidates, rankRecommendedTasks, summarizeRecommendationWorkload } from "../src/recommendationUtils.js";
+import { getQuickMatchCustomPresets, getQuickMatchPresets, rankQuickMatchCandidates, rankRecommendedTasks, summarizeRecommendationWorkload } from "../src/recommendationUtils.js";
 import { canUndoVoiceCreation, lockVoiceUndo } from "../src/voiceTaskUtils.js";
 import { canHideWidget, createDefaultWorkspaceLayout, getWidgetMinimumExpandedHeight, normalizeWorkspaceLayout, placeWidget, setWidgetCollapsedState, shouldPreserveWidgetPositions } from "../src/workspaceLayout.js";
 
@@ -78,6 +78,27 @@ test("school guide widget is removed from defaults and saved layouts", () => {
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "school-guide"), false);
 });
 
+test("settings shortcut widget is removed from defaults and saved layouts", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.settings.push({ id: "settings-shortcut-old", type: "settings-master", x: 0, y: 0, width: 500, height: 300 });
+
+  const normalized = normalizeWorkspaceLayout(saved);
+  const allTypes = Object.values(normalized.desktop).flat().map((item) => item.type);
+
+  assert.equal(allTypes.includes("settings-master"), false);
+  assert.deepEqual(normalized.desktop.settings, []);
+});
+
+test("course colors stays available but is hidden in a default dashboard", () => {
+  const layout = createDefaultWorkspaceLayout();
+
+  for (const mode of ["desktop", "mobile"]) {
+    const courseColors = layout[mode].dashboard.find((item) => item.type === "course-colors");
+    assert.ok(courseColors);
+    assert.equal(courseColors.hidden, true);
+  }
+});
+
 test("default desktop and mobile workspace layouts do not overlap", () => {
   const layout = createDefaultWorkspaceLayout();
 
@@ -123,8 +144,6 @@ test("desktop master widgets are centered on single-widget tabs", () => {
   assert.equal(layout.desktop.todo.find((item) => item.type === "todo-master").x, expectedX);
   assert.equal(layout.desktop.inProgress.find((item) => item.type === "in-progress-master").x, expectedX);
   assert.equal(layout.desktop.completed.find((item) => item.type === "completed-master").x, expectedX);
-  const settingsWidth = layout.desktop.settings.find((item) => item.type === "settings-master").width;
-  assert.equal(layout.desktop.settings.find((item) => item.type === "settings-master").x, Math.max(0, (desktopCanvas - settingsWidth) / 2));
 });
 
 test("workspace normalization separates overlapping visible widgets", () => {
@@ -520,6 +539,17 @@ test("recommended plan explains urgency and totals known workload", () => {
   assert.deepEqual(ranked[0].reasons, ["Due today", "High priority", "In progress", "Short win"]);
   assert.equal(workload.knownMinutes, 145);
   assert.equal(workload.unknownCount, 1);
+});
+
+test("quick match presets keep defaults and sanitize custom times", () => {
+  assert.deepEqual(
+    getQuickMatchPresets([90, "120", 30, 90, 0, -5, 1441, 22.5, "bad"]),
+    [15, 30, 45, 60, 90, 120],
+  );
+  assert.deepEqual(
+    getQuickMatchCustomPresets([60, 120, 90, 120]),
+    [90, 120],
+  );
 });
 
 test("quick match picks fitting work first and urgent work when nothing fits", () => {

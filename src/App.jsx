@@ -17,7 +17,6 @@ import {
   normalizeWorkspaceLayout,
   placeWidget,
   setWidgetCollapsedState,
-  shouldPreserveWidgetPositions,
 } from "./workspaceLayout.js";
 import { preparePastedAssignmentLines } from "./bulkImportUtils.js";
 import { extractSyllabusText, findLikelySyllabusAssignments } from "./syllabusImport.js";
@@ -26,17 +25,31 @@ import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "./calendarWe
 import { canUndoVoiceCreation, lockVoiceUndo } from "./voiceTaskUtils.js";
 import {
   getQuickMatchReason,
+  getQuickMatchCustomPresets,
+  getQuickMatchPresets,
   getValidEstimate,
   rankQuickMatchCandidates,
   rankRecommendedTasks,
   summarizeRecommendationWorkload,
 } 
 from "./recommendationUtils.js";
-const APP_BUILD_VERSION = "layout-save-fix-live-test-1";
+/*
+ * TASKCABINET APPLICATION MAP
+ *
+ * This file owns the browser-local application shell and the UI workflows that
+ * still share state: accounts, assignments, courses, settings, widgets,
+ * calendars, checklists, imports, attachments, and archive/trash behavior.
+ * Pure calculations live in the neighboring *Utils.js modules so they can be
+ * tested without rendering React. Workspace placement and migration rules live
+ * in workspaceLayout.js; keep persistence-compatible changes there.
+ */
 const DEFAULT_USER_SETTINGS = {
   showPriority: true,
   showRepeat: true,
   showEstimatedMinutes: true,
+  showAssignmentFiles: true,
+  showAssignmentLinks: true,
+  showAssignmentChecklistSteps: true,
   defaultCategory: "School",
   defaultPriority: "MED",
   defaultEstimatedMinutes: "",
@@ -48,6 +61,7 @@ const DEFAULT_USER_SETTINGS = {
   notificationsEnabled: false,
   reminderMinutes: 60,
   dashboardReminderHours: 24,
+  quickMatchCustomPresets: [],
   schoolLevel: "high",
   textSize: "medium",
   fontFamily: "sans",
@@ -907,6 +921,27 @@ const WORKSPACE_COMPACT_BREAKPOINT = 1100;
 const getWorkspaceModeForWidth = (width) =>
   Number(width) < WORKSPACE_COMPACT_BREAKPOINT ? "mobile" : "desktop";
 
+/**
+ * Normalize a stored workspace before React uses it. Older unstamped layouts
+ * are unlocked so a stale lock flag cannot make a migrated layout impossible
+ * to repair. This helper is intentionally outside App because it is needed by
+ * App's lazy state initializer during the component's first execution.
+ */
+function repairLoadedWorkspace(layout) {
+  const repaired = normalizeWorkspaceLayout(layout, {
+    preservePositions: true,
+  });
+  const isOldUnstampedLayout = !repaired.userCustomized && !repaired.updatedAt;
+
+  return {
+    ...repaired,
+    locked: {
+      desktop: isOldUnstampedLayout ? false : Boolean(repaired.locked?.desktop),
+      mobile: isOldUnstampedLayout ? false : Boolean(repaired.locked?.mobile),
+    },
+  };
+}
+
 const PERSONALIZATION_TIPS = [
   ["Move widgets", "Drag the dotted grip to place a widget anywhere on the canvas. Moved widgets come to the front; drag over a navigation tab to relocate them."],
   ["Lock a finished layout", "Open Widgets and choose Lock Layout to hide move and resize controls while keeping every widget interactive."],
@@ -1265,7 +1300,7 @@ function parseLocalVoiceAssignments(transcript, courses, defaults) {
 
   return {
     assignments,
-    assumptions: ["Voice details were interpreted locally in your browser without a paid AI service."],
+    assumptions: ["Voice details were interpreted in your browser."],
     skipped,
   };
 }
@@ -1400,6 +1435,7 @@ function App() {
   const [currentTab, setCurrentTab] = useState("dashboard");
   const [quickMatchMinutes, setQuickMatchMinutes] = useState("");
   const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
+  const [quickMatchPresetDraft, setQuickMatchPresetDraft] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calendarAddOpen, setCalendarAddOpen] = useState(false);
@@ -1612,10 +1648,6 @@ function App() {
       console.error("Error writing theme to localStorage:", error);
     }
   }, [theme]);
-  useEffect(() => {
-  console.log("TaskCabinet build version:", APP_BUILD_VERSION);
-  }, []);
-
   useEffect(() => {
     const scale = { xsmall: 0.7, small: 0.85, medium: 1, large: 1.25, xlarge: 1.5 }[userSettings.textSize] || 1;
     document.documentElement.style.fontSize = `${scale * 100}%`;
@@ -1868,6 +1900,26 @@ useEffect(() => {
     if (!isEnabled && field === "showPriority") setPriority("MED");
     if (!isEnabled && field === "showRepeat") setRepeatFrequency("NONE");
     if (!isEnabled && field === "showEstimatedMinutes") setEstTime("");
+    if (!isEnabled && field === "showAssignmentLinks") {
+      setOptionalLinksOpen(false);
+      setNewLinkName("");
+      setNewLinkUrl("");
+      setDraftLinkMessage("");
+      setDraftLinks([]);
+    }
+    if (!isEnabled && field === "showAssignmentFiles") {
+      setOptionalFilesOpen(false);
+      setDraftFiles([]);
+    }
+    if (!isEnabled && field === "showAssignmentChecklistSteps") {
+      setOptionalChecklistOpen(false);
+      setNewSubtaskText("");
+      setNewSubtaskDueMonth("");
+      setNewSubtaskDueDay("");
+      setNewSubtaskDueHour("");
+      setNewSubtaskDueAmPm("PM");
+      setDraftSubtasks([]);
+    }
   };
 
   const handleAssignmentDefaultChange = (field, value) => {
@@ -2169,23 +2221,6 @@ useEffect(() => {
       [course]: updatedDays,
     });
   };
-  const repairLoadedWorkspace = (layout) => {
-  const repaired = normalizeWorkspaceLayout(layout, {
-    preservePositions: true,
-  });
-
-  const isOldUnstampedLayout =
-    !repaired.userCustomized &&
-    !repaired.updatedAt;
-
-  return {
-    ...repaired,
-    locked: {
-      desktop: isOldUnstampedLayout ? false : Boolean(repaired.locked?.desktop),
-      mobile: isOldUnstampedLayout ? false : Boolean(repaired.locked?.mobile),
-    },
-  };
-};
   // Whenever the active profile changes, load that profile's saved datasets.
   // If stored JSON is damaged or unavailable, use safe empty/default values.
   // This effect intentionally copies an external browser data source into React
@@ -2261,19 +2296,6 @@ useEffect(() => {
     workspaceStorageKey,
   ]);
   /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Remember which profile should be restored on the next browser visit.
-  useEffect(() => {
-    try {
-      if (currentUser) {
-        localStorage.setItem("currentUser", currentUser);
-      } else {
-        localStorage.removeItem("currentUser");
-      }
-    } catch (error) {
-      console.error("Failed to persist currentUser to localStorage:", error);
-    }
-  }, [currentUser]);
 
   // ---------------------------------------------------------------------------
   // EVENT HANDLERS: CREATE AND UPDATE DATA
@@ -3962,7 +3984,7 @@ useEffect(() => {
   const toggleWorkspaceWidget = (instance) => {
   saveWorkspace(
     (previousLayout) => {
-      const nextCollapsed = !Boolean(previousLayout.collapsed?.[instance.type]);
+      const nextCollapsed = !previousLayout.collapsed?.[instance.type];
       return setWidgetCollapsedState(
         previousLayout,
         workspaceMode,
@@ -4816,7 +4838,7 @@ useEffect(() => {
         </>
       )}
 
-      <div className="subtask-form-section assignment-links-form optional-assignment-section">
+      {userSettings.showAssignmentLinks !== false && <div className="subtask-form-section assignment-links-form optional-assignment-section">
         <div className="optional-assignment-header">
           <label>Optional Assignment Links</label>
           <button
@@ -4880,9 +4902,9 @@ useEffect(() => {
         )}
           </div>
         )}
-      </div>
+      </div>}
 
-      <div className="subtask-form-section attachment-form-section optional-assignment-section">
+      {userSettings.showAssignmentFiles !== false && <div className="subtask-form-section attachment-form-section optional-assignment-section">
         <div className="optional-assignment-header">
           <label>Optional Files</label>
           <button
@@ -4914,9 +4936,9 @@ useEffect(() => {
         ))}
           </div>
         )}
-      </div>
+      </div>}
 
-      <div className="subtask-form-section optional-assignment-section">
+      {userSettings.showAssignmentChecklistSteps !== false && <div className="subtask-form-section optional-assignment-section">
         <div className="optional-assignment-header">
           <label>Optional Checklist Steps</label>
           <button
@@ -5013,7 +5035,7 @@ useEffect(() => {
         )}
           </div>
         )}
-      </div>
+      </div>}
 
       <button
         type="submit"
@@ -5045,7 +5067,8 @@ useEffect(() => {
   const quickMatchInputNumber = Number(quickMatchMinutes);
   const quickMatchInputIsValid =
     Number.isInteger(quickMatchInputNumber) && quickMatchInputNumber > 0;
-  const quickMatchPresets = [15, 30, 45, 60];
+  const quickMatchCustomPresets = getQuickMatchCustomPresets(userSettings.quickMatchCustomPresets);
+  const quickMatchPresets = getQuickMatchPresets(quickMatchCustomPresets);
   const quickMatchResults = quickMatchSubmittedMinutes
     ? rankQuickMatchCandidates(
         activeDashboardTasks,
@@ -5063,6 +5086,30 @@ useEffect(() => {
   const handleQuickMatchPreset = (minutes) => {
     setQuickMatchMinutes(String(minutes));
     setQuickMatchSubmittedMinutes(minutes);
+  };
+
+  const quickMatchPresetDraftNumber = Number(quickMatchPresetDraft);
+  const quickMatchPresetDraftIsValid =
+    Number.isInteger(quickMatchPresetDraftNumber) &&
+    quickMatchPresetDraftNumber > 0 &&
+    quickMatchPresetDraftNumber <= 1440 &&
+    !quickMatchPresets.includes(quickMatchPresetDraftNumber);
+
+  const handleAddQuickMatchPreset = (event) => {
+    event.preventDefault();
+    if (!quickMatchPresetDraftIsValid) return;
+    handleAddFieldSettingChange(
+      "quickMatchCustomPresets",
+      getQuickMatchCustomPresets([...quickMatchCustomPresets, quickMatchPresetDraftNumber]),
+    );
+    setQuickMatchPresetDraft("");
+  };
+
+  const handleRemoveQuickMatchPreset = (minutes) => {
+    handleAddFieldSettingChange(
+      "quickMatchCustomPresets",
+      quickMatchCustomPresets.filter((preset) => preset !== minutes),
+    );
   };
 
   const renderQuickMatchCard = () => (
@@ -5338,7 +5385,6 @@ useEffect(() => {
     "todo-master": schoolLevelCopy.todoLabel,
     "in-progress-master": "In Progress",
     "completed-master": `Completed ${schoolLevelCopy.taskPlural}`,
-    "settings-master": "Settings",
   };
   const bucketKeys = ["overdue", "today", "tomorrow", "this-week", "next-week", "later", "no-date"];
   const getWorkspaceWidgetTitle = (type) => {
@@ -5673,7 +5719,6 @@ useEffect(() => {
     if (type === "completed-master") return renderTaskMasterWidget("completed");
     const bucketIndex = bucketKeys.findIndex((key) => type.endsWith(`-bucket-${key}`));
     if (bucketIndex >= 0) return renderTaskMasterWidget(type.startsWith("in-progress") ? "inProgress" : "todo", bucketsOrder[bucketIndex]);
-    if (type === "settings-master") return <div className="widget-settings-shortcut"><p>Open TaskCabinet settings and personalization controls.</p><button type="button" className="btn btn-primary" onClick={() => setCurrentTab("settings")}>Open Settings</button></div>;
     const statContent = {
       "stat-active": [activeTasksCount, "Assignments left"],
       "stat-today": [dueTodayCount, "Need attention"],
@@ -5717,9 +5762,8 @@ useEffect(() => {
       {items.map(renderWorkspaceInstance)}
     </WorkspaceCanvas>
   };
-  const homeMasterByTab = { settings: "settings-master" };
   const renderWorkspaceExtrasForTab = (tab) => {
-    const extras = (workspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden && item.type !== homeMasterByTab[tab]);
+    const extras = (workspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden);
     return extras.length > 0 ? <WorkspaceCanvas height={getWorkspaceCanvasHeight(extras)}>{extras.map(renderWorkspaceInstance)}</WorkspaceCanvas> : null;
   };
 
@@ -7569,6 +7613,9 @@ useEffect(() => {
                       <label className="settings-toggle"><span>Priority</span><input type="checkbox" checked={userSettings.showPriority} onChange={(e) => handleAddFieldSettingChange("showPriority", e.target.checked)} /></label>
                       <label className="settings-toggle"><span>Repeat</span><input type="checkbox" checked={userSettings.showRepeat} onChange={(e) => handleAddFieldSettingChange("showRepeat", e.target.checked)} /></label>
                       <label className="settings-toggle"><span>Estimated Minutes</span><input type="checkbox" checked={userSettings.showEstimatedMinutes} onChange={(e) => handleAddFieldSettingChange("showEstimatedMinutes", e.target.checked)} /></label>
+                      <label className="settings-toggle"><span>Files</span><input type="checkbox" checked={userSettings.showAssignmentFiles !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentFiles", e.target.checked)} /></label>
+                      <label className="settings-toggle"><span>Links</span><input type="checkbox" checked={userSettings.showAssignmentLinks !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentLinks", e.target.checked)} /></label>
+                      <label className="settings-toggle"><span>Checklist Steps</span><input type="checkbox" checked={userSettings.showAssignmentChecklistSteps !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentChecklistSteps", e.target.checked)} /></label>
                     </SettingsCard>
                     <SettingsCard title="New Assignment Defaults" description="These values prefill new assignments and return after each successful add." className="settings-section-wide">
                       <div className="settings-option-grid assignment-defaults-grid">
@@ -7579,6 +7626,28 @@ useEffect(() => {
                         <label className="settings-select-row settings-option-card"><span>Due time</span><input type="text" value={userSettings.defaultDueTime || "11:00"} placeholder="11:00" onChange={(e) => handleAssignmentDefaultChange("defaultDueTime", e.target.value)} onBlur={() => handleAssignmentDefaultChange("defaultDueTime", normalizeDueTime(userSettings.defaultDueTime) || "11:00")} /></label>
                         <label className="settings-select-row settings-option-card"><span>AM or PM</span><select value={userSettings.defaultDueAmPm || "PM"} onChange={(e) => handleAssignmentDefaultChange("defaultDueAmPm", e.target.value)}><option value="AM">AM</option><option value="PM">PM</option></select></label>
                       </div>
+                    </SettingsCard>
+                    <SettingsCard title="What Should I Do? Time Choices" description="Add extra one-tap time choices to the dashboard widget. The standard 15, 30, 45, and 60 minute choices always remain available." className="settings-section-wide">
+                      <form className="quick-match-preset-settings" onSubmit={handleAddQuickMatchPreset}>
+                        <label>
+                          <span>New time choice</span>
+                          <span className="quick-match-preset-entry">
+                            <input type="number" min="1" max="1440" step="1" inputMode="numeric" value={quickMatchPresetDraft} onChange={(event) => setQuickMatchPresetDraft(event.target.value)} placeholder="90" aria-label="New preset minutes" />
+                            <span>minutes</span>
+                            <button type="submit" className="btn btn-primary" disabled={!quickMatchPresetDraftIsValid}>Add time</button>
+                          </span>
+                        </label>
+                        {quickMatchCustomPresets.length > 0 ? (
+                          <div className="quick-match-custom-presets" aria-label="Custom time choices">
+                            {quickMatchCustomPresets.map((minutes) => (
+                              <span key={minutes}>
+                                {minutes} min
+                                <button type="button" onClick={() => handleRemoveQuickMatchPreset(minutes)} aria-label={`Remove ${minutes} minute preset`}>&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        ) : <p className="hint-text quick-match-preset-empty">No extra time choices yet.</p>}
+                      </form>
                     </SettingsCard>
                     <SettingsCard title="Workflow & Safety" description="Control automatic behavior and extra safeguards.">
                       <label className="settings-toggle settings-toggle-copy"><span><strong>Complete finished checklists</strong><small>Complete an assignment when every checklist item is checked.</small></span><input type="checkbox" checked={userSettings.autoCompleteChecklist !== false} onChange={(e) => handleAddFieldSettingChange("autoCompleteChecklist", e.target.checked)} /></label>
@@ -8385,6 +8454,7 @@ useEffect(() => {
         </div>
       )}
       <Analytics />
+      <SpeedInsights />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+/* Local syllabus validation, text extraction, and heuristic assignment finding. */
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_PDF_PAGES = 150;
 

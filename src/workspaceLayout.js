@@ -1,3 +1,10 @@
+/*
+ * Workspace layout domain model.
+ *
+ * Widgets are persisted separately for desktop and mobile modes. This module
+ * creates defaults, repairs older saved layouts, enforces usable sizes, and
+ * resolves placement without depending on React or the browser DOM.
+ */
 export const WORKSPACE_LAYOUT_VERSION = 1;
 
 export const PROTECTED_WIDGETS = new Set([
@@ -8,7 +15,9 @@ export const PROTECTED_WIDGETS = new Set([
   "completed-master",
 ]);
 
-const REMOVED_WIDGET_TYPES = new Set(["school-guide"]);
+// Removed widget types are filtered from every saved tab during normalization,
+// which also keeps them out of the widget library and hidden-widget tray.
+const REMOVED_WIDGET_TYPES = new Set(["school-guide", "settings-master"]);
 
 export const COLLAPSED_WIDGET_HEIGHT = 58;
 
@@ -48,7 +57,7 @@ export const DEFAULT_WIDGET_LAYOUT = {
     { type: "reminders", width: 648, height: 390, desktopX: 1032, desktopY: 478 },
     { type: "course-overview", width: 540, height: 430, desktopX: 0, desktopY: 886 },
     { type: "checklists", width: 540, height: 520, desktopX: 558, desktopY: 886 },
-    { type: "course-colors", width: 564, height: 460, desktopX: 1116, desktopY: 886 },
+    { type: "course-colors", width: 564, height: 460, desktopX: 1116, desktopY: 886, hidden: true },
     { type: "add-assignment", width: 1680, height: 620, desktopX: 0, desktopY: 1424 },
   ],
   todo: [
@@ -60,7 +69,7 @@ export const DEFAULT_WIDGET_LAYOUT = {
     ...["overdue", "today", "tomorrow", "this-week", "next-week", "later", "no-date"].map((bucket) => ({ type: `in-progress-bucket-${bucket}`, width: 480, height: 430, hidden: true })),
   ],
   completed: [{ type: "completed-master", width: 1050, height: 760, desktopX: 315, desktopY: 0 }],
-  settings: [{ type: "settings-master", width: 1180, height: 820, desktopX: 250, desktopY: 0 }],
+  settings: [],
 };
 
 const makeInstance = (item, index) => ({
@@ -134,7 +143,6 @@ function isDefaultLikeCenteredTab(tab, items) {
     todo: "todo-master",
     inProgress: "in-progress-master",
     completed: "completed-master",
-    settings: "settings-master",
   };
   const primary = Array.isArray(items)
     ? items.find((item) => item.type === primaryTypes[tab])
