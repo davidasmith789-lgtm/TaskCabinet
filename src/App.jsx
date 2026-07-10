@@ -1004,7 +1004,14 @@ function WorkspaceWidget({
   const availableBodyHeight = Math.max(1, Number(instance.height) - COLLAPSED_WIDGET_HEIGHT);
   const smallWidget = Number(instance.width) <= 320 && Number(instance.height) <= 220;
   const displayOnlyWidget = instance.type.startsWith("stat-");
-  const fixedOverflowWidget = instance.type === "mini-calendar";
+  const fixedOverflowWidget = [
+    "mini-calendar",
+    "course-colors",
+    "reminders",
+    "checklists",
+    "quick-match",
+    "course-overview",
+  ].includes(instance.type);
   const contentScale = mobileResize
     ? 1
     : Math.min(
