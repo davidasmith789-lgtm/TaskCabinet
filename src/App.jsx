@@ -908,7 +908,7 @@ const PERSONALIZATION_TIPS = [
   ["Move widgets", "Drag the dotted grip to place a widget anywhere on the canvas. Moved widgets come to the front; drag over a navigation tab to relocate them."],
   ["Lock a finished layout", "Open Widgets and choose Lock Layout to hide move and resize controls while keeping every widget interactive."],
   ["Add features anywhere", "Search the Workspace Organizer and add any available widget to the current tab. Existing copies stay synchronized."],
-  ["Resize anything", "Drag the bottom-right corner of a widget. Desktop and mobile sizes save independently."],
+  ["Resize anything", "Desktop widgets use a corner handle. Mobile widgets use tap controls sized for thumbs."],
   ["Copy across tabs", "Open a widget's three-dot menu and choose a destination under Copy to. Its content stays synchronized."],
   ["Minimize sections", "Use the + or - button in a widget header. Double-click still works as a shortcut."],
   ["Hide and restore", "Choose Hide widget, then use the Widgets button beside navigation to restore it later."],
@@ -925,6 +925,7 @@ function WorkspaceWidget({
   title,
   collapsed,
   locked,
+  mobileResize,
   onToggle,
   onResize,
   onPosition,
@@ -933,6 +934,7 @@ function WorkspaceWidget({
   onHide,
   children,
 }) {
+  const widgetRef = useRef(null);
   const resizeStart = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -985,6 +987,17 @@ function WorkspaceWidget({
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
+  };
+
+  const resizeForMobile = (heightChange = 0) => {
+    const widget = widgetRef.current;
+    const canvas = widget?.closest(".workspace-widget-canvas");
+    const canvasWidth = canvas?.clientWidth || instance.width;
+    const nextHeight = Math.max(
+      140,
+      Math.min(1100, Number(instance.height) + heightChange),
+    );
+    onResize(canvasWidth, nextHeight, canvasWidth);
   };
 
   const positionStart = (event) => {
@@ -1045,7 +1058,8 @@ function WorkspaceWidget({
 
   return (
     <section
-      className={`workspace-widget${collapsed ? " is-collapsed" : ""}${locked ? " is-locked" : ""}`}
+      ref={widgetRef}
+      className={`workspace-widget${collapsed ? " is-collapsed" : ""}${locked ? " is-locked" : ""}${mobileResize ? " uses-mobile-resize" : ""}`}
       data-widget-id={instance.id}
       data-widget-width={instance.width}
       data-expanded-height={instance.height}
@@ -1087,7 +1101,14 @@ function WorkspaceWidget({
         </details>
       </header>
       {!collapsed && <div className="workspace-widget-body">{children}</div>}
-      {!collapsed && !locked && <button type="button" className="widget-resize-handle" onPointerDown={resizeStart} aria-label={`Resize ${title}`} />}
+      {!collapsed && !locked && !mobileResize && <button type="button" className="widget-resize-handle" onPointerDown={resizeStart} aria-label={`Resize ${title}`} />}
+      {!collapsed && !locked && mobileResize && (
+        <div className="mobile-widget-resize-controls" aria-label={`${title} size controls`}>
+          <button type="button" onClick={() => resizeForMobile(-120)} aria-label={`Make ${title} shorter`}>−</button>
+          <button type="button" onClick={() => resizeForMobile(0)} aria-label={`Fit ${title} to screen width`}>Fit</button>
+          <button type="button" onClick={() => resizeForMobile(120)} aria-label={`Make ${title} taller`}>+</button>
+        </div>
+      )}
     </section>
   );
 }
@@ -5596,6 +5617,7 @@ useEffect(() => {
       instance={instance}
       title={getWorkspaceWidgetTitle(instance.type)}
       locked={Boolean(workspaceLayout.locked?.[workspaceMode])}
+      mobileResize={workspaceMode === "mobile"}
       collapsed={Boolean(workspaceLayout.collapsed[instance.type]) || (() => {
         const bucketIndex = bucketKeys.findIndex((key) => instance.type.endsWith(`-bucket-${key}`));
         if (bucketIndex < 0) return false;

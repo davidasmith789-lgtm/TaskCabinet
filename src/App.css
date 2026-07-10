@@ -3574,6 +3574,30 @@ html[data-theme="dark"] {
   background: linear-gradient(135deg, transparent 45%, var(--muted-text) 46% 55%, transparent 56% 65%, var(--muted-text) 66% 75%, transparent 76%);
   cursor: nwse-resize;
 }
+.mobile-widget-resize-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--surface-alt) 62%, transparent);
+}
+.mobile-widget-resize-controls button {
+  min-width: 42px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-weight: 900;
+  cursor: pointer;
+}
+.mobile-widget-resize-controls button:focus-visible,
+.mobile-widget-resize-controls button:hover {
+  border-color: var(--focus-color);
+}
 
 .widgets-tray {
   display: grid;
