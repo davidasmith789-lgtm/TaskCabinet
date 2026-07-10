@@ -1009,7 +1009,7 @@ function WorkspaceWidget({
         Math.max(0.55, Number(instance.width) / contentReferenceWidth),
         Math.max(0.55, availableBodyHeight / contentReferenceHeight),
       );
-  const resizeStart = (event) => {
+  const resizeStart = (event, edges = { right: true, bottom: true }) => {
     event.preventDefault();
     event.stopPropagation();
     const widget = event.currentTarget.closest(".workspace-widget");
@@ -1017,8 +1017,8 @@ function WorkspaceWidget({
     widget?.classList.add("is-resizing");
     const startX = event.clientX;
     const startY = event.clientY;
-    const startWidth = instance.width;
-    const startHeight = instance.height;
+    const startWidth = Number(instance.width);
+    const startHeight = Number(instance.height);
     const obstacles = widget && canvas ? getWorkspaceObstacleRects(widget, canvas) : [];
     const widgetBounds = widget?.getBoundingClientRect();
     const canvasBounds = canvas?.getBoundingClientRect();
@@ -1033,12 +1033,26 @@ function WorkspaceWidget({
       height: startHeight,
     };
     const move = (moveEvent) => {
-      const maxWidth = canvas ? Math.max(190, canvas.clientWidth - widgetX) : Number.POSITIVE_INFINITY;
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      const desiredX = edges.left ? Math.min(widgetX + startWidth - 190, Math.max(0, widgetX + deltaX)) : widgetX;
+      const desiredY = edges.top ? Math.min(widgetY + startHeight - minimumExpandedHeight, Math.max(0, widgetY + deltaY)) : widgetY;
+      const desiredWidth = edges.left
+        ? startWidth + widgetX - desiredX
+        : edges.right
+          ? startWidth + deltaX
+          : startWidth;
+      const desiredHeight = edges.top
+        ? startHeight + widgetY - desiredY
+        : edges.bottom
+          ? startHeight + deltaY
+          : startHeight;
+      const maxWidth = canvas ? Math.max(190, canvas.clientWidth - desiredX) : Number.POSITIVE_INFINITY;
       const desired = {
-        x: widgetX,
-        y: widgetY,
-        width: Math.min(maxWidth, Math.max(190, startWidth + moveEvent.clientX - startX)),
-        height: Math.max(minimumExpandedHeight, startHeight + moveEvent.clientY - startY),
+        x: desiredX,
+        y: desiredY,
+        width: Math.min(maxWidth, Math.max(190, desiredWidth)),
+        height: Math.max(minimumExpandedHeight, desiredHeight),
       };
       const legal = chooseLegalWorkspaceRect(
         desired,
@@ -1051,6 +1065,8 @@ function WorkspaceWidget({
       nextHeight = legal.height;
       lastSafe = legal;
       if (widget) {
+        widget.style.left = `${legal.x}px`;
+        widget.style.top = `${legal.y}px`;
         widget.style.width = `${nextWidth}px`;
         widget.style.height = `${nextHeight}px`;
         const liveScale = Math.min(
@@ -1066,7 +1082,7 @@ function WorkspaceWidget({
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
       window.removeEventListener("pointercancel", stop);
-      onResize(nextWidth, nextHeight, canvas?.clientWidth);
+      onResize(nextWidth, nextHeight, canvas?.clientWidth, lastSafe.x, lastSafe.y);
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", stop);
@@ -1196,7 +1212,15 @@ function WorkspaceWidget({
           </div>
         </div>
       )}
-      {!collapsed && !locked && !mobileResize && <button type="button" className="widget-resize-handle" onPointerDown={resizeStart} aria-label={`Resize ${title}`} />}
+      {!collapsed && !locked && !mobileResize && (
+        <div className="widget-resize-edges" aria-label={`Resize ${title}`}>
+          {[
+            ["top", { top: true }], ["right", { right: true }], ["bottom", { bottom: true }], ["left", { left: true }],
+            ["top-left", { top: true, left: true }], ["top-right", { top: true, right: true }],
+            ["bottom-right", { bottom: true, right: true }], ["bottom-left", { bottom: true, left: true }],
+          ].map(([edge, directions]) => <button key={edge} type="button" className={`widget-resize-edge is-${edge}`} onPointerDown={(event) => resizeStart(event, directions)} aria-label={`Resize ${title} from ${edge}`} />)}
+        </div>
+      )}
       {!collapsed && !locked && mobileResize && (
         <div className="mobile-widget-resize-controls" aria-label={`${title} size controls`}>
           <button type="button" onClick={() => resizeForMobile(-120)} aria-label={`Make ${title} shorter`}>−</button>
@@ -1846,40 +1870,6 @@ function App() {
   useEffect(() => {
   workspaceLayoutRef.current = workspaceLayout;
 }, [workspaceLayout]);
-
-useEffect(() => {
-  if (
-    currentTab === "calendar" ||
-    currentTab === "settings" ||
-    workspaceCanvasWidth <= 0
-  ) {
-    return undefined;
-  }
-
-  const currentLayout = workspaceLayoutRef.current;
-
-  const next = normalizeWorkspaceLayout(structuredClone(currentLayout), {
-    mode: workspaceMode,
-    canvasWidth: workspaceCanvasWidth,
-    collapsed: currentLayout.collapsed,
-    preservePositions: false,
-    reflowForCanvas: true,
-  });
-
-  const hasChanges = JSON.stringify(next) !== JSON.stringify(currentLayout);
-  if (!hasChanges) return undefined;
-
-  workspaceLayoutRef.current = next;
-  setWorkspaceLayout(next);
-
-  try {
-    localStorage.setItem(workspaceStorageKey, JSON.stringify(next));
-  } catch (error) {
-    console.error("Failed to save workspace layout:", error);
-  }
-
-  return undefined;
-}, [currentTab, workspaceCanvasWidth, workspaceMode, workspaceStorageKey]);
 
   useEffect(() => {
     if (!currentUser || !userSettings.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted") return undefined;
@@ -5798,7 +5788,7 @@ useEffect(() => {
         return !source.some((task) => getTaskDueBucket(task) === bucketsOrder[bucketIndex]);
       })()}
       onToggle={() => toggleWorkspaceWidget(instance)}
-      onResize={(width, height, canvasWidth) => updateWidgetInstance(instance.id, { width, height, expandedHeight: height }, { canvasWidth })}
+      onResize={(width, height, canvasWidth, x = instance.x, y = instance.y) => updateWidgetInstance(instance.id, { width, height, expandedHeight: height, x, y, xRatio: canvasWidth > 0 ? x / canvasWidth : instance.xRatio }, { canvasWidth })}
       onPosition={(x, y, canvasWidth) => {
         const highestLayer = Math.max(1, ...Object.values(workspaceLayout[workspaceMode] || {}).flat().map((item) => Number(item.zIndex) || 1));
         updateWidgetInstance(instance.id, { x, xRatio: canvasWidth > 0 ? x / canvasWidth : 0, y, zIndex: highestLayer + 1 }, { canvasWidth });
