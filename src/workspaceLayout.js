@@ -5,7 +5,8 @@
  * creates defaults, repairs older saved layouts, enforces usable sizes, and
  * resolves placement without depending on React or the browser DOM.
  */
-export const WORKSPACE_LAYOUT_VERSION = 1;
+export const DEFAULT_LAYOUT_VERSION = 2;
+export const WORKSPACE_LAYOUT_VERSION = DEFAULT_LAYOUT_VERSION;
 
 export const PROTECTED_WIDGETS = new Set([
   "add-assignment",
@@ -45,32 +46,42 @@ const OLD_DEFAULT_DASHBOARD_MARKERS = [
   ["school-guide", 468, 611],
 ];
 
-export const DEFAULT_WIDGET_LAYOUT = {
+export const DEFAULT_DESKTOP_LAYOUT = {
   dashboard: [
-    { type: "recommended", width: 680, height: 460, desktopX: 0, desktopY: 0 },
-    { type: "quick-match", width: 470, height: 460, desktopX: 698, desktopY: 0 },
-    { type: "mini-calendar", width: 494, height: 460, desktopX: 1186, desktopY: 0 },
-    { type: "stat-active", width: 240, height: 145, desktopX: 0, desktopY: 478 },
-    { type: "stat-today", width: 240, height: 145, desktopX: 258, desktopY: 478 },
-    { type: "stat-overdue", width: 240, height: 145, desktopX: 516, desktopY: 478 },
-    { type: "stat-workload", width: 240, height: 145, desktopX: 774, desktopY: 478 },
-    { type: "reminders", width: 648, height: 390, desktopX: 1032, desktopY: 478 },
-    { type: "course-overview", width: 540, height: 430, desktopX: 0, desktopY: 886 },
-    { type: "checklists", width: 540, height: 520, desktopX: 558, desktopY: 886 },
-    { type: "course-colors", width: 564, height: 460, desktopX: 1116, desktopY: 886, hidden: true },
-    { type: "add-assignment", width: 1680, height: 620, desktopX: 0, desktopY: 1424 },
+    { type: "recommended", width: 631, height: 460, xRatio: 0.2356991525, desktopY: 4.5, zIndex: 337 },
+    { type: "quick-match", width: 499, height: 459, xRatio: 0.5852754237, desktopY: 0, zIndex: 340 },
+    { type: "mini-calendar", width: 409, height: 428, xRatio: 0, desktopY: 492.5, zIndex: 349 },
+    { type: "stat-active", width: 240, height: 145, xRatio: 0.8728813559, desktopY: 491.5, zIndex: 336 },
+    { type: "stat-today", width: 240, height: 145, xRatio: 0.8728813559, desktopY: 0, zIndex: 331 },
+    { type: "stat-overdue", width: 240, height: 145, xRatio: 0.8728813559, desktopY: 165.5, zIndex: 332 },
+    { type: "stat-workload", width: 240, height: 145, xRatio: 0.8728813559, desktopY: 328.5, zIndex: 335 },
+    { type: "reminders", width: 529.5, height: 390, xRatio: 0.2399364407, desktopY: 506.5, zIndex: 353 },
+    { type: "course-overview", width: 539, height: 430, xRatio: 0.5541785289, desktopY: 490, zIndex: 355 },
+    { type: "checklists", width: 409.5, height: 463, xRatio: 0, desktopY: 0, zIndex: 31 },
+    { type: "add-assignment", width: 783, height: 620, xRatio: 0.2714512712, desktopY: 938, zIndex: 356 },
   ],
   todo: [
-    { type: "todo-master", width: 1050, height: 760, desktopX: 315, desktopY: 0 },
+    { type: "todo-master", width: 761, height: 618, xRatio: 0.2942266949, desktopY: 11, zIndex: 358 },
     ...["overdue", "today", "tomorrow", "this-week", "next-week", "later", "no-date"].map((bucket) => ({ type: `todo-bucket-${bucket}`, width: 480, height: 430, hidden: true })),
+    { type: "course-colors", width: 269, height: 487, xRatio: 0, desktopY: 0, zIndex: 322 },
+    { type: "add-assignment", width: 783, height: 618.5, xRatio: 0, desktopY: 1141, zIndex: 326 },
+    { type: "reminders", width: 276.5, height: 385, xRatio: 0.8196504237, desktopY: 12.5, zIndex: 357 },
   ],
   inProgress: [
-    { type: "in-progress-master", width: 1050, height: 760, desktopX: 315, desktopY: 0 },
+    { type: "in-progress-master", width: 691, height: 673.5, xRatio: 0.2738347458, desktopY: 24, zIndex: 359 },
     ...["overdue", "today", "tomorrow", "this-week", "next-week", "later", "no-date"].map((bucket) => ({ type: `in-progress-bucket-${bucket}`, width: 480, height: 430, hidden: true })),
+    { type: "checklists", width: 397.5, height: 520, xRatio: 0, desktopY: 0, zIndex: 31 },
   ],
-  completed: [{ type: "completed-master", width: 1050, height: 760, desktopX: 315, desktopY: 0 }],
-  settings: [],
+  completed: [
+    { type: "completed-master", width: 783, height: 587.5, xRatio: 0.2936970339, desktopY: 49, zIndex: 360 },
+    { type: "checklists", width: 473, height: 520, xRatio: 0.0071504237, desktopY: 33, zIndex: 202 },
+  ],
+  settings: [{ type: "course-colors", width: 418.5, height: 460, xRatio: 0.0775353033, desktopY: 830.5, hidden: true, zIndex: 45 }],
 };
+
+// Mobile keeps its existing compact, sequential defaults. Only desktop adopts
+// the finalized monitor arrangement above.
+export const DEFAULT_WIDGET_LAYOUT = DEFAULT_DESKTOP_LAYOUT;
 
 const makeInstance = (item, index) => ({
   id: `${item.type}-${index}`,
@@ -122,7 +133,7 @@ const finiteNumber = (value, fallback) => (
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const getDefaultWidgetHeight = (type) => {
-  for (const items of Object.values(DEFAULT_WIDGET_LAYOUT)) {
+  for (const items of Object.values(DEFAULT_DESKTOP_LAYOUT)) {
     const match = items.find((item) => item.type === type);
     if (match) return match.height;
   }
@@ -456,7 +467,7 @@ function addMissingPositions(items, mode, options = {}) {
 
 export function createDefaultWorkspaceLayout() {
   const makeMode = (mode) => Object.fromEntries(
-    Object.entries(DEFAULT_WIDGET_LAYOUT).map(([tab, items]) => [
+    Object.entries(DEFAULT_DESKTOP_LAYOUT).map(([tab, items]) => [
       tab,
       addMissingPositions(items.map((item, index) => makeInstance(getModeDefaultItem(item, mode), index)), mode),
     ]),
@@ -466,15 +477,16 @@ export function createDefaultWorkspaceLayout() {
     version: WORKSPACE_LAYOUT_VERSION,
     desktop: makeMode("desktop"),
     mobile: makeMode("mobile"),
-    collapsed: {},
-    locked: { desktop: false, mobile: false },
+    collapsed: { "add-assignment": true },
+    locked: { desktop: true, mobile: false },
   };
 }
 
 export function normalizeWorkspaceLayout(value, options = {}) {
   const defaults = createDefaultWorkspaceLayout();
 
-  if (!value || value.version !== WORKSPACE_LAYOUT_VERSION) {
+  const savedVersion = Number(value?.version);
+  if (!value || !Number.isInteger(savedVersion) || savedVersion < 1 || savedVersion > WORKSPACE_LAYOUT_VERSION) {
     return defaults;
   }
 
@@ -485,21 +497,30 @@ export function normalizeWorkspaceLayout(value, options = {}) {
   for (const mode of modes) {
     value[mode] = value[mode] || {};
 
-    const existingTypes = new Set(
-      Object.values(value?.[mode] || {})
-        .flat()
-        .filter((item) => !REMOVED_WIDGET_TYPES.has(item.type))
-        .map((item) => item.type),
-    );
+    const allowedTypes = new Set(Object.values(DEFAULT_DESKTOP_LAYOUT).flat().map((item) => item.type));
+    const seenIds = new Set();
+    for (const tab of Object.keys(value[mode])) {
+      if (!Array.isArray(value[mode][tab]) || !Object.hasOwn(DEFAULT_DESKTOP_LAYOUT, tab)) {
+        delete value[mode][tab];
+        continue;
+      }
+      value[mode][tab] = value[mode][tab].filter((item) => {
+        if (!item || !allowedTypes.has(item.type) || REMOVED_WIDGET_TYPES.has(item.type)) return false;
+        const id = typeof item.id === "string" && item.id ? item.id : `${item.type}-${tab}`;
+        if (seenIds.has(id)) return false;
+        seenIds.add(id);
+        item.id = id;
+        return true;
+      });
+    }
 
-    for (const tab of Object.keys(DEFAULT_WIDGET_LAYOUT)) {
+    for (const tab of Object.keys(DEFAULT_DESKTOP_LAYOUT)) {
       if (!Array.isArray(value?.[mode]?.[tab])) {
         value[mode] = {
           ...(value[mode] || {}),
           [tab]: defaults[mode][tab],
         };
 
-        defaults[mode][tab].forEach((item) => existingTypes.add(item.type));
         continue;
       }
 
@@ -521,15 +542,13 @@ export function normalizeWorkspaceLayout(value, options = {}) {
       }
 
       value[mode][tab] = withoutRemovedWidgets(value[mode][tab]);
-      value[mode][tab].forEach((item) => existingTypes.add(item.type));
-
+      const existingTypes = new Set(value[mode][tab].map((item) => item.type));
       const missing = defaults[mode][tab].filter(
         (item) => !existingTypes.has(item.type),
       );
 
       if (missing.length > 0) {
         value[mode][tab] = [...value[mode][tab], ...missing];
-        missing.forEach((item) => existingTypes.add(item.type));
       }
 
       value[mode][tab] = addMissingPositions(value[mode][tab], mode, {
@@ -551,6 +570,7 @@ export function normalizeWorkspaceLayout(value, options = {}) {
       ...defaults.locked,
       ...(value.locked || {}),
     },
+    version: WORKSPACE_LAYOUT_VERSION,
   };
 }
 

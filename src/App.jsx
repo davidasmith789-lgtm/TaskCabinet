@@ -974,6 +974,19 @@ function WorkspaceWidget({
 }) {
   const widgetRef = useRef(null);
   const minimumExpandedHeight = getWidgetMinimumExpandedHeight(instance.type);
+  // Keep a widget's internal composition stable while its outer viewport is
+  // resized. Smaller widgets scale their contents instead of triggering a
+  // different responsive layout or hiding controls behind new wrapping.
+  const contentReferenceWidth = 520;
+  const contentReferenceHeight = Math.max(260, minimumExpandedHeight - COLLAPSED_WIDGET_HEIGHT);
+  const availableBodyHeight = Math.max(1, Number(instance.height) - COLLAPSED_WIDGET_HEIGHT);
+  const contentScale = mobileResize
+    ? 1
+    : Math.min(
+        1,
+        Math.max(0.55, Number(instance.width) / contentReferenceWidth),
+        Math.max(0.55, availableBodyHeight / contentReferenceHeight),
+      );
   const resizeStart = (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1017,6 +1030,12 @@ function WorkspaceWidget({
       if (widget) {
         widget.style.width = `${nextWidth}px`;
         widget.style.height = `${nextHeight}px`;
+        const liveScale = Math.min(
+          1,
+          Math.max(0.55, nextWidth / contentReferenceWidth),
+          Math.max(0.55, (nextHeight - COLLAPSED_WIDGET_HEIGHT) / contentReferenceHeight),
+        );
+        widget.style.setProperty("--widget-content-scale", liveScale);
       }
     };
     const stop = () => {
@@ -1102,7 +1121,7 @@ function WorkspaceWidget({
       data-widget-id={instance.id}
       data-widget-width={instance.width}
       data-expanded-height={instance.height}
-      style={{ left: `${Math.max(0, Number(instance.x) || 0)}px`, top: `${instance.y || 0}px`, zIndex: instance.zIndex || 1, width: `${instance.width}px`, height: collapsed ? `${COLLAPSED_WIDGET_HEIGHT}px` : `${instance.height}px` }}
+      style={{ left: `${Math.max(0, Number(instance.x) || 0)}px`, top: `${instance.y || 0}px`, zIndex: instance.zIndex || 1, width: `${instance.width}px`, height: collapsed ? `${COLLAPSED_WIDGET_HEIGHT}px` : `${instance.height}px`, "--widget-content-scale": contentScale }}
     >
       <header className="workspace-widget-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, onToggle)}>
         <button
@@ -1139,7 +1158,13 @@ function WorkspaceWidget({
           </div>
         </details>
       </header>
-      {!collapsed && <div className="workspace-widget-body">{children}</div>}
+      {!collapsed && (
+        <div className="workspace-widget-body">
+          <div className="workspace-widget-scaled-content">
+            {children}
+          </div>
+        </div>
+      )}
       {!collapsed && !locked && !mobileResize && <button type="button" className="widget-resize-handle" onPointerDown={resizeStart} aria-label={`Resize ${title}`} />}
       {!collapsed && !locked && mobileResize && (
         <div className="mobile-widget-resize-controls" aria-label={`${title} size controls`}>

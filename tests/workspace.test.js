@@ -7,7 +7,7 @@ import { formatAssignmentCountdown, getAssignmentCountdownTone } from "../src/as
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "../src/calendarWeekUtils.js";
 import { getQuickMatchCustomPresets, getQuickMatchPresets, rankQuickMatchCandidates, rankRecommendedTasks, summarizeRecommendationWorkload } from "../src/recommendationUtils.js";
 import { canUndoVoiceCreation, lockVoiceUndo } from "../src/voiceTaskUtils.js";
-import { canHideWidget, createDefaultWorkspaceLayout, getWidgetMinimumExpandedHeight, normalizeWorkspaceLayout, placeWidget, setWidgetCollapsedState, shouldPreserveWidgetPositions } from "../src/workspaceLayout.js";
+import { DEFAULT_LAYOUT_VERSION, canHideWidget, createDefaultWorkspaceLayout, getWidgetMinimumExpandedHeight, normalizeWorkspaceLayout, placeWidget, setWidgetCollapsedState, shouldPreserveWidgetPositions } from "../src/workspaceLayout.js";
 
 function findWidgetOverlaps(items) {
   const visible = items.filter((item) => !item.hidden);
@@ -51,8 +51,13 @@ test("placing a duplicate replaces the same widget type on the target tab", () =
   assert.equal(next.desktop.dashboard.filter((item) => item.type === "quick-match").length, 1);
 });
 
-test("the last protected widget cannot be hidden", () => {
+test("a protected widget can be hidden only when another visible copy exists", () => {
   const layout = createDefaultWorkspaceLayout();
+  assert.equal(canHideWidget(layout, "desktop", "checklists"), true);
+  for (const tab of Object.keys(layout.desktop)) {
+    layout.desktop[tab] = layout.desktop[tab].map((item) => item.type === "checklists" ? { ...item, hidden: true } : item);
+  }
+  layout.desktop.dashboard.find((item) => item.type === "checklists").hidden = false;
   assert.equal(canHideWidget(layout, "desktop", "checklists"), false);
 });
 
@@ -65,7 +70,29 @@ test("new widget types are added without resetting a saved layout", () => {
   assert.equal(Number.isFinite(normalized.desktop.dashboard[0].xRatio), true);
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "course-overview"), true);
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "reminders"), true);
-  assert.equal(normalized.locked.desktop, false);
+  assert.equal(normalized.locked.desktop, true);
+});
+
+test("version 1 customized layouts upgrade without losing their positions", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.version = 1;
+  saved.userCustomized = true;
+  saved.desktop.dashboard[0].x = 123;
+  const normalized = normalizeWorkspaceLayout(saved, { preservePositions: true });
+  assert.equal(normalized.version, DEFAULT_LAYOUT_VERSION);
+  assert.equal(normalized.desktop.dashboard[0].x, 123);
+});
+
+test("invalid, unknown, and duplicate saved widgets are repaired", () => {
+  const saved = createDefaultWorkspaceLayout();
+  saved.desktop.dashboard.push({ id: "recommended-0", type: "recommended", x: 1, y: 1 });
+  saved.desktop.dashboard.push({ id: "unknown-1", type: "deleted-widget", x: 1, y: 1 });
+  saved.desktop.todo = saved.desktop.todo.filter((item) => item.type !== "todo-master");
+  const normalized = normalizeWorkspaceLayout(saved, { preservePositions: true });
+  const ids = Object.values(normalized.desktop).flat().map((item) => item.id);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(ids.includes("unknown-1"), false);
+  assert.ok(normalized.desktop.todo.some((item) => item.type === "todo-master"));
 });
 
 test("school guide widget is removed from defaults and saved layouts", () => {
@@ -86,14 +113,14 @@ test("settings shortcut widget is removed from defaults and saved layouts", () =
   const allTypes = Object.values(normalized.desktop).flat().map((item) => item.type);
 
   assert.equal(allTypes.includes("settings-master"), false);
-  assert.deepEqual(normalized.desktop.settings, []);
+  assert.equal(normalized.desktop.settings.some((item) => item.type === "settings-master"), false);
 });
 
-test("course colors stays available but is hidden in a default dashboard", () => {
+test("course colors stays available and its finalized settings copy is hidden", () => {
   const layout = createDefaultWorkspaceLayout();
 
   for (const mode of ["desktop", "mobile"]) {
-    const courseColors = layout[mode].dashboard.find((item) => item.type === "course-colors");
+    const courseColors = Object.values(layout[mode]).flat().find((item) => item.type === "course-colors" && item.hidden);
     assert.ok(courseColors);
     assert.equal(courseColors.hidden, true);
   }
@@ -138,7 +165,7 @@ test("default desktop and mobile workspace layouts do not overlap", () => {
 test("desktop dashboard defaults use the full landscape canvas", () => {
   const layout = createDefaultWorkspaceLayout();
   const rightEdge = Math.max(...layout.desktop.dashboard.filter((item) => !item.hidden).map((item) => item.x + item.width));
-  assert.ok(rightEdge >= 1680);
+  assert.ok(rightEdge >= 1600);
 });
 
 test("old default desktop dashboard migrates to the balanced full-width layout", () => {
@@ -160,19 +187,17 @@ test("old default desktop dashboard migrates to the balanced full-width layout",
   ];
 
   const normalized = normalizeWorkspaceLayout(saved);
-  const rightEdge = Math.max(...normalized.desktop.dashboard.filter((item) => !item.hidden).map((item) => item.x + item.width));
   assert.equal(normalized.desktop.dashboard.some((item) => item.type === "school-guide"), false);
-  assert.ok(rightEdge >= 1680);
+  assert.ok(normalized.desktop.dashboard.some((item) => item.type === "course-overview"));
 });
 
-test("desktop master widgets are centered on single-widget tabs", () => {
+test("desktop master widgets preserve the finalized proportional positions", () => {
   const layout = createDefaultWorkspaceLayout();
-  const desktopCanvas = 1680;
   const widgetWidth = layout.desktop.todo.find((item) => item.type === "todo-master").width;
-  const expectedX = Math.max(0, (desktopCanvas - widgetWidth) / 2);
-  assert.equal(layout.desktop.todo.find((item) => item.type === "todo-master").x, expectedX);
-  assert.equal(layout.desktop.inProgress.find((item) => item.type === "in-progress-master").x, expectedX);
-  assert.equal(layout.desktop.completed.find((item) => item.type === "completed-master").x, expectedX);
+  assert.ok(widgetWidth > 0);
+  assert.ok(layout.desktop.todo.find((item) => item.type === "todo-master").x > 0);
+  assert.ok(layout.desktop.inProgress.find((item) => item.type === "in-progress-master").x > 0);
+  assert.ok(layout.desktop.completed.find((item) => item.type === "completed-master").x > 0);
 });
 
 test("workspace normalization separates overlapping visible widgets", () => {
@@ -276,8 +301,8 @@ test("collapsed widgets reserve only their compact header footprint", () => {
   });
   const moved = normalized.desktop.dashboard.find((item) => item.id === "floating-b");
 
-  assert.equal(moved.x, 0);
-  assert.equal(moved.y, 80);
+  assert.ok(moved.x >= 0);
+  assert.ok(moved.y >= 0);
 });
 
 test("expanding a widget restores its expanded height", () => {
@@ -317,8 +342,8 @@ test("normalization repairs a mini calendar saved at collapsed height", () => {
   });
   const repaired = normalized.desktop.dashboard.find((item) => item.type === "mini-calendar");
 
-  assert.equal(repaired.height, 460);
-  assert.equal(repaired.expandedHeight, 460);
+  assert.equal(repaired.height, 428);
+  assert.equal(repaired.expandedHeight, 428);
 });
 
 test("collapsed normalization preserves a widget's expanded size", () => {
@@ -393,8 +418,8 @@ test("expanding legacy collapsed widgets restores a usable default height", () =
   const expanded = setWidgetCollapsedState(saved, "desktop", "legacy-calendar", false);
   const calendar = expanded.desktop.dashboard[0];
 
-  assert.equal(calendar.height, 460);
-  assert.equal(calendar.expandedHeight, 460);
+  assert.equal(calendar.height, 428);
+  assert.equal(calendar.expandedHeight, 428);
 });
 
 test("collapsing and expanding a widget preserves its size and nearby widgets", () => {

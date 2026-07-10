@@ -3562,8 +3562,23 @@ html[data-theme="dark"] {
   overflow: auto;
   transition: opacity 180ms ease, padding 220ms ease;
 }
-.workspace-widget-body > .quick-match-card,
-.workspace-widget-body > .dashboard-calendar-card { padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+.workspace-widget-scaled-content {
+  width: calc(100% / var(--widget-content-scale, 1));
+  min-height: calc(100% / var(--widget-content-scale, 1));
+  transform: scale(var(--widget-content-scale, 1));
+  transform-origin: top left;
+  transition: transform 120ms ease;
+}
+.workspace-widget-scaled-content > .quick-match-card,
+.workspace-widget-scaled-content > .dashboard-calendar-card { padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+
+/* Compact/mobile widgets retain their existing responsive layout and touch
+   target sizes instead of scaling interactive content. */
+.workspace-widget.uses-mobile-resize .workspace-widget-scaled-content {
+  width: 100%;
+  min-height: 100%;
+  transform: none;
+}
 .widget-resize-handle {
   position: absolute;
   right: 3px;
