@@ -3567,6 +3567,8 @@ html[data-theme="dark"] {
   overflow: auto;
   transition: opacity 180ms ease, padding 220ms ease;
 }
+.workspace-widget.is-small-widget .workspace-widget-body { scrollbar-width: none; }
+.workspace-widget.is-small-widget .workspace-widget-body::-webkit-scrollbar { display: none; }
 .workspace-widget-scaled-content {
   width: calc(100% / var(--widget-content-scale, 1));
   min-height: calc(100% / var(--widget-content-scale, 1));
