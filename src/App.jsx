@@ -966,6 +966,8 @@ function repairLoadedWorkspace(layout) {
 
 const PERSONALIZATION_TIPS = [
   ["Move widgets", "Drag the dotted grip to place a widget anywhere on the canvas. Moved widgets come to the front; drag over a navigation tab to relocate them."],
+  ["Pull a widget from underneath", "If widgets overlap, open the top widget's three-dot menu and choose Select widget underneath. The lower widget comes forward so you can move it without relocating the top one first."],
+  ["Find a newly added widget", "If you add a widget but do not see it, it may be underneath another widget. Open the covering widget's three-dot menu and choose Select widget underneath."],
   ["Lock a finished layout", "Open Widgets and choose Lock Layout to hide move and resize controls while keeping every widget interactive."],
   ["Add features anywhere", "Search the Workspace Organizer and add any available widget to the current tab. Existing copies stay synchronized."],
   ["Resize anything", "Desktop widgets use a corner handle. Mobile widgets use tap controls sized for thumbs."],
