@@ -992,6 +992,7 @@ function WorkspaceWidget({
   onMove,
   onCopy,
   onHide,
+  onSelectUnderneath,
   children,
 }) {
   const widgetRef = useRef(null);
@@ -1211,6 +1212,7 @@ function WorkspaceWidget({
           <div className="widget-menu-popover">
             <strong>Copy to</strong>
             {WORKSPACE_TABS.filter(([tab]) => tab !== "calendar").map(([tab, label]) => <button type="button" key={`copy-${tab}`} onClick={() => onCopy(tab)}>{label}</button>)}
+            {onSelectUnderneath && <button type="button" onClick={onSelectUnderneath}>Select widget underneath</button>}
             <button type="button" className="widget-hide-action" onClick={onHide}>Hide widget</button>
           </div>
         </details>
@@ -3972,6 +3974,7 @@ function App() {
       reflowActiveWithNeighbors: options.reflowActiveWithNeighbors,
       collapsed: options.collapsed ?? stampedLayout?.collapsed,
       preservePositions: true,
+      reflowForCanvas: options.reflowForCanvas,
     });
 
     workspaceLayoutRef.current = normalized;
@@ -5147,6 +5150,30 @@ function App() {
     setQuickMatchSubmittedMinutes(minutes);
   };
 
+  const tidyWorkspaceOverlaps = () => {
+    saveWorkspace((previousLayout) => structuredClone(previousLayout), {
+      canvasWidth: workspaceMainRef.current?.clientWidth,
+      reflowForCanvas: true,
+    });
+  };
+
+  const selectWidgetUnderneath = (instance) => {
+    const items = (workspaceLayout[workspaceMode]?.[currentTab] || []).filter((item) => !item.hidden && item.id !== instance.id);
+    const activeHeight = workspaceLayout.collapsed[instance.type] ? COLLAPSED_WIDGET_HEIGHT : Number(instance.height);
+    const overlaps = items.filter((item) => {
+      const itemHeight = workspaceLayout.collapsed[item.type] ? COLLAPSED_WIDGET_HEIGHT : Number(item.height);
+      return Number(item.x) < Number(instance.x) + Number(instance.width)
+        && Number(item.x) + Number(item.width) > Number(instance.x)
+        && Number(item.y) < Number(instance.y) + activeHeight
+        && Number(item.y) + itemHeight > Number(instance.y)
+        && Number(item.zIndex || 1) < Number(instance.zIndex || 1);
+    });
+    const underneath = overlaps.sort((a, b) => Number(b.zIndex || 1) - Number(a.zIndex || 1))[0];
+    if (!underneath) return;
+    const highestLayer = Math.max(1, ...items.map((item) => Number(item.zIndex) || 1), Number(instance.zIndex) || 1);
+    updateWidgetInstance(underneath.id, { zIndex: highestLayer + 1 });
+  };
+
   const quickMatchPresetDraftNumber = Number(quickMatchPresetDraft);
   const quickMatchPresetDraftIsValid =
     Number.isInteger(quickMatchPresetDraftNumber) &&
@@ -5809,6 +5836,18 @@ function App() {
       onMove={(tab) => moveWorkspaceWidget(instance, tab, false)}
       onCopy={(tab) => moveWorkspaceWidget(instance, tab, true)}
       onHide={() => hideWorkspaceWidget(instance)}
+      onSelectUnderneath={(() => {
+        const instanceHeight = workspaceLayout.collapsed[instance.type] ? COLLAPSED_WIDGET_HEIGHT : Number(instance.height);
+        const hasUnderneath = (workspaceLayout[workspaceMode]?.[currentTab] || []).some((item) => {
+          if (item.hidden || item.id === instance.id || Number(item.zIndex || 1) >= Number(instance.zIndex || 1)) return false;
+          const itemHeight = workspaceLayout.collapsed[item.type] ? COLLAPSED_WIDGET_HEIGHT : Number(item.height);
+          return Number(item.x) < Number(instance.x) + Number(instance.width)
+            && Number(item.x) + Number(item.width) > Number(instance.x)
+            && Number(item.y) < Number(instance.y) + instanceHeight
+            && Number(item.y) + itemHeight > Number(instance.y);
+        });
+        return hasUnderneath ? () => selectWidgetUnderneath(instance) : null;
+      })()}
     >
       {renderWidgetContent(instance.type)}
     </WorkspaceWidget>
@@ -6011,7 +6050,10 @@ function App() {
           <section className="widgets-tray workspace-organizer" aria-label="Workspace organizer">
             <div className="workspace-organizer-header">
               <div><h2>Workspace Organizer</h2><span>Place features on this tab, recover hidden widgets, or lock the layout when everything feels right.</span></div>
-              <button type="button" className={`btn ${workspaceLayout.locked?.[workspaceMode] ? "btn-primary" : "btn-secondary"}`} onClick={toggleWorkspaceLock}>{workspaceLayout.locked?.[workspaceMode] ? "Unlock Layout" : "Lock Layout"}</button>
+              <div className="workspace-organizer-actions">
+                <button type="button" className="btn btn-secondary" onClick={tidyWorkspaceOverlaps}>Tidy overlaps</button>
+                <button type="button" className={`btn ${workspaceLayout.locked?.[workspaceMode] ? "btn-primary" : "btn-secondary"}`} onClick={toggleWorkspaceLock}>{workspaceLayout.locked?.[workspaceMode] ? "Unlock Layout" : "Lock Layout"}</button>
+              </div>
             </div>
             <label className="widget-library-search"><span>Find a widget</span><input type="search" value={widgetSearch} onChange={(event) => setWidgetSearch(event.target.value)} placeholder="Search assignments, calendar, courses…" /></label>
             <div className="widget-library-grid">

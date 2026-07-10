@@ -3733,6 +3733,7 @@ html[data-theme="dark"] {
 .workspace-organizer-header h2 { margin: 2px 0 4px; color: var(--text-color); }
 .workspace-organizer-header p { margin: 0; }
 .workspace-organizer-header span { color: var(--muted-text); }
+.workspace-organizer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .widget-library-search { display: grid; gap: 6px; color: var(--muted-text); font-size: 0.78rem; font-weight: 800; }
 .widget-library-search input { width: 100%; }
 .widget-library-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 9px; max-height: 420px; overflow: auto; padding: 2px; }
