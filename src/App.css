@@ -3430,6 +3430,21 @@ a,
   background: color-mix(in srgb, var(--surface-alt) 65%, transparent);
 }
 .task-actions .btn { min-height: 34px; }
+.task-card.expanded .task-actions-in-progress {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 180px));
+  justify-content: center;
+  width: 100%;
+  margin: 12px auto 0;
+  padding: 0;
+  background: transparent;
+}
+.task-card.expanded .task-actions-in-progress > :nth-child(1) { grid-column: 1; grid-row: 1; }
+.task-card.expanded .task-actions-in-progress > :nth-child(2) { grid-column: 1; grid-row: 2; }
+.task-card.expanded .task-actions-in-progress > :nth-child(3) { grid-column: 2; grid-row: 1; }
+.task-card.expanded .task-actions-in-progress > :last-child { grid-column: 2; grid-row: 2; }
+.task-card.expanded .task-actions-in-progress > :nth-child(4):not(:last-child) { grid-column: 1 / -1; grid-row: 3; }
+.task-card.expanded .task-actions-in-progress .btn { width: 100%; }
 .App.task-actions-compact .task-actions { gap: 5px; padding: 5px; }
 .App.task-actions-compact .task-actions .btn { min-height: 29px; padding: 5px 8px !important; border-radius: 7px !important; font-size: 0.7rem; }
 .App.task-actions-stacked .task-card { align-items: flex-start; }

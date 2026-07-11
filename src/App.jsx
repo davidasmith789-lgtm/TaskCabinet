@@ -4341,7 +4341,7 @@ function App() {
     const targetTask = tasks.find((task) => task.id === taskId);
     const statusTab = forcedStatus || (getTaskStatus(targetTask) === "inProgress" ? "inProgress" : "todo");
     const masterType = statusTab === "inProgress" ? "in-progress-master" : "todo-master";
-    const targetTab = Object.keys(workspaceLayout[workspaceMode] || {}).find((tab) =>
+    const targetTab = forcedStatus || Object.keys(workspaceLayout[workspaceMode] || {}).find((tab) =>
       workspaceLayout[workspaceMode][tab].some((item) => item.type === masterType && !item.hidden),
     ) || statusTab;
 
@@ -4361,6 +4361,10 @@ function App() {
 
   const handleRecommendedTaskClick = (taskId) => {
     handleTaskFocus(taskId);
+  };
+
+  const handleReminderTaskClick = (task) => {
+    handleTaskFocus(task.id, getTaskStatus(task) === "inProgress" ? "inProgress" : "todo");
   };
 
   const handleQuickMatchStart = (taskId) => {
@@ -5606,7 +5610,7 @@ function App() {
         <ul className="reminder-widget-list">
           {items.map(({ task, deadline, overdue }) => (
             <li key={`${overdue ? "overdue" : "upcoming"}-${task.id}`}>
-              <button type="button" className="reminder-widget-main" onClick={() => handleRecommendedTaskClick(task.id)}>
+              <button type="button" className="reminder-widget-main" onClick={() => handleReminderTaskClick(task)}>
                 <span><strong>{task.title}</strong><small>{task.course}</small></span>
                 <span className={overdue ? "is-overdue" : ""}><strong>{formatAssignmentCountdown(deadline, checklistNow)}</strong><small>{deadline.toLocaleDateString(undefined, { month: "short", day: "numeric" })} | {deadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small></span>
               </button>
@@ -5681,7 +5685,7 @@ function App() {
 
   if (status === "inProgress") {
     return (
-      <div className="task-actions">
+      <div className="task-actions task-actions-in-progress">
         <button
           type="button"
           className="btn btn-warning status-action-button"
