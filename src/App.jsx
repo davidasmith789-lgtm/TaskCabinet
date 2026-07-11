@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import "./App.css";
@@ -1625,7 +1625,7 @@ function App() {
   const [widgetsTrayOpen, setWidgetsTrayOpen] = useState(false);
   const [widgetSearch, setWidgetSearch] = useState("");
   const [helpSearch, setHelpSearch] = useState("");
-  const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(window.innerWidth));
+  const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(Math.max(0, window.innerWidth - 48)));
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(0);
   const workspaceMainRef = useRef(null);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -1861,12 +1861,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const handleResize = () => setWorkspaceMode(getWorkspaceModeForWidth(window.innerWidth));
+    const handleResize = () => setWorkspaceMode(getWorkspaceModeForWidth(Math.max(0, window.innerWidth - 48)));
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = workspaceMainRef.current;
     if (!node) return undefined;
     const updateCanvasWidth = () => {
