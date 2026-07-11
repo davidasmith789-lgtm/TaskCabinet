@@ -32,7 +32,7 @@ import {
   rankRecommendedTasks,
   summarizeRecommendationWorkload,
 } 
-from "./recommendationUtils.js";
+from "../api/recommendationUtils.js";
 /*
  * TASKCABINET APPLICATION MAP
  *
@@ -1533,6 +1533,9 @@ function App() {
   // the user is currently viewing; they are interface state rather than data.
   const [tasks, setTasks] = useState([]);
   const [currentTab, setCurrentTab] = useState("dashboard");
+  const [recommendationMessage, setRecommendationMessage] = useState("");
+  const [recommendationStatus, setRecommendationStatus] = useState("idle");
+  const [recommendationFeedback, setRecommendationFeedback] = useState("");
   const [quickMatchMinutes, setQuickMatchMinutes] = useState("");
   const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
   const [quickMatchPresetDraft, setQuickMatchPresetDraft] = useState("");
@@ -3728,6 +3731,48 @@ function App() {
     localStorage.removeItem(AUTH_USER_STORAGE_KEY);
     setCurrentUser("");
     setCurrentTab("dashboard");
+  };
+
+  const handleRecommendationSubmit = async (event) => {
+    event.preventDefault();
+
+    const message = recommendationMessage.trim();
+    if (!message) {
+      setRecommendationStatus("error");
+      setRecommendationFeedback("Please write a recommendation before sending.");
+      return;
+    }
+
+    setRecommendationStatus("sending");
+    setRecommendationFeedback("");
+
+    try {
+      const response = await fetch("/api/recommendations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: currentUser, message }),
+      });
+
+      let result = null;
+      try {
+        result = await response.json();
+      } catch {
+        // The fallback below also covers non-JSON errors from the hosting layer.
+      }
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Your recommendation could not be sent. Please try again.");
+      }
+
+      setRecommendationMessage("");
+      setRecommendationStatus("success");
+      setRecommendationFeedback("Thanks! Your recommendation was sent.");
+    } catch (error) {
+      setRecommendationStatus("error");
+      setRecommendationFeedback(error instanceof Error
+        ? error.message
+        : "Your recommendation could not be sent. Please try again.");
+    }
   };
 
   const prefillDueDate = (date) => {
@@ -6036,6 +6081,13 @@ function App() {
           </button>
 
           <button
+            className={`tab-button ${currentTab === "recommendations" ? "active" : ""}`}
+            onClick={() => setCurrentTab("recommendations")}
+          >
+            Recommendations
+          </button>
+
+          <button
             data-tab="settings"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => handleTabWidgetDrop(event, "settings")}
@@ -6994,6 +7046,57 @@ function App() {
             </div>
           )}
           {/* SETTINGS: central home for appearance and future app preferences. */}
+          {currentTab === "recommendations" && (
+            <section className="recommendations-page panel-card" aria-labelledby="recommendations-title">
+              <div className="recommendations-header">
+                <p className="eyebrow">Help improve TaskCabinet</p>
+                <h2 id="recommendations-title">Recommendations</h2>
+                <p>
+                  Suggest an improvement, report something confusing, or recommend a change.
+                </p>
+              </div>
+
+              <form className="recommendations-form" onSubmit={handleRecommendationSubmit}>
+                <label htmlFor="recommendation-message">Your recommendation</label>
+                <textarea
+                  id="recommendation-message"
+                  value={recommendationMessage}
+                  onChange={(event) => {
+                    setRecommendationMessage(event.target.value);
+                    if (recommendationStatus !== "sending") {
+                      setRecommendationStatus("idle");
+                      setRecommendationFeedback("");
+                    }
+                  }}
+                  placeholder="Write your recommendation here..."
+                  maxLength={2000}
+                  rows={8}
+                  disabled={recommendationStatus === "sending"}
+                />
+                <div className="recommendations-form-footer">
+                  <span className="recommendations-counter" aria-live="polite">
+                    {recommendationMessage.length.toLocaleString()} / 2,000 characters
+                  </span>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={recommendationStatus === "sending" || !recommendationMessage.trim()}
+                  >
+                    {recommendationStatus === "sending" ? "Sending…" : "Send"}
+                  </button>
+                </div>
+                {recommendationFeedback && (
+                  <p
+                    className={`recommendations-feedback ${recommendationStatus}`}
+                    role={recommendationStatus === "error" ? "alert" : "status"}
+                  >
+                    {recommendationFeedback}
+                  </p>
+                )}
+              </form>
+            </section>
+          )}
+
           {currentTab === "settings" && (
             <div className="card card-container" style={{ marginTop: "10px" }}>
               <div className={`settings-layout${storageView ? " settings-storage-focus" : ""}`}>

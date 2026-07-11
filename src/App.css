@@ -615,6 +615,60 @@ html[data-theme="dark"] .tab-row {
   margin-top: 6px;
 }
 
+/* Recommendations uses the shared card, form, button, and theme tokens. */
+.recommendations-page {
+  max-width: 820px;
+  margin: 10px auto 0;
+  padding: clamp(20px, 4vw, 32px);
+}
+
+.recommendations-header h2 { margin: 0; }
+.recommendations-header > p:last-child {
+  max-width: 650px;
+  margin: 10px 0 0;
+  color: var(--muted-text);
+  line-height: 1.6;
+}
+
+.recommendations-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.recommendations-form label { font-weight: 800; }
+.recommendations-form textarea {
+  width: 100%;
+  min-height: 190px;
+  resize: vertical;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.recommendations-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.recommendations-counter { color: var(--muted-text); font-size: 0.9rem; }
+.recommendations-feedback { margin: 4px 0 0; font-weight: 700; }
+.recommendations-feedback.success { color: var(--success-color); }
+.recommendations-feedback.error { color: var(--danger-color); }
+
+@media (max-width: 520px) {
+  .recommendations-page { padding: 18px 14px; }
+  .recommendations-form-footer { align-items: stretch; flex-direction: column; }
+  .recommendations-form-footer .btn { width: 100%; min-height: 46px; }
+}
+
 .assignment-entry-form {
   grid-template-columns: minmax(110px, auto) minmax(0, 1fr);
   gap: 8px 12px;
