@@ -5686,39 +5686,15 @@ function App() {
   if (status === "inProgress") {
     return (
       <div className="task-actions task-actions-in-progress">
-        <button
-          type="button"
-          className="btn btn-warning status-action-button"
-          onClick={(event) => stopCardClick(event, () => handleMoveToTodo(task.id))}
-        >
-          Back to To Do
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={(event) => stopCardClick(event, () => handleComplete(task.id))}
-        >
-          Complete ✅
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={(event) => stopCardClick(event, () => handleEditStart(task))}
-        >
-          ✏️ Edit
-        </button>
-
+        <div className="task-action-pair task-action-pair-left">
+          <button type="button" className="btn btn-warning status-action-button" onClick={(event) => stopCardClick(event, () => handleMoveToTodo(task.id))}>Back to To Do</button>
+          <button type="button" className="btn btn-primary" onClick={(event) => stopCardClick(event, () => handleComplete(task.id))}>Complete ✅</button>
+        </div>
         {renderVoiceUndoAction(task)}
-
-        <button
-          type="button"
-          className="btn btn-danger"
-          onClick={(event) => stopCardClick(event, () => handleDelete(task.id))}
-        >
-          Move to Trash
-        </button>
+        <div className="task-action-pair task-action-pair-right">
+          <button type="button" className="btn btn-secondary" onClick={(event) => stopCardClick(event, () => handleEditStart(task))}>✏️ Edit</button>
+          <button type="button" className="btn btn-danger" onClick={(event) => stopCardClick(event, () => handleDelete(task.id))}>Move to Trash</button>
+        </div>
       </div>
     );
   }
