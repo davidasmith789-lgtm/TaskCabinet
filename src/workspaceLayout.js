@@ -286,10 +286,13 @@ const sanitized = items.map((item, index) => {
   const layoutHeight = getEffectiveWidgetHeight({ ...item, height: expandedHeight }, collapsed);
 
   if (options.preservePositions) {
-    const width = clamp(finiteNumber(item.width, 320), 190, canvasWidth);
+    const preserveUnmeasuredPositions = options.preserveUnmeasuredPositions === true;
+    const width = preserveUnmeasuredPositions
+      ? Math.max(190, finiteNumber(item.width, 320))
+      : clamp(finiteNumber(item.width, 320), 190, canvasWidth);
     const maxX = Math.max(0, canvasWidth - width);
     const rawX = finiteNumber(item.x, 0);
-    const x = clamp(rawX, 0, maxX);
+    const x = preserveUnmeasuredPositions ? Math.max(0, rawX) : clamp(rawX, 0, maxX);
     const savedRatio = finiteNumber(item.xRatio, Number.NaN);
 
     return {
@@ -433,7 +436,10 @@ function addMissingPositions(items, mode, options = {}) {
   let y = 0;
   let rowHeight = 0;
   const positioned = items.map((item) => {
-    const width = Math.min(Number(item.width) || 320, canvasWidth);
+    const preserveUnmeasuredPositions = options.preserveUnmeasuredPositions === true;
+    const width = preserveUnmeasuredPositions
+      ? Number(item.width) || 320
+      : Math.min(Number(item.width) || 320, canvasWidth);
     const height = Number(item.height) || 320;
     if (x > 0 && x + width > canvasWidth) {
       x = 0;
@@ -450,11 +456,15 @@ function addMissingPositions(items, mode, options = {}) {
       : mode === "desktop" && Number.isFinite(item.desktopY)
         ? item.desktopY
         : undefined;
-    const resolvedX = resolveWidgetX(item, canvasWidth, width, explicitX);
+    const resolvedX = preserveUnmeasuredPositions
+      ? Math.max(0, Number.isFinite(explicitX) ? explicitX : 0)
+      : resolveWidgetX(item, canvasWidth, width, explicitX);
     const positioned = {
       ...item,
       x: resolvedX,
-      xRatio: canvasWidth > 0 ? resolvedX / canvasWidth : 0,
+      xRatio: preserveUnmeasuredPositions && Number.isFinite(item.xRatio)
+        ? item.xRatio
+        : canvasWidth > 0 ? resolvedX / canvasWidth : 0,
       y: Number.isFinite(explicitY) ? explicitY : y,
       zIndex: Number.isFinite(item.zIndex) ? item.zIndex : 1,
     };

@@ -952,6 +952,7 @@ const getWorkspaceModeForWidth = (width) =>
 function repairLoadedWorkspace(layout) {
   const repaired = normalizeWorkspaceLayout(layout, {
     preservePositions: true,
+    preserveUnmeasuredPositions: true,
   });
   const isOldUnstampedLayout = !repaired.userCustomized && !repaired.updatedAt;
 

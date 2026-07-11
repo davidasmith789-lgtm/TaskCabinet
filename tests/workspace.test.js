@@ -256,6 +256,22 @@ test("an unmeasured zero-width canvas preserves the distributed desktop layout",
   assert.ok(actualPositions.some(([, x]) => x > 1000));
 });
 
+test("reload repair preserves right-edge positions before the canvas is measured", () => {
+  const saved = createDefaultWorkspaceLayout();
+  const rightWidget = saved.desktop.dashboard.find((item) => item.type === "stat-active");
+  rightWidget.x = 1810;
+  rightWidget.xRatio = 0.9;
+
+  const normalized = normalizeWorkspaceLayout(saved, {
+    preservePositions: true,
+    preserveUnmeasuredPositions: true,
+  });
+  const restoredWidget = normalized.desktop.dashboard.find((item) => item.type === "stat-active");
+
+  assert.equal(restoredWidget.x, 1810);
+  assert.equal(restoredWidget.width, rightWidget.width);
+});
+
 test("missing and invalid canvas widths use the mode fallback", () => {
   const saved = createDefaultWorkspaceLayout();
   const miniCalendar = saved.desktop.dashboard.find((item) => item.type === "mini-calendar");
