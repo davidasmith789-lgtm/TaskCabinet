@@ -81,6 +81,8 @@ body,
   background: var(--background-color);
 }
 
+html { scrollbar-gutter: stable; }
+
 *,
 *::before,
 *::after {
