@@ -1497,6 +1497,7 @@ function App() {
   const [signInName, setSignInName] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authMode, setAuthMode] = useState("signin");
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
@@ -1537,6 +1538,8 @@ function App() {
       return ["Other"];
     }
   });
+  const [draggedCourse, setDraggedCourse] = useState(null);
+  const [courseDropTarget, setCourseDropTarget] = useState(null);
   const [courseColors, setCourseColors] = useState(() => {
     try {
       const storedColors = localStorage.getItem(courseColorsStorageKey);
@@ -2800,7 +2803,7 @@ function App() {
     }
 
     if (category === "School" && isCustomCourse && !courses.includes(finalCourse)) {
-      const updatedCourses = [...courses, finalCourse].sort();
+      const updatedCourses = [...courses, finalCourse];
       setCourses(updatedCourses);
       try {
         localStorage.setItem(courseStorageKey, JSON.stringify(updatedCourses));
@@ -3004,10 +3007,38 @@ function App() {
       return;
     }
 
-    const updatedCourses = [...courses, trimmedCourseName].sort();
+    const updatedCourses = [...courses, trimmedCourseName];
     setCourses(updatedCourses);
     saveCoursesForCurrentUser(updatedCourses);
     setNewCourseName("");
+  };
+
+  const saveCourseOrder = (updatedCourses) => {
+    setCourses(updatedCourses);
+    saveCoursesForCurrentUser(updatedCourses);
+  };
+
+  const handleCourseDrop = (targetCourse, position) => {
+    if (!draggedCourse || draggedCourse === targetCourse) {
+      setDraggedCourse(null);
+      setCourseDropTarget(null);
+      return;
+    }
+    const reorderedCourses = courses.filter((course) => course !== draggedCourse);
+    const targetIndex = reorderedCourses.indexOf(targetCourse);
+    reorderedCourses.splice(targetIndex + (position === "after" ? 1 : 0), 0, draggedCourse);
+    saveCourseOrder(reorderedCourses);
+    setDraggedCourse(null);
+    setCourseDropTarget(null);
+  };
+
+  const handleCourseMove = (course, direction) => {
+    const reorderedCourses = [...courses];
+    const currentIndex = reorderedCourses.indexOf(course);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= reorderedCourses.length) return;
+    [reorderedCourses[currentIndex], reorderedCourses[nextIndex]] = [reorderedCourses[nextIndex], reorderedCourses[currentIndex]];
+    saveCourseOrder(reorderedCourses);
   };
 
   const handleApplyVoiceAssignments = (payload, createdAt, source = "voice") => {
@@ -3115,7 +3146,7 @@ function App() {
 
     const trulyNewCourses = [...newCourseNames].filter((course) => !courses.includes(course));
     if (trulyNewCourses.length > 0) {
-      const updatedCourses = [...new Set([...courses, ...trulyNewCourses])].sort();
+      const updatedCourses = [...new Set([...courses, ...trulyNewCourses])];
       setCourses(updatedCourses);
       saveCoursesForCurrentUser(updatedCourses);
     }
@@ -4747,6 +4778,23 @@ function App() {
     handleTaskFocus(taskId);
   };
 
+  const handleOpenAddAssignment = () => {
+    setCurrentTab("dashboard");
+    setAddAssignmentOpen(true);
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const assignmentSection = document.getElementById("add-assignment-section");
+        const assignmentNameInput = document.getElementById("dashboard-assignment-name");
+        assignmentNameInput?.focus({ preventScroll: true });
+        assignmentSection?.scrollIntoView({
+          behavior: userSettings.reduceMotion ? "auto" : "smooth",
+          block: "start",
+        });
+      });
+    });
+  };
+
   const handleReminderTaskClick = (task) => {
     handleTaskFocus(task.id, getTaskStatus(task) === "inProgress" ? "inProgress" : "todo");
   };
@@ -5905,7 +5953,7 @@ function App() {
     getWorkspaceWidgetTitle(item.type).toLowerCase().includes(widgetSearch.trim().toLowerCase()),
   );
 
-  const renderRecommendedWidget = () => recommendationItems.length === 0 ? <div className="empty-state-action friendly-empty" role="status"><p className="recommended-plan-empty">You’re all caught up! Add something whenever you’re ready, and we’ll help you decide what to tackle first.</p><button type="button" className="btn btn-primary" onClick={() => setAddAssignmentOpen(true)}>Add an assignment</button></div> : (
+  const renderRecommendedWidget = () => recommendationItems.length === 0 ? <div className="empty-state-action friendly-empty" role="status"><p className="recommended-plan-empty">You’re all caught up! Add something whenever you’re ready, and we’ll help you decide what to tackle first.</p><button type="button" className="btn btn-primary" onClick={handleOpenAddAssignment}>Add an assignment</button></div> : (
     <>
       <div className="recommended-plan-workload compact"><strong>{recommendationWorkloadLabel}</strong><span>Top-plan workload{recommendationWorkload.unknownCount > 0 ? ` + ${recommendationWorkload.unknownCount} unestimated` : ""}</span></div>
       <ol className="recommended-plan-list portable-recommendations">
@@ -5934,7 +5982,7 @@ function App() {
     <div className="portable-course-colors">
       <p className="hint-text">Customize course colors or remove courses you no longer need.</p>
       <form className="course-add-form portable-course-add-form" onSubmit={handleAddCourse}>
-        <label htmlFor="portable-new-course-name">Add course</label>
+        <label htmlFor="portable-new-course-name">Add course by entering a name and pressing Add below</label>
         <input
           id="portable-new-course-name"
           type="text"
@@ -5944,7 +5992,7 @@ function App() {
         />
         <button type="submit" className="btn btn-primary" disabled={!newCourseName.trim()}>Add</button>
       </form>
-      {courses.map((course) => <div className="portable-course-color-row" key={course}><span style={{ backgroundColor: getCourseColor(course), color: getTextColorForCourse(course) }}>{course}</span><input type="color" value={getCourseColor(course)} onChange={(event) => handleCourseColorChange(course, event.target.value)} /><button type="button" className="btn btn-danger" disabled={course === "Other"} onClick={() => handleDeleteCourse(course)}>Delete</button></div>)}
+      {courses.map((course) => <div className={`portable-course-color-row course-reorder-row${draggedCourse === course ? " dragging" : ""}${courseDropTarget?.course === course ? ` drop-${courseDropTarget.position}` : ""}`} key={course} onDragOver={(event) => { event.preventDefault(); const bounds = event.currentTarget.getBoundingClientRect(); setCourseDropTarget({ course, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" }); }} onDrop={(event) => { event.preventDefault(); handleCourseDrop(course, courseDropTarget?.position || "before"); }}><button type="button" className="course-drag-handle" draggable aria-label={`Drag ${course} to reorder`} title="Drag to reorder. Press Alt+Up or Alt+Down to move with the keyboard." onKeyDown={(event) => { if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return; event.preventDefault(); handleCourseMove(course, event.key === "ArrowUp" ? -1 : 1); }} onDragStart={(event) => { setDraggedCourse(course); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/plain", course); }} onDragEnd={() => { setDraggedCourse(null); setCourseDropTarget(null); }}>⋮⋮</button><span style={{ backgroundColor: getCourseColor(course), color: getTextColorForCourse(course) }}>{course}</span><input type="color" value={getCourseColor(course)} onChange={(event) => handleCourseColorChange(course, event.target.value)} aria-label={`Color for ${course}`} /><button type="button" className="btn btn-danger" disabled={course === "Other"} onClick={() => handleDeleteCourse(course)}>Delete</button></div>)}
     </div>
   );
 
@@ -6311,19 +6359,30 @@ function App() {
               onChange={(e) => setSignInName(e.target.value)}
             />
             <label htmlFor="auth-password">Password</label>
-            <input
-              id="auth-password"
-              type="password"
-              autoComplete={authMode === "signin" ? "current-password" : "new-password"}
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-            />
+            <div className="password-input-row">
+              <input
+                id="auth-password"
+                type={showAuthPassword ? "text" : "password"}
+                autoComplete={authMode === "signin" ? "current-password" : "new-password"}
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="password-visibility-button"
+                onClick={() => setShowAuthPassword((isVisible) => !isVisible)}
+                aria-pressed={showAuthPassword}
+                aria-label={showAuthPassword ? "Hide password" : "Show password"}
+              >
+                {showAuthPassword ? "Hide" : "Show"}
+              </button>
+            </div>
             {authMode === "signup" && (
               <>
                 <label htmlFor="auth-confirm">Confirm Password</label>
                 <input
                   id="auth-confirm"
-                  type="password"
+                  type={showAuthPassword ? "text" : "password"}
                   autoComplete="new-password"
                   value={authPasswordConfirm}
                   onChange={(e) => setAuthPasswordConfirm(e.target.value)}
@@ -6697,7 +6756,7 @@ function App() {
                     </p>
 
                     <form className="course-add-form" onSubmit={handleAddCourse}>
-                      <label htmlFor="new-course-name">Add course</label>
+                      <label htmlFor="new-course-name">Add course by entering a name and pressing Add below</label>
 
                       <input
                         id="new-course-name"
@@ -6719,6 +6778,16 @@ function App() {
                     {courses.map((course) => (
                       <div
                         key={course}
+                        className={`course-color-row course-reorder-row${draggedCourse === course ? " dragging" : ""}${courseDropTarget?.course === course ? ` drop-${courseDropTarget.position}` : ""}`}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          const bounds = event.currentTarget.getBoundingClientRect();
+                          setCourseDropTarget({ course, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          handleCourseDrop(course, courseDropTarget?.position || "before");
+                        }}
                         style={{
                           display: "flex",
                           alignItems: "center",
@@ -6730,6 +6799,29 @@ function App() {
                           backgroundColor: "var(--card-bg)",
                         }}
                       >
+                        <button
+                          type="button"
+                          className="course-drag-handle"
+                          draggable
+                          aria-label={`Drag ${course} to reorder`}
+                          title="Drag to reorder. Press Alt+Up or Alt+Down to move with the keyboard."
+                          onKeyDown={(event) => {
+                            if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+                            event.preventDefault();
+                            handleCourseMove(course, event.key === "ArrowUp" ? -1 : 1);
+                          }}
+                          onDragStart={(event) => {
+                            setDraggedCourse(course);
+                            event.dataTransfer.effectAllowed = "move";
+                            event.dataTransfer.setData("text/plain", course);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedCourse(null);
+                            setCourseDropTarget(null);
+                          }}
+                        >
+                          ⋮⋮
+                        </button>
                         <span
                           style={{
                             backgroundColor: getCourseColor(course),
