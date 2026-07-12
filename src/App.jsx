@@ -159,7 +159,7 @@ const COLOR_PERSONALIZATION_FIELDS = [
   { key: "text", label: "Main text", group: "Foundations" },
   { key: "muted", label: "Muted text", group: "Foundations" },
   { key: "border", label: "Borders", group: "Foundations" },
-  { key: "focus", label: "Focus outline", group: "Foundations" },
+  { key: "focus", label: "Header outline", group: "Foundations" },
   { key: "input", label: "Inputs", group: "Foundations" },
   { key: "nav", label: "Navigation", group: "Foundations" },
   { key: "task", label: "Assignment cards", group: "Workspace" },
@@ -7854,15 +7854,22 @@ function App() {
 
                   {[...new Set(COLOR_PERSONALIZATION_FIELDS.map((field) => field.group))].map((group) => (
                     <div className="color-studio-group" key={group}>
-                      <div className="settings-collapse-header settings-collapse-subheader">
+                      <div
+                        className="settings-collapse-header settings-collapse-subheader double-click-collapse-header"
+                        onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setColorGroupsOpen((openGroups) => ({
+                          ...openGroups,
+                          [group]: openGroups[group] !== true,
+                        })))}
+                        title="Double-click to expand or minimize"
+                      >
                         <h5>{group}</h5>
                         <button
                           type="button"
                           className="settings-collapse-button settings-collapse-button-small"
-                          onClick={() => setColorGroupsOpen((openGroups) => ({
+                          onClick={(event) => toggleFromCollapseButton(event, () => setColorGroupsOpen((openGroups) => ({
                             ...openGroups,
                             [group]: openGroups[group] !== true,
-                          }))}
+                          })))}
                           aria-expanded={colorGroupsOpen[group] === true}
                           aria-label={`${colorGroupsOpen[group] === true ? "Shrink" : "Enlarge"} ${group}`}
                           title={`${colorGroupsOpen[group] === true ? "Shrink" : "Enlarge"} ${group}`}
