@@ -4611,6 +4611,7 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 .onboarding-status { color: var(--success-color); font-weight: 700; }
 .empty-state-action { justify-content: center; text-align: center; padding: 18px; }
 .empty-state-action p { flex-basis: 100%; }
+.recommended-plan-tip-bubble { width: fit-content; max-width: 100%; margin: 0 auto; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--primary-color) 35%, var(--border-color)); border-radius: 999px; background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg)); color: var(--text-color); font-size: 0.82rem; font-weight: 700; line-height: 1.35; }
 .friendly-empty { animation: friendly-empty-in var(--motion-standard) var(--motion-ease-out) both; }
 
 /* Small surface transitions keep view changes feeling connected without slowing work. */

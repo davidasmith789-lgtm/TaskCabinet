@@ -4778,23 +4778,6 @@ function App() {
     handleTaskFocus(taskId);
   };
 
-  const handleOpenAddAssignment = () => {
-    setCurrentTab("dashboard");
-    setAddAssignmentOpen(true);
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const assignmentSection = document.getElementById("add-assignment-section");
-        const assignmentNameInput = document.getElementById("dashboard-assignment-name");
-        assignmentNameInput?.focus({ preventScroll: true });
-        assignmentSection?.scrollIntoView({
-          behavior: userSettings.reduceMotion ? "auto" : "smooth",
-          block: "start",
-        });
-      });
-    });
-  };
-
   const handleReminderTaskClick = (task) => {
     handleTaskFocus(task.id, getTaskStatus(task) === "inProgress" ? "inProgress" : "todo");
   };
@@ -5953,7 +5936,7 @@ function App() {
     getWorkspaceWidgetTitle(item.type).toLowerCase().includes(widgetSearch.trim().toLowerCase()),
   );
 
-  const renderRecommendedWidget = () => recommendationItems.length === 0 ? <div className="empty-state-action friendly-empty" role="status"><p className="recommended-plan-empty">You’re all caught up! Add something whenever you’re ready, and we’ll help you decide what to tackle first.</p><button type="button" className="btn btn-primary" onClick={handleOpenAddAssignment}>Add an assignment</button></div> : (
+  const renderRecommendedWidget = () => recommendationItems.length === 0 ? <div className="empty-state-action friendly-empty" role="status"><p className="recommended-plan-empty">You’re all caught up! Add something whenever you’re ready, and we’ll help you decide what to tackle first.</p><p className="recommended-plan-tip-bubble">Add your next assignment from the Add Assignment section on the Dashboard.</p></div> : (
     <>
       <div className="recommended-plan-workload compact"><strong>{recommendationWorkloadLabel}</strong><span>Top-plan workload{recommendationWorkload.unknownCount > 0 ? ` + ${recommendationWorkload.unknownCount} unestimated` : ""}</span></div>
       <ol className="recommended-plan-list portable-recommendations">
