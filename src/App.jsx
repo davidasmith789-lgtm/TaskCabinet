@@ -5074,12 +5074,13 @@ function App() {
       )}
 
       {userSettings.showAssignmentLinks !== false && <div className="subtask-form-section assignment-links-form optional-assignment-section">
-        <div className="optional-assignment-header">
+        <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setOptionalLinksOpen((open) => !open))} title="Double-click to open or minimize Optional Assignment Links">
           <label>Optional Assignment Links</label>
           <button
             type="button"
             className="optional-assignment-toggle"
-            onClick={() => setOptionalLinksOpen((open) => !open)}
+            onClick={(event) => toggleFromCollapseButton(event, () => setOptionalLinksOpen((open) => !open))}
+            onDoubleClick={stopControlDoubleClick}
             aria-expanded={optionalLinksOpen}
             aria-label={`${optionalLinksOpen ? "Minimize" : "Open"} Optional Assignment Links`}
           >
@@ -5140,12 +5141,13 @@ function App() {
       </div>}
 
       {userSettings.showAssignmentFiles !== false && <div className="subtask-form-section attachment-form-section optional-assignment-section">
-        <div className="optional-assignment-header">
+        <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setOptionalFilesOpen((open) => !open))} title="Double-click to open or minimize Optional Files">
           <label>Optional Files</label>
           <button
             type="button"
             className="optional-assignment-toggle"
-            onClick={() => setOptionalFilesOpen((open) => !open)}
+            onClick={(event) => toggleFromCollapseButton(event, () => setOptionalFilesOpen((open) => !open))}
+            onDoubleClick={stopControlDoubleClick}
             aria-expanded={optionalFilesOpen}
             aria-label={`${optionalFilesOpen ? "Minimize" : "Open"} Optional Files`}
           >
@@ -5174,12 +5176,13 @@ function App() {
       </div>}
 
       {userSettings.showAssignmentChecklistSteps !== false && <div className="subtask-form-section optional-assignment-section">
-        <div className="optional-assignment-header">
+        <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setOptionalChecklistOpen((open) => !open))} title="Double-click to open or minimize Optional Checklist Steps">
           <label>Optional Checklist Steps</label>
           <button
             type="button"
             className="optional-assignment-toggle"
-            onClick={() => setOptionalChecklistOpen((open) => !open)}
+            onClick={(event) => toggleFromCollapseButton(event, () => setOptionalChecklistOpen((open) => !open))}
+            onDoubleClick={stopControlDoubleClick}
             aria-expanded={optionalChecklistOpen}
             aria-label={`${optionalChecklistOpen ? "Minimize" : "Open"} Optional Checklist Steps`}
           >
