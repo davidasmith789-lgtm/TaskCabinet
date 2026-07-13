@@ -214,6 +214,26 @@ const getContrastText = (color) => {
   return (r * 299 + g * 587 + b * 114) / 1000 > 160 ? "#111827" : "#ffffff";
 };
 
+const getColorLuminance = (color) => {
+  const hex = normalizeHexColor(color || "")?.slice(1);
+  if (!hex) return 0;
+  const channels = [hex.slice(0, 2), hex.slice(2, 4), hex.slice(4, 6)].map((part) => {
+    const value = parseInt(part, 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+};
+
+const ensureReadableText = (textColor, backgroundColor, minimumRatio = 4.5) => {
+  const foreground = normalizeHexColor(textColor || "");
+  const background = normalizeHexColor(backgroundColor || "");
+  if (!foreground || !background) return foreground || getContrastText(background);
+  const foregroundLuminance = getColorLuminance(foreground);
+  const backgroundLuminance = getColorLuminance(background);
+  const ratio = (Math.max(foregroundLuminance, backgroundLuminance) + 0.05) / (Math.min(foregroundLuminance, backgroundLuminance) + 0.05);
+  return ratio >= minimumRatio ? foreground : getContrastText(background);
+};
+
 const THEME_COLOR_DEFAULTS = {
   light: {
     page: "#f4f7fb", surface: "#ffffff", surfaceAlt: "#ebeff3",
@@ -324,13 +344,25 @@ const getEffectiveThemeColors = (mode, customColors = {}) => ({
   ...(customColors || {}),
 });
 
-const getSafeColorThemeColors = (colors = {}) => (
-  Object.fromEntries(
+const getSafeColorThemeColors = (colors = {}) => {
+  const normalized = Object.fromEntries(
     Object.keys(COLOR_CSS_VARIABLES)
       .map((key) => [key, normalizeHexColor(colors[key] || "")])
       .filter(([, color]) => Boolean(color)),
-  )
-);
+  );
+  return {
+    ...normalized,
+    ...(normalized.surface && { text: ensureReadableText(normalized.text, normalized.surface) }),
+    ...(normalized.page && { muted: ensureReadableText(normalized.muted, normalized.page, 3) }),
+    ...(normalized.primary && { primaryText: ensureReadableText(normalized.primaryText, normalized.primary) }),
+    ...(normalized.secondary && { secondaryText: ensureReadableText(normalized.secondaryText, normalized.secondary) }),
+    ...(normalized.warning && { warningText: ensureReadableText(normalized.warningText, normalized.warning) }),
+    ...(normalized.danger && { dangerText: ensureReadableText(normalized.dangerText, normalized.danger) }),
+    ...(normalized.calendar && { calendarText: ensureReadableText(normalized.calendarText, normalized.calendar) }),
+    ...(normalized.checklistSurface && { checklistText: ensureReadableText(normalized.checklistText, normalized.checklistSurface) }),
+    ...(normalized.heroMiddle && { heroText: ensureReadableText(normalized.heroText, normalized.heroMiddle) }),
+  };
+};
 
 const COLOR_CSS_VARIABLES = {
   page: ["--page-bg", "--background-color"],
@@ -1787,6 +1819,8 @@ function App() {
   const [isMobileUi, setIsMobileUi] = useState(() => window.matchMedia("(max-width: 767px)").matches);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const [mobileSummaryCategory, setMobileSummaryCategory] = useState("");
+  const [mobileReturnTab, setMobileReturnTab] = useState("dashboard");
   const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(Math.max(0, window.innerWidth - 48)));
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(0);
   const workspaceMainRef = useRef(null);
@@ -1968,6 +2002,8 @@ function App() {
         applyCloudStateToLocal(localStorage, currentUser, selected, {
           externalPushEnabled: Boolean(localDeviceSettings.externalPushEnabled),
           notificationsEnabled: Boolean(localDeviceSettings.notificationsEnabled),
+          activeColorThemeId: localDeviceSettings.activeColorThemeId || localStorage.getItem("theme") || getSystemPreference(),
+          customColors: localDeviceSettings.customColors || {},
         });
         saveLocalSnapshot(localStorage, currentUser, selected, revision, false);
         cloudRevisionRef.current = revision;
@@ -1976,12 +2012,11 @@ function App() {
         setTasks(selected.tasks);
         setCourses(selected.courses);
         setCourseColors(selected.courseColors);
-        setUserSettings((settings) => ({ ...DEFAULT_USER_SETTINGS, ...selected.userSettings, externalPushEnabled: settings.externalPushEnabled, notificationsEnabled: settings.notificationsEnabled }));
+        setUserSettings((settings) => ({ ...DEFAULT_USER_SETTINGS, ...selected.userSettings, externalPushEnabled: settings.externalPushEnabled, notificationsEnabled: settings.notificationsEnabled, activeColorThemeId: settings.activeColorThemeId, customColors: settings.customColors }));
         setChecklists(selected.checklists);
         const repairedWorkspace = repairLoadedWorkspace(selected.workspaceLayout);
         workspaceLayoutRef.current = repairedWorkspace;
         setWorkspaceLayout(repairedWorkspace);
-        setTheme(selected.theme || getSystemPreference());
         setDisplayName((existingName) => selected.displayName || existingName);
         setSyncStatus("saved");
       } catch (error) {
@@ -2107,6 +2142,7 @@ function App() {
     } catch (error) {
       console.error("Could not load login-screen colors:", error);
     }
+    activeColors = getSafeColorThemeColors(activeColors);
     Object.entries(activeColors).forEach(([key, value]) => {
       if (!/^#[0-9a-f]{6}$/i.test(value)) return;
       (COLOR_CSS_VARIABLES[key] || []).forEach((variable) => {
@@ -2848,7 +2884,17 @@ function App() {
   }, [currentTab, isMobileUi]);
 
   useEffect(() => {
-    if (!isMobileUi || (!mobileMoreOpen && !mobileSettingsOpen)) return undefined;
+    const handleMobileHistory = () => {
+      setMobileSettingsOpen(false);
+      setMobileSummaryCategory("");
+      setSelectedChecklistId(null);
+    };
+    window.addEventListener("popstate", handleMobileHistory);
+    return () => window.removeEventListener("popstate", handleMobileHistory);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileUi || (!mobileMoreOpen && !mobileSettingsOpen && !mobileSummaryCategory && !selectedChecklistId && currentTab !== "mobile-add")) return undefined;
     const scrollY = window.scrollY;
     const previousBodyStyles = {
       overflow: document.body.style.overflow,
@@ -2867,7 +2913,7 @@ function App() {
       Object.assign(document.body.style, previousBodyStyles);
       window.scrollTo(0, scrollY);
     };
-  }, [isMobileUi, mobileMoreOpen, mobileSettingsOpen]);
+  }, [currentTab, isMobileUi, mobileMoreOpen, mobileSettingsOpen, mobileSummaryCategory, selectedChecklistId]);
 
   useEffect(() => {
     if (!tutorialOpen) return undefined;
@@ -3178,6 +3224,8 @@ function App() {
 
     if (currentTab === "calendar") {
       setCalendarAddOpen(false);
+    } else if (currentTab === "mobile-add") {
+      setCurrentTab(mobileReturnTab || "dashboard");
     } else if (currentTab === "dashboard") {
       setAddAssignmentOpen(false);
     }
@@ -4418,6 +4466,11 @@ function App() {
   };
 
   const handleSignOut = async () => {
+    setMobileMoreOpen(false);
+    setMobileSettingsOpen(false);
+    setMobileSummaryCategory("");
+    setSelectedChecklistId(null);
+    setCalendarAddOpen(false);
     if (currentUser && userSettings.externalPushEnabled) await cancelAllExternalReminders(currentUser);
     if (CLOUD_SYNC_CONFIGURED) await getSupabaseBrowserClient().auth.signOut();
     localStorage.removeItem(AUTH_USER_STORAGE_KEY);
@@ -4432,7 +4485,7 @@ function App() {
   };
 
   const applyResolvedCloudState = (state, revision) => {
-    const deviceSettings = { externalPushEnabled: userSettings.externalPushEnabled, notificationsEnabled: userSettings.notificationsEnabled };
+    const deviceSettings = { externalPushEnabled: userSettings.externalPushEnabled, notificationsEnabled: userSettings.notificationsEnabled, activeColorThemeId: userSettings.activeColorThemeId, customColors: userSettings.customColors };
     applyCloudStateToLocal(localStorage, currentUser, state, deviceSettings);
     saveLocalSnapshot(localStorage, currentUser, state, revision, false);
     cloudRevisionRef.current = revision;
@@ -4445,7 +4498,6 @@ function App() {
     const repaired = repairLoadedWorkspace(state.workspaceLayout);
     workspaceLayoutRef.current = repaired;
     setWorkspaceLayout(repaired);
-    setTheme(state.theme || getSystemPreference());
     setDisplayName(state.displayName || displayName);
   };
 
@@ -4703,6 +4755,12 @@ function App() {
   // Open the shared assignment form directly beneath the selected calendar day.
   const handleAddForSelectedDate = () => {
     prefillDueDate(selectedDate);
+    if (isMobileUi) {
+      setMobileReturnTab("calendar");
+      setCurrentTab("mobile-add");
+      setCalendarAddOpen(false);
+      return;
+    }
     setCalendarAddOpen(true);
 
     window.requestAnimationFrame(() => {
@@ -5911,7 +5969,7 @@ function App() {
           className={`link-entry-feedback ${draftLinkMessage ? (draftLinkMessage.startsWith("Added") ? "success" : "error") : ""}`}
           role="status"
         >
-          {draftLinkMessage || "Enter a link name and address, then click outside either field to add it. Confirm the link appears below before saving."}
+          {draftLinkMessage || (isMobileUi ? "Enter a link name and address, then tap outside either field to add it. Confirm the link appears below before saving." : "Enter a link name and address, then click outside either field to add it. Confirm the link appears below before saving.")}
         </p>
         {draftLinks.length > 0 && (
           <ul className="subtask-draft-list">
@@ -6272,6 +6330,14 @@ function App() {
     </section>
   );
 
+  const openChecklist = (checklistId) => {
+    if (isMobileUi) window.history.pushState({ taskcabinetMobilePanel: "checklist" }, "");
+    setSelectedChecklistId(checklistId);
+  };
+  const closeChecklist = () => {
+    if (isMobileUi && window.history.state?.taskcabinetMobilePanel === "checklist") window.history.back();
+    else setSelectedChecklistId(null);
+  };
   const renderStandaloneChecklists = () => {
     const selectedList = checklists.find((list) => list.id === selectedChecklistId);
     const palette = [1, 2, 3, 4, 5].map((index) =>
@@ -6310,14 +6376,14 @@ function App() {
                   className="checklist-gallery-card"
                   data-reorder-id={list.id}
                   style={{ backgroundColor: list.color, color: getContrastText(list.color) }}
-                  draggable={!checklistSelectionMode}
+                  draggable={!checklistSelectionMode && !isMobileUi}
                   onDragStart={(event) => event.dataTransfer.setData("text/checklist-list", list.id)}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => handleReorderChecklist(event.dataTransfer.getData("text/checklist-list"), list.id)}
                 >
-                  {!checklistSelectionMode && <button type="button" className="checklist-list-grip" onPointerDown={(event) => startChecklistTouchReorder(event, ".checklist-gallery-card", list.id, handleReorderChecklist)} aria-label={`Reorder ${list.title}`}>⠿</button>}
+                  {!checklistSelectionMode && !isMobileUi && <button type="button" className="checklist-list-grip" onPointerDown={(event) => startChecklistTouchReorder(event, ".checklist-gallery-card", list.id, handleReorderChecklist)} aria-label={`Reorder ${list.title}`}>⠿</button>}
                   {checklistSelectionMode && <input className="checklist-list-select" type="checkbox" checked={selectedChecklistIds.includes(list.id)} onChange={(event) => setSelectedChecklistIds((ids) => event.target.checked ? [...ids, list.id] : ids.filter((id) => id !== list.id))} aria-label={`Select ${list.title || "Untitled checklist"}`} />}
-                  <button type="button" className="checklist-card-open" onClick={() => checklistSelectionMode ? setSelectedChecklistIds((ids) => ids.includes(list.id) ? ids.filter((id) => id !== list.id) : [...ids, list.id]) : setSelectedChecklistId(list.id)}>
+                  <button type="button" className="checklist-card-open" onClick={() => checklistSelectionMode ? setSelectedChecklistIds((ids) => ids.includes(list.id) ? ids.filter((id) => id !== list.id) : [...ids, list.id]) : openChecklist(list.id)}>
                     <strong>{list.pinned ? "📌 " : ""}{list.title || "Untitled checklist"}</strong>
                     <span>{(list.items || []).filter((item) => item.isDone).length}/{(list.items || []).length} checked</span>
                   </button>
@@ -6330,9 +6396,9 @@ function App() {
     }
 
     return (
-      <section className="standalone-checklists checklist-editor" style={{ "--active-list-color": selectedList.color, "--active-list-text": getContrastText(selectedList.color) }}>
+      <section className={`standalone-checklists checklist-editor${isMobileUi ? " mobile-checklist-fullscreen" : ""}`} style={{ "--active-list-color": selectedList.color, "--active-list-text": getContrastText(selectedList.color) }}>
         <div className="checklist-editor-toolbar">
-          <button type="button" className="btn btn-secondary" onClick={() => setSelectedChecklistId(null)}>← Lists</button>
+          {isMobileUi ? <button type="button" className="mobile-checklist-close" onClick={closeChecklist} aria-label="Close checklist">×</button> : <button type="button" className="btn btn-secondary" onClick={closeChecklist}>← Lists</button>}
           <button type="button" className={`checklist-pin-button${selectedList.pinned ? " active" : ""}`} onClick={() => updateChecklist(selectedList.id, (list) => ({ ...list, pinned: !list.pinned }))}>{selectedList.pinned ? "Unpin" : "Pin"}</button>
         </div>
         <input className="checklist-title-input" value={selectedList.title} onChange={(event) => updateChecklist(selectedList.id, (list) => ({ ...list, title: event.target.value }))} aria-label="Checklist title" />
@@ -6357,12 +6423,12 @@ function App() {
                 key={item.id}
                 className={item.isDone ? "is-done" : ""}
                 data-reorder-id={item.id}
-                draggable
+                draggable={!isMobileUi}
                 onDragStart={(event) => event.dataTransfer.setData("text/checklist-item", item.id)}
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => handleReorderChecklistItem(selectedList.id, event.dataTransfer.getData("text/checklist-item"), item.id)}
               >
-                <button type="button" className="checklist-item-grip" title="Drag to reorder" onPointerDown={(event) => startChecklistTouchReorder(event, ".standalone-checklist-items li", item.id, (source, target) => handleReorderChecklistItem(selectedList.id, source, target))}>⠿</button>
+                {!isMobileUi && <button type="button" className="checklist-item-grip" title="Drag to reorder" onPointerDown={(event) => startChecklistTouchReorder(event, ".standalone-checklist-items li", item.id, (source, target) => handleReorderChecklistItem(selectedList.id, source, target))}>⠿</button>}
                 <input type="checkbox" checked={item.isDone} onChange={(event) => handleUpdateChecklistItem(selectedList.id, item.id, "isDone", event.target.checked)} />
                 <input className="checklist-item-text" value={item.text} onChange={(event) => handleUpdateChecklistItem(selectedList.id, item.id, "text", event.target.value)} />
                 <div className="checklist-item-date-fields">
@@ -6477,7 +6543,7 @@ function App() {
     getWorkspaceWidgetTitle(item.type).toLowerCase().includes(widgetSearch.trim().toLowerCase()),
   );
 
-  const renderRecommendedWidget = () => recommendationItems.length === 0 ? <div className="empty-state-action friendly-empty" role="status"><p className="recommended-plan-empty">You’re all caught up! Add something whenever you’re ready, and we’ll help you decide what to tackle first.</p><p className="recommended-plan-tip-bubble">Add your next assignment from the Add Assignment section on the Dashboard.</p></div> : (
+  const renderRecommendedWidget = () => recommendationItems.length === 0 ? <div className="empty-state-action friendly-empty" role="status"><p className="recommended-plan-empty">You’re all caught up! Add something whenever you’re ready, and we’ll help you decide what to tackle first.</p>{isMobileUi ? <button type="button" className="recommended-plan-tip-bubble mobile-empty-add-action" onClick={() => openMobileAdd("dashboard")}>Tap here or use the + Add button to add your next assignment.</button> : <p className="recommended-plan-tip-bubble">Add your next assignment from the Add Assignment section on the Dashboard.</p>}</div> : (
     <>
       <div className="recommended-plan-workload compact"><strong>{recommendationWorkloadLabel}</strong><span>Top-plan workload{recommendationWorkload.unknownCount > 0 ? ` + ${recommendationWorkload.unknownCount} unestimated` : ""}</span></div>
       <ol className="recommended-plan-list portable-recommendations">
@@ -6983,6 +7049,26 @@ function App() {
   const mobileTaskTabActive = ["todo", "inProgress", "completed"].includes(currentTab);
   const mobileMoreActive = ["settings", "recommendations", "mobile-tools", "mobile-courses"].includes(currentTab);
   const selectedMobileSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === settingsSection) || SETTINGS_SECTIONS[0];
+  const openMobileSettingsSection = (sectionId) => {
+    setStorageView(null);
+    setSettingsSection(sectionId);
+    if (!isMobileUi) return;
+    window.history.pushState({ taskcabinetMobilePanel: "settings" }, "");
+    setMobileSettingsOpen(true);
+  };
+  const closeMobileSettings = () => {
+    setStorageView(null);
+    if (window.history.state?.taskcabinetMobilePanel === "settings") window.history.back();
+    else setMobileSettingsOpen(false);
+  };
+  const openMobileSummary = (category) => {
+    window.history.pushState({ taskcabinetMobilePanel: "summary" }, "");
+    setMobileSummaryCategory(category);
+  };
+  const closeMobileSummary = () => {
+    if (window.history.state?.taskcabinetMobilePanel === "summary") window.history.back();
+    else setMobileSummaryCategory("");
+  };
   const openMobileTab = (tab) => {
     setCurrentTab(tab);
     setMobileMoreOpen(false);
@@ -6997,6 +7083,35 @@ function App() {
       {copy && <span>{copy}</span>}
     </header>
   );
+  const mobileTodayTasks = activeDashboardTasks.filter((task) => getTaskDueBucket(task).startsWith("Due Today"));
+  const mobileOverdueTasks = activeDashboardTasks.filter((task) => getTaskDueBucket(task).startsWith("Overdue"));
+  const mobileSummaryTasks = mobileSummaryCategory === "active"
+    ? activeDashboardTasks
+    : mobileSummaryCategory === "today"
+      ? mobileTodayTasks
+      : mobileSummaryCategory === "overdue"
+        ? mobileOverdueTasks
+        : [];
+  const mobileSummaryTitle = { active: "Active assignments", today: "Due today", overdue: "Overdue" }[mobileSummaryCategory] || "Assignments";
+  const openMobileAdd = (returnTab = currentTab) => {
+    setMobileReturnTab(returnTab === "mobile-add" ? "dashboard" : returnTab);
+    setMobileSummaryCategory("");
+    setCurrentTab("mobile-add");
+  };
+  const closeMobileAdd = () => {
+    setCalendarAddOpen(false);
+    setCurrentTab(mobileReturnTab || "dashboard");
+  };
+  const renderMobileSummaryAssignments = () => mobileSummaryTasks.length === 0 ? (
+    <p className="mobile-fullscreen-empty friendly-empty">There are no assignments in this category right now.</p>
+  ) : (
+    <ul className="task-list mobile-summary-task-list">
+      {mobileSummaryTasks.map((task) => {
+        const status = getTaskStatus(task);
+        return <li key={task.id} className={`task-card${getTaskDueBucket(task).startsWith("Overdue") ? " is-overdue" : ""}`}><div><div className="task-title-row"><strong className="task-title-text">{task.title}</strong>{task.course && <span className="task-course-pill" style={{ backgroundColor: getCourseColor(task.course), color: getTextColorForCourse(task.course) }}>{task.course}</span>}</div><div className="task-details">{formatTaskDetails(task)}</div>{renderAssignmentCountdown(task)}{renderSubtaskProgressLine(task)}</div>{renderTaskActionButtons(task, status)}</li>;
+      })}
+    </ul>
+  );
   return (
     <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} font-${userSettings.fontFamily || "sans"} density-${userSettings.interfaceDensity || "comfortable"} task-actions-${userSettings.taskActionLayout || "wrap"}${userSettings.reduceMotion ? " reduce-motion" : ""}${isMobileUi && currentUser ? " mobile-app-ui" : ""}`}>
       <div className="app-shell">
@@ -7004,7 +7119,7 @@ function App() {
           <header className="mobile-app-header">
             <button type="button" className="mobile-app-brand" onClick={() => openMobileTab("dashboard")} aria-label="Open mobile home">
               <span>TC</span>
-              <div><strong>TaskCabinet</strong><small>{displayName ? `Hi, ${displayName}` : "Your study space"}</small></div>
+              <div><strong>TaskCabinet</strong></div>
             </button>
             <button type="button" className="mobile-app-profile-button" onClick={() => setMobileMoreOpen(true)} aria-label="Open account and more menu">
               {(displayName || currentUser || "T").trim().charAt(0).toUpperCase()}
@@ -7148,14 +7263,14 @@ function App() {
         )}
 
         {isMobileUi && currentUser && mobileUsesOwnScreen && (
-          <main className="mobile-app-main">
+          <main className={`mobile-app-main${currentTab === "mobile-add" ? " mobile-add-fullscreen" : ""}`}>
             {currentTab === "dashboard" && (
               <>
                 {renderMobilePageTitle("Today", `Ready when you are, ${displayName || "student"}.`, dueTodayCount > 0 ? `${dueTodayCount} assignment${dueTodayCount === 1 ? "" : "s"} due today.` : "Nothing is due today.")}
                 <section className="mobile-app-stat-strip" aria-label="Assignment summary">
-                  <button type="button" onClick={() => openMobileTab("todo")}><strong>{activeTasksCount}</strong><span>Active</span></button>
-                  <button type="button" className={dueTodayCount > 0 ? "has-warning" : ""} onClick={() => openMobileTab("todo")}><strong>{dueTodayCount}</strong><span>Today</span></button>
-                  <button type="button" className={overdueTasksCount > 0 ? "has-danger" : ""} onClick={() => openMobileTab("todo")}><strong>{overdueTasksCount}</strong><span>Overdue</span></button>
+                  <button type="button" onClick={() => openMobileSummary("active")}><strong>{activeTasksCount}</strong><span>Active</span></button>
+                  <button type="button" className={mobileTodayTasks.length > 0 ? "has-warning" : ""} onClick={() => openMobileSummary("today")}><strong>{mobileTodayTasks.length}</strong><span>Today</span></button>
+                  <button type="button" className={mobileOverdueTasks.length > 0 ? "has-danger" : ""} onClick={() => openMobileSummary("overdue")}><strong>{mobileOverdueTasks.length}</strong><span>Overdue</span></button>
                 </section>
                 <section className="mobile-app-card mobile-app-plan-card">
                   <div className="mobile-app-section-heading"><div><span>Best next steps</span><h3>{schoolLevelCopy.planTitle}</h3></div><button type="button" onClick={() => openMobileTab("todo")}>View tasks</button></div>
@@ -7188,7 +7303,7 @@ function App() {
 
             {currentTab === "mobile-add" && (
               <>
-                {renderMobilePageTitle("New assignment", schoolLevelCopy.addLabel, "Add the basics now and optional details when you need them.")}
+                <header className="mobile-fullscreen-header inline-mobile-fullscreen-header"><div><p>New assignment</p><h2>{schoolLevelCopy.addLabel}</h2><span>Add the basics now and optional details when you need them.</span></div><button type="button" onClick={closeMobileAdd} aria-label="Close Add Assignment">×</button></header>
                 <section className="mobile-app-card mobile-app-add-screen">{renderAddAssignmentForm("mobile")}</section>
               </>
             )}
@@ -7208,6 +7323,13 @@ function App() {
               </>
             )}
           </main>
+        )}
+
+        {isMobileUi && currentUser && mobileSummaryCategory && (
+          <section className="mobile-fullscreen-panel" role="dialog" aria-modal="true" aria-labelledby="mobile-summary-title">
+            <header className="mobile-fullscreen-header"><div><p>Assignment category</p><h2 id="mobile-summary-title">{mobileSummaryTitle}</h2><span>{mobileSummaryTasks.length} assignment{mobileSummaryTasks.length === 1 ? "" : "s"}</span></div><button type="button" onClick={closeMobileSummary} aria-label="Close assignment category">×</button></header>
+            <main>{renderMobileSummaryAssignments()}</main>
+          </section>
         )}
 
         <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}${workspaceCanvasWidth > 0 ? " is-measured" : " is-measuring"}${mobileUsesOwnScreen ? " mobile-app-desktop-content-hidden" : ""}`}>
@@ -8082,7 +8204,7 @@ function App() {
                                 className="hint-text"
                                 style={{ marginTop: "8px", fontSize: "13px" }}
                               >
-                                Click to view or edit notes
+                                {isMobileUi ? "Tap to view or edit notes" : "Click to view or edit notes"}
                               </p>
                               <div className="task-actions">
                                 <button
@@ -8138,7 +8260,7 @@ function App() {
                         }
                       }}
                     >
-                      {calendarAddOpen ? "Cancel" : `➕ ${schoolLevelCopy.addLabel}`}
+                      {calendarAddOpen ? "Cancel" : isMobileUi ? `+ ${schoolLevelCopy.addLabel} for this day` : `➕ ${schoolLevelCopy.addLabel}`}
                     </button>
                   </div>
 
@@ -8274,11 +8396,7 @@ function App() {
                         type="button"
                         className={`settings-nav-button ${settingsSection === section.id ? "active" : ""}`}
                         aria-current={settingsSection === section.id ? "page" : undefined}
-                        onClick={() => {
-                          setStorageView(null);
-                          setSettingsSection(section.id);
-                          if (isMobileUi) setMobileSettingsOpen(true);
-                        }}
+                        onClick={() => openMobileSettingsSection(section.id)}
                       >
                         <strong className="settings-nav-label">
                           <span className="settings-nav-icon" aria-hidden="true">{section.icon}</span>
@@ -8289,12 +8407,12 @@ function App() {
                     </div>
                   ))}
                 </nav>}
-                {isMobileUi && mobileSettingsOpen && <button type="button" className="mobile-settings-backdrop" onClick={() => { setMobileSettingsOpen(false); setStorageView(null); }} aria-label="Close settings section" />}
+                {isMobileUi && mobileSettingsOpen && <button type="button" className="mobile-settings-backdrop" onClick={closeMobileSettings} aria-label="Close settings section" />}
                 <div className={`settings-content${isMobileUi && mobileSettingsOpen ? " mobile-settings-panel-open" : ""}`}>
                   {isMobileUi && (
                     <header className="mobile-settings-panel-header">
                       <div><span>Settings</span><h2>{selectedMobileSettingsSection.label}</h2><p>{selectedMobileSettingsSection.description}</p></div>
-                      <button type="button" onClick={() => { setMobileSettingsOpen(false); setStorageView(null); }} aria-label="Close settings section">×</button>
+                      <button type="button" onClick={closeMobileSettings} aria-label="Close settings section">×</button>
                     </header>
                   )}
                   <div key={`${settingsSection}-${storageView || "main"}`} className={`settings-grid${storageView ? " settings-grid-hidden" : ""}${settingsSection === "personalization" ? " settings-grid-personalization" : ""}`}>
@@ -9222,7 +9340,7 @@ function App() {
             <nav className="mobile-app-bottom-nav" aria-label="Mobile navigation">
               <button type="button" className={currentTab === "dashboard" ? "active" : ""} onClick={() => openMobileTab("dashboard")}><span aria-hidden="true">⌂</span><small>Home</small></button>
               <button type="button" className={mobileTaskTabActive ? "active" : ""} onClick={() => openMobileTab("todo")}><span aria-hidden="true">☑</span><small>Tasks</small></button>
-              <button type="button" className={`mobile-app-add-nav${currentTab === "mobile-add" ? " active" : ""}`} onClick={() => openMobileTab("mobile-add")}><span aria-hidden="true">+</span><small>Add</small></button>
+              <button type="button" className={`mobile-app-add-nav${currentTab === "mobile-add" ? " active" : ""}`} onClick={() => openMobileAdd(currentTab)}><span aria-hidden="true">+</span><small>+ Add</small></button>
               <button type="button" className={currentTab === "calendar" ? "active" : ""} onClick={() => openMobileTab("calendar")}><span aria-hidden="true">□</span><small>Calendar</small></button>
               <button type="button" className={mobileMoreActive || mobileMoreOpen ? "active" : ""} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>More</small></button>
             </nav>
@@ -9230,7 +9348,7 @@ function App() {
             {mobileMoreOpen && (
               <div className="mobile-app-sheet-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
                 <section className="mobile-app-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title" onClick={(event) => event.stopPropagation()}>
-                  <header><div><span>TaskCabinet</span><h2 id="mobile-more-title">More</h2></div><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Close more menu">×</button></header>
+                  <header><div><span id="mobile-more-title">TaskCabinet</span></div><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Close account menu">×</button></header>
                   <div className="mobile-app-menu-grid">
                     <button type="button" onClick={() => openMobileTab("mobile-tools")}><strong>Study tools</strong><span>Reminders and course overview</span></button>
                     <button type="button" onClick={() => openMobileTab("mobile-courses")}><strong>Courses & colors</strong><span>Manage your subjects</span></button>
@@ -9545,7 +9663,7 @@ function App() {
                   className={`link-entry-feedback ${editLinkMessage ? (editLinkMessage.startsWith("Added") ? "success" : "error") : ""}`}
                   role="status"
                 >
-                  {editLinkMessage || "Enter a link name and address, then click outside either field to add it. Confirm the link appears below before saving changes."}
+                  {editLinkMessage || (isMobileUi ? "Enter a link name and address, then tap outside either field to add it. Confirm the link appears below before saving changes." : "Enter a link name and address, then click outside either field to add it. Confirm the link appears below before saving changes.")}
                 </p>
                 {getSafeLinks(editingTask).map((link) => (
                   <div className="edit-link-row" key={link.id}>

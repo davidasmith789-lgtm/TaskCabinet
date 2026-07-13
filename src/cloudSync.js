@@ -1,6 +1,6 @@
 export const CLOUD_STATE_SCHEMA_VERSION = 1;
-const DEVICE_SETTING_KEYS = new Set(["externalPushEnabled", "notificationsEnabled"]);
-const ACCOUNT_FIELDS = ["tasks", "courses", "courseColors", "userSettings", "checklists", "workspaceLayout", "theme", "displayName"];
+const DEVICE_SETTING_KEYS = new Set(["externalPushEnabled", "notificationsEnabled", "activeColorThemeId", "customColors"]);
+const ACCOUNT_FIELDS = ["tasks", "courses", "courseColors", "userSettings", "checklists", "workspaceLayout", "displayName"];
 
 const parse = (value, fallback) => { try { return value ? JSON.parse(value) : fallback; } catch { return fallback; } };
 export const getCloudCacheKey = (userId) => `taskcabinet_cloud_cache_${userId}`;
@@ -11,8 +11,8 @@ export function sanitizeSettings(settings = {}) {
   return Object.fromEntries(Object.entries(settings).filter(([key]) => !DEVICE_SETTING_KEYS.has(key)));
 }
 
-export function collectSyncableState({ tasks = [], courses = ["Other"], courseColors = {}, userSettings = {}, checklists = [], workspaceLayout = {}, theme = "light", displayName = "" } = {}) {
-  return { schemaVersion: CLOUD_STATE_SCHEMA_VERSION, tasks, courses, courseColors, userSettings: sanitizeSettings(userSettings), checklists, workspaceLayout, theme, displayName: String(displayName || "").slice(0, 80) };
+export function collectSyncableState({ tasks = [], courses = ["Other"], courseColors = {}, userSettings = {}, checklists = [], workspaceLayout = {}, displayName = "" } = {}) {
+  return { schemaVersion: CLOUD_STATE_SCHEMA_VERSION, tasks, courses, courseColors, userSettings: sanitizeSettings(userSettings), checklists, workspaceLayout, displayName: String(displayName || "").slice(0, 80) };
 }
 
 export function validateCloudState(value) {
@@ -59,7 +59,6 @@ export function readLegacySnapshot(storage, profileKey, defaults) {
     userSettings: { ...defaults, ...parse(storage.getItem(`settings_${profileKey}`), {}) },
     checklists: parse(storage.getItem(`checklists_${profileKey}`), []),
     workspaceLayout: parse(storage.getItem(`workspaceLayout_${profileKey}`), {}),
-    theme: storage.getItem("theme") || "light",
     displayName: profileKey,
   });
 }
@@ -72,7 +71,6 @@ export function applyCloudStateToLocal(storage, userId, state, deviceSettings = 
   storage.setItem(`settings_${userId}`, JSON.stringify({ ...valid.userSettings, ...deviceSettings }));
   storage.setItem(`checklists_${userId}`, JSON.stringify(valid.checklists));
   storage.setItem(`workspaceLayout_${userId}`, JSON.stringify(valid.workspaceLayout));
-  storage.setItem("theme", valid.theme);
   return valid;
 }
 

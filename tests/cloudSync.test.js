@@ -9,12 +9,15 @@ function memoryStorage() {
 
 const state = (overrides = {}) => collectSyncableState({ tasks: [], courses: ["Other"], courseColors: {}, userSettings: {}, checklists: [], workspaceLayout: { desktop: {}, mobile: {}, collapsed: {} }, theme: "light", displayName: "Student", ...overrides });
 
-test("cloud snapshots exclude device-only reminder settings", () => {
-  const snapshot = state({ userSettings: { textSize: "large", externalPushEnabled: true, notificationsEnabled: true, reminderMinutes: 60 } });
+test("cloud snapshots exclude device-only reminder and theme settings", () => {
+  const snapshot = state({ theme: "dark", userSettings: { textSize: "large", externalPushEnabled: true, notificationsEnabled: true, activeColorThemeId: "ocean-focus", customColors: { page: "#ffffff" }, reminderMinutes: 60 } });
   assert.equal(snapshot.userSettings.textSize, "large");
   assert.equal(snapshot.userSettings.reminderMinutes, 60);
   assert.equal("externalPushEnabled" in snapshot.userSettings, false);
   assert.equal("notificationsEnabled" in snapshot.userSettings, false);
+  assert.equal("activeColorThemeId" in snapshot.userSettings, false);
+  assert.equal("customColors" in snapshot.userSettings, false);
+  assert.equal("theme" in snapshot, false);
 });
 
 test("cloud validation rejects malformed account data", () => {
@@ -30,11 +33,11 @@ test("local cloud caches remain isolated by Supabase user id", () => {
   assert.equal(loadLocalSnapshot(storage, "user-b").tasks[0].id, "b");
 });
 
-test("applying cloud state preserves device reminder settings", () => {
+test("applying cloud state preserves device reminder and theme settings", () => {
   const storage = memoryStorage();
-  applyCloudStateToLocal(storage, "auth-user", state({ userSettings: { textSize: "small" } }), { externalPushEnabled: true, notificationsEnabled: false });
+  applyCloudStateToLocal(storage, "auth-user", state({ userSettings: { textSize: "small" } }), { externalPushEnabled: true, notificationsEnabled: false, activeColorThemeId: "forest-study", customColors: { page: "#f2f8f1" } });
   const settings = JSON.parse(storage.getItem("settings_auth-user"));
-  assert.deepEqual(settings, { textSize: "small", externalPushEnabled: true, notificationsEnabled: false });
+  assert.deepEqual(settings, { textSize: "small", externalPushEnabled: true, notificationsEnabled: false, activeColorThemeId: "forest-study", customColors: { page: "#f2f8f1" } });
 });
 
 test("meaningful-state detection protects assignments and custom courses", () => {
