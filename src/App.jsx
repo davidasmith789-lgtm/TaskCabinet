@@ -1784,6 +1784,8 @@ function App() {
   const [widgetsTrayOpen, setWidgetsTrayOpen] = useState(false);
   const [widgetSearch, setWidgetSearch] = useState("");
   const [helpSearch, setHelpSearch] = useState("");
+  const [isMobileUi, setIsMobileUi] = useState(() => window.matchMedia("(max-width: 767px)").matches);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(Math.max(0, window.innerWidth - 48)));
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(0);
   const workspaceMainRef = useRef(null);
@@ -2826,6 +2828,25 @@ function App() {
     workspaceStorageKey,
   ]);
   useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const handleMobileUiChange = (event) => setIsMobileUi(event.matches);
+    setIsMobileUi(query.matches);
+    query.addEventListener?.("change", handleMobileUiChange);
+    return () => query.removeEventListener?.("change", handleMobileUiChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileUi) return;
+    setTutorialOpen(false);
+    setTutorialPracticeOpen(false);
+  }, [isMobileUi]);
+
+  useEffect(() => {
+    if (isMobileUi || !["mobile-add", "mobile-tools", "mobile-courses"].includes(currentTab)) return;
+    setCurrentTab("dashboard");
+  }, [currentTab, isMobileUi]);
+
+  useEffect(() => {
     if (!tutorialOpen) return undefined;
     const previousFocus = document.activeElement;
     const dialog = tutorialRef.current;
@@ -2851,7 +2872,7 @@ function App() {
   }, [currentUser, tutorialOpen]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || isMobileUi) return;
     try {
       const saved = localStorage.getItem(getTutorialStorageKey(currentUser));
       if (saved && JSON.parse(saved).complete === false) {
@@ -2859,7 +2880,7 @@ function App() {
         setTutorialOpen(true);
       }
     } catch { /* A damaged optional tutorial flag must never block the planner. */ }
-  }, [currentUser]);
+  }, [currentUser, isMobileUi]);
 
   const finishTutorial = () => {
     localStorage.setItem(getTutorialStorageKey(currentUser), JSON.stringify({ complete: true }));
@@ -6934,9 +6955,36 @@ function App() {
   const showReminderSuggestion = shouldShowReminderSuggestion({ hasProfile: Boolean(currentUser), remindersEnabled: Boolean(userSettings.externalPushEnabled), dismissed: Boolean(userSettings.reminderSuggestionDismissed), hasDatedAssignment: tasks.some((task) => !task.isDeleted && !task.isCompleted && getEffectiveDeadline(task)) });
   const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const reminderLeadAlreadyPassedCount = tasks.filter((task) => { const deadline = getEffectiveDeadline(task); return deadline && deadline.getTime() > checklistNow.getTime() && deadline.getTime() - Number(userSettings.reminderMinutes || 60) * 60000 < checklistNow.getTime() && !task.isDeleted && !task.isCompleted; }).length;
+  const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses"];
+  const mobileUsesOwnScreen = isMobileUi && mobileOwnedTabs.includes(currentTab);
+  const mobileTaskTabActive = ["todo", "inProgress", "completed"].includes(currentTab);
+  const mobileMoreActive = ["settings", "recommendations", "mobile-tools", "mobile-courses"].includes(currentTab);
+  const openMobileTab = (tab) => {
+    setCurrentTab(tab);
+    setMobileMoreOpen(false);
+    window.scrollTo({ top: 0, behavior: userSettings.reduceMotion ? "auto" : "smooth" });
+  };
+  const renderMobilePageTitle = (eyebrow, title, copy) => (
+    <header className="mobile-app-page-heading">
+      <p>{eyebrow}</p>
+      <h2>{title}</h2>
+      {copy && <span>{copy}</span>}
+    </header>
+  );
   return (
-    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} font-${userSettings.fontFamily || "sans"} density-${userSettings.interfaceDensity || "comfortable"} task-actions-${userSettings.taskActionLayout || "wrap"}${userSettings.reduceMotion ? " reduce-motion" : ""}`}>
+    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} font-${userSettings.fontFamily || "sans"} density-${userSettings.interfaceDensity || "comfortable"} task-actions-${userSettings.taskActionLayout || "wrap"}${userSettings.reduceMotion ? " reduce-motion" : ""}${isMobileUi && currentUser ? " mobile-app-ui" : ""}`}>
       <div className="app-shell">
+        {isMobileUi && currentUser && (
+          <header className="mobile-app-header">
+            <button type="button" className="mobile-app-brand" onClick={() => openMobileTab("dashboard")} aria-label="Open mobile home">
+              <span>TC</span>
+              <div><strong>TaskCabinet</strong><small>{displayName ? `Hi, ${displayName}` : "Your study space"}</small></div>
+            </button>
+            <button type="button" className="mobile-app-profile-button" onClick={() => setMobileMoreOpen(true)} aria-label="Open account and more menu">
+              {(displayName || currentUser || "T").trim().charAt(0).toUpperCase()}
+            </button>
+          </header>
+        )}
         {/* The header is always visible and identifies the active local profile. */}
         <header className="hero-card">
           <div>
@@ -7073,11 +7121,74 @@ function App() {
           </section>
         )}
 
-        <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}${workspaceCanvasWidth > 0 ? " is-measured" : " is-measuring"}`}>
+        {isMobileUi && currentUser && mobileUsesOwnScreen && (
+          <main className="mobile-app-main">
+            {currentTab === "dashboard" && (
+              <>
+                {renderMobilePageTitle("Today", `Ready when you are, ${displayName || "student"}.`, dueTodayCount > 0 ? `${dueTodayCount} assignment${dueTodayCount === 1 ? "" : "s"} due today.` : "Nothing is due today.")}
+                <section className="mobile-app-stat-strip" aria-label="Assignment summary">
+                  <button type="button" onClick={() => openMobileTab("todo")}><strong>{activeTasksCount}</strong><span>Active</span></button>
+                  <button type="button" className={dueTodayCount > 0 ? "has-warning" : ""} onClick={() => openMobileTab("todo")}><strong>{dueTodayCount}</strong><span>Today</span></button>
+                  <button type="button" className={overdueTasksCount > 0 ? "has-danger" : ""} onClick={() => openMobileTab("todo")}><strong>{overdueTasksCount}</strong><span>Overdue</span></button>
+                </section>
+                <section className="mobile-app-card mobile-app-plan-card">
+                  <div className="mobile-app-section-heading"><div><span>Best next steps</span><h3>{schoolLevelCopy.planTitle}</h3></div><button type="button" onClick={() => openMobileTab("todo")}>View tasks</button></div>
+                  {renderRecommendedWidget()}
+                </section>
+                <section className="mobile-app-card mobile-app-quick-card">
+                  <div className="mobile-app-section-heading"><div><span>Short on time?</span><h3>Find a quick task</h3></div></div>
+                  {renderQuickMatchCard()}
+                </section>
+                <section className="mobile-app-card">
+                  <div className="mobile-app-section-heading"><div><span>Stay organized</span><h3>Checklists</h3></div><button type="button" onClick={() => openMobileTab("mobile-tools")}>More tools</button></div>
+                  {renderStandaloneChecklists()}
+                </section>
+              </>
+            )}
+
+            {mobileTaskTabActive && (
+              <>
+                {renderMobilePageTitle("Assignments", "Your tasks", "Move between each stage without leaving this screen.")}
+                <nav className="mobile-app-segmented" aria-label="Assignment status">
+                  <button type="button" className={currentTab === "todo" ? "active" : ""} onClick={() => openMobileTab("todo")}>To Do <span>{todoTasks.length}</span></button>
+                  <button type="button" className={currentTab === "inProgress" ? "active" : ""} onClick={() => openMobileTab("inProgress")}>Doing <span>{inProgressTasks.length}</span></button>
+                  <button type="button" className={currentTab === "completed" ? "active" : ""} onClick={() => openMobileTab("completed")}>Done <span>{completedTasks.length}</span></button>
+                </nav>
+                <section className="mobile-app-card mobile-app-task-screen">
+                  {renderTaskMasterWidget(currentTab)}
+                </section>
+              </>
+            )}
+
+            {currentTab === "mobile-add" && (
+              <>
+                {renderMobilePageTitle("New assignment", schoolLevelCopy.addLabel, "Add the basics now and optional details when you need them.")}
+                <section className="mobile-app-card mobile-app-add-screen">{renderAddAssignmentForm("mobile")}</section>
+              </>
+            )}
+
+            {currentTab === "mobile-tools" && (
+              <>
+                {renderMobilePageTitle("More", "Study tools", "The same TaskCabinet features, arranged for a phone.")}
+                <section className="mobile-app-card"><div className="mobile-app-section-heading"><div><span>Plan ahead</span><h3>Reminders</h3></div></div>{renderRemindersWidget()}</section>
+                <section className="mobile-app-card"><div className="mobile-app-section-heading"><div><span>By subject</span><h3>{schoolLevelCopy.courseLabel} overview</h3></div></div>{renderCourseOverviewWidget()}</section>
+              </>
+            )}
+
+            {currentTab === "mobile-courses" && (
+              <>
+                {renderMobilePageTitle("Customize", "Courses and colors", "Course changes are saved to this same account on desktop and mobile.")}
+                <section className="mobile-app-card">{renderCourseColorsWidget()}</section>
+              </>
+            )}
+          </main>
+        )}
+
+        <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}${workspaceCanvasWidth > 0 ? " is-measured" : " is-measuring"}${mobileUsesOwnScreen ? " mobile-app-desktop-content-hidden" : ""}`}>
           <main className="workspace-main" ref={workspaceMainRef}>
 
         {currentTab === "dashboard" && renderWorkspaceForTab("dashboard")}
-        {currentTab !== "dashboard" && currentTab !== "calendar" && renderWorkspaceExtrasForTab(currentTab)}
+        {!isMobileUi && currentTab !== "dashboard" && currentTab !== "calendar" && renderWorkspaceExtrasForTab(currentTab)}
 
         {/*
           DASHBOARD VIEW
@@ -9071,6 +9182,34 @@ function App() {
           </main>
         </div>
 
+        {isMobileUi && currentUser && (
+          <>
+            <nav className="mobile-app-bottom-nav" aria-label="Mobile navigation">
+              <button type="button" className={currentTab === "dashboard" ? "active" : ""} onClick={() => openMobileTab("dashboard")}><span aria-hidden="true">⌂</span><small>Home</small></button>
+              <button type="button" className={mobileTaskTabActive ? "active" : ""} onClick={() => openMobileTab("todo")}><span aria-hidden="true">☑</span><small>Tasks</small></button>
+              <button type="button" className={`mobile-app-add-nav${currentTab === "mobile-add" ? " active" : ""}`} onClick={() => openMobileTab("mobile-add")}><span aria-hidden="true">+</span><small>Add</small></button>
+              <button type="button" className={currentTab === "calendar" ? "active" : ""} onClick={() => openMobileTab("calendar")}><span aria-hidden="true">□</span><small>Calendar</small></button>
+              <button type="button" className={mobileMoreActive || mobileMoreOpen ? "active" : ""} onClick={() => setMobileMoreOpen(true)}><span aria-hidden="true">•••</span><small>More</small></button>
+            </nav>
+
+            {mobileMoreOpen && (
+              <div className="mobile-app-sheet-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
+                <section className="mobile-app-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title" onClick={(event) => event.stopPropagation()}>
+                  <div className="mobile-app-sheet-handle" aria-hidden="true" />
+                  <header><div><span>TaskCabinet</span><h2 id="mobile-more-title">More</h2></div><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Close more menu">×</button></header>
+                  <div className="mobile-app-menu-grid">
+                    <button type="button" onClick={() => openMobileTab("mobile-tools")}><strong>Study tools</strong><span>Reminders and course overview</span></button>
+                    <button type="button" onClick={() => openMobileTab("mobile-courses")}><strong>Courses & colors</strong><span>Manage your subjects</span></button>
+                    <button type="button" onClick={() => openMobileTab("recommendations")}><strong>Send feedback</strong><span>Recommend an improvement</span></button>
+                    <button type="button" onClick={() => openMobileTab("settings")}><strong>Settings</strong><span>Appearance, reminders, and account</span></button>
+                  </div>
+                  <div className="mobile-app-account-row"><div><strong>{displayName || currentUser}</strong><span>{accountMode === "cloud" ? "Cloud account" : "Local profile"}</span></div><button type="button" className="btn btn-danger" onClick={handleSignOut}>Sign out</button></div>
+                </section>
+              </div>
+            )}
+          </>
+        )}
+
         </div>
       {/*
         EDIT MODAL
@@ -9690,7 +9829,7 @@ function App() {
           </div>
         </div>
       )}
-      {tutorialOpen && (
+      {tutorialOpen && !isMobileUi && (
         <div className="tutorial-backdrop" role="presentation">
           <section ref={tutorialRef} className="tutorial-dialog" role="dialog" aria-modal="true" aria-labelledby="tutorial-title" aria-describedby="tutorial-copy" tabIndex="-1">
             {tutorialPracticeOpen ? (
