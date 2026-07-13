@@ -1054,6 +1054,9 @@ const PERSONALIZATION_TIPS = [
   ["Calendar assignment details", "Choose a date to see everything due that day. Course-colored dots help you scan the month without changing the colors of the assignments themselves."],
   ["Dashboard reminder range", "The reminder widget’s upcoming range only changes what appears on the dashboard. It does not change when push notifications are sent."],
   ["Accounts and profiles", "With account sync configured, your assignments and personalization can follow your email account. Push permission, reminder connection, and attachment files still belong to each browser."],
+  ["Forgot your password", "On the welcome page, choose Sign In and then Forgot password? Enter your account email, open the recovery link, and choose a new password. Your planner data is not reset."],
+  ["Password eye buttons", "Each password box has its own eye button. Showing one password never reveals the confirmation box, so you can check either entry safely."],
+  ["Welcome page", "The public welcome page explains TaskCabinet before you sign in. Get Started and I Already Have an Account both move you straight to the account panel."],
   ["Keep local data safe", "TaskCabinet saves your work in this browser. Clearing browser storage or using a different device does not automatically bring that data with you."],
 ];
 
@@ -1513,13 +1516,20 @@ function App() {
   const [accountPasswordDraft, setAccountPasswordDraft] = useState("");
   const [accountPasswordConfirm, setAccountPasswordConfirm] = useState("");
   const [showAccountPassword, setShowAccountPassword] = useState(false);
+  const [showAccountPasswordConfirm, setShowAccountPasswordConfirm] = useState(false);
   const [accountUpdateStatus, setAccountUpdateStatus] = useState({ type: "", message: "" });
   const [accountUpdateBusy, setAccountUpdateBusy] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [showAuthPasswordConfirm, setShowAuthPasswordConfirm] = useState(false);
   const [authMode, setAuthMode] = useState("signin");
   const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [recoveryPasswordConfirm, setRecoveryPasswordConfirm] = useState("");
+  const [showRecoveryPassword, setShowRecoveryPassword] = useState(false);
+  const [showRecoveryPasswordConfirm, setShowRecoveryPasswordConfirm] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
   const [authInitializing, setAuthInitializing] = useState(CLOUD_SYNC_CONFIGURED);
   const [syncStatus, setSyncStatus] = useState(CLOUD_SYNC_CONFIGURED ? "initializing" : "local-only");
@@ -1535,6 +1545,7 @@ function App() {
   const cloudConflictResolutionRef = useRef(false);
   const latestCloudStateRef = useRef(null);
   const cloudLastSavedFingerprintRef = useRef("");
+  const authPanelRef = useRef(null);
 
   const waitForCloudRequest = async (request, message) => {
     let timeoutId;
@@ -1882,8 +1893,14 @@ function App() {
     }).catch(() => {
       if (mounted) { setAuthInitializing(false); setSyncStatus("local-only"); }
     });
-    const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = client.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
+      if (event === "PASSWORD_RECOVERY") {
+        setAuthMode("recovery");
+        setAuthError("");
+        setAuthNotice("Your recovery link is ready. Choose a new password below.");
+        setAuthInitializing(false);
+      }
       const user = session?.user;
       if (user) {
         setCurrentUser(user.id);
@@ -1895,6 +1912,17 @@ function App() {
       }
     });
     return () => { mounted = false; listener.subscription.unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
+    if (!CLOUD_SYNC_CONFIGURED) return;
+    const url = new URL(window.location.href);
+    const recoveryError = url.searchParams.get("error_description") || new URLSearchParams(url.hash.replace(/^#/, "")).get("error_description");
+    if (recoveryError) {
+      setAuthMode("forgot");
+      setAuthError("That recovery link is no longer valid. Request a fresh one below.");
+      window.history.replaceState({}, document.title, url.pathname);
+    }
   }, []);
 
   useEffect(() => {
@@ -4266,7 +4294,7 @@ function App() {
             }
           }
           if (!data.session) {
-            setAuthError("Check your email to confirm the account, then sign in.");
+            setAuthNotice("Your account is ready for verification. Check your email, confirm the account, then come back and sign in.");
             setAuthMode("signin");
             return;
           }
@@ -4332,8 +4360,8 @@ function App() {
       setAuthPasswordConfirm("");
       setCurrentTab("dashboard");
     } catch (error) {
-      console.error("Local account error:", error);
-      setAuthError("This browser could not save or verify the local account.");
+      console.error("Account error:", error);
+      setAuthError(CLOUD_SYNC_CONFIGURED ? (error.message || "TaskCabinet could not reach your account. Check your connection and try again.") : "This browser could not save or verify the local account.");
     } finally {
       setAuthBusy(false);
     }
@@ -4422,6 +4450,54 @@ function App() {
     }
   };
 
+  const showWelcomeAuth = (mode = "signup") => {
+    setAuthMode(mode);
+    setAuthError("");
+    setAuthNotice("");
+    window.requestAnimationFrame(() => {
+      authPanelRef.current?.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });
+      window.setTimeout(() => document.getElementById(mode === "recovery" ? "recovery-password" : "auth-username")?.focus(), 120);
+    });
+  };
+
+  const handleForgotPassword = async (event) => {
+    event.preventDefault();
+    const email = signInName.trim().toLowerCase();
+    setAuthError("");
+    setAuthNotice("");
+    if (!email || !email.includes("@")) { setAuthError("Enter the email you use for TaskCabinet."); return; }
+    if (!navigator.onLine) { setAuthError("You appear to be offline. Reconnect, then send the recovery email again."); return; }
+    setAuthBusy(true);
+    try {
+      const { error } = await getSupabaseBrowserClient().auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/` });
+      if (error) throw error;
+      setAuthNotice("If that email has a TaskCabinet account, a password reset link is on its way. You can safely try again if it does not arrive.");
+    } catch (error) {
+      setAuthError(error.message || "The recovery email could not be sent. Try again in a moment.");
+    } finally { setAuthBusy(false); }
+  };
+
+  const handleRecoveryPassword = async (event) => {
+    event.preventDefault();
+    setAuthError("");
+    setAuthNotice("");
+    if (recoveryPassword.length < 8) { setAuthError("Choose a password with at least 8 characters."); return; }
+    if (recoveryPassword !== recoveryPasswordConfirm) { setAuthError("Those passwords do not match yet."); return; }
+    setAuthBusy(true);
+    try {
+      const { error } = await getSupabaseBrowserClient().auth.updateUser({ password: recoveryPassword });
+      if (error) throw error;
+      setRecoveryPassword("");
+      setRecoveryPasswordConfirm("");
+      setShowRecoveryPassword(false);
+      setShowRecoveryPasswordConfirm(false);
+      setAuthMode("signin");
+      setAuthNotice("Your password is updated. Welcome back!");
+    } catch (error) {
+      setAuthError(error.message || "That recovery session has expired. Request a fresh link and try again.");
+    } finally { setAuthBusy(false); }
+  };
+
   const handleAccountDisplayNameUpdate = async (event) => {
     event.preventDefault();
     const nextName = accountDisplayNameDraft.trim();
@@ -4458,6 +4534,7 @@ function App() {
       setAccountPasswordDraft("");
       setAccountPasswordConfirm("");
       setShowAccountPassword(false);
+      setShowAccountPasswordConfirm(false);
       if (data.session) {
         localStorage.removeItem(AUTH_USER_STORAGE_KEY);
         setDisplayName(nextName);
@@ -4501,6 +4578,7 @@ function App() {
       setAccountPasswordDraft("");
       setAccountPasswordConfirm("");
       setShowAccountPassword(false);
+      setShowAccountPasswordConfirm(false);
       setAccountUpdateStatus({ type: "success", message: "Password updated." });
     } catch (error) {
       setAccountUpdateStatus({ type: "error", message: error.message || "Password could not be updated." });
@@ -6718,34 +6796,65 @@ function App() {
     return <div className={`App ${theme} auth-screen`}><main className="auth-card" role="status"><h1 className="app-title">TaskCabinet</h1><p>Restoring your secure session…</p></main></div>;
   }
 
-  if (!currentUser) {
+  if (!currentUser || authMode === "recovery") {
     return (
-      <div className={`App ${theme} auth-screen`}>
-        <main className="auth-card">
-          <p className="eyebrow">Student Productivity Hub</p>
-          <h1 className="app-title">TaskCabinet</h1>
-          <p className="hero-subtitle">
-            {authMode === "signin"
-              ? CLOUD_SYNC_CONFIGURED ? "Sign in to open your planner on this device." : "Sign in to open your local assignment planner."
-              : CLOUD_SYNC_CONFIGURED ? "Create an account that can securely sync across your devices." : "Create a local account or claim an existing username profile."}
-          </p>
-          <div className="auth-mode-tabs">
-            <button
-              type="button"
-              className={`tab-button ${authMode === "signin" ? "active" : ""}`}
-              onClick={() => { setAuthMode("signin"); setAuthError(""); }}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              className={`tab-button ${authMode === "signup" ? "active" : ""}`}
-              onClick={() => { setAuthMode("signup"); setAuthError(""); }}
-            >
-              Sign Up
-            </button>
-          </div>
-          <form className="card-form auth-form" onSubmit={handleAuthSubmit}>
+      <div className={`App ${theme} welcome-screen`}>
+        <main className="welcome-page">
+          <section className="welcome-hero" aria-labelledby="welcome-title">
+            <div className="welcome-hero-copy">
+              <p className="eyebrow">Your schoolwork, finally in one place</p>
+              <h1 id="welcome-title" className="welcome-title">Plan less. Know what to do next.</h1>
+              <p>TaskCabinet brings assignments, checklists, calendars, reminders, and your own workspace together in a planner that feels like yours.</p>
+              <div className="welcome-actions">
+                <button type="button" className="btn btn-primary" onClick={() => showWelcomeAuth("signup")}>Get Started</button>
+                <button type="button" className="btn btn-secondary" onClick={() => showWelcomeAuth("signin")}>I Already Have an Account</button>
+              </div>
+              <div className="welcome-trust"><span aria-hidden="true">&#10003;</span><strong>Local-first by design.</strong> Your planner keeps working on this device, with optional account sync when configured.</div>
+            </div>
+            <div className="welcome-preview" aria-label="A preview of TaskCabinet's planner">
+              <div className="welcome-preview-top"><span>Today</span><strong>3 things to tackle</strong></div>
+              <div className="welcome-preview-task"><i className="is-blue" /><span><strong>Finish history outline</strong><small>Recommended next</small></span><b>Today</b></div>
+              <div className="welcome-preview-task"><i className="is-purple" /><span><strong>Study biology notes</strong><small>45 minutes</small></span><b>Tomorrow</b></div>
+              <div className="welcome-preview-progress"><span style={{ width: "68%" }} /></div>
+            </div>
+          </section>
+
+          <section className="welcome-features" aria-label="What TaskCabinet helps with">
+            {[
+              ["Plan the next move", "Get a recommended plan based on deadlines, priority, time, and progress."],
+              ["Pick up on another device", "Secure account sync keeps your planner ready wherever you sign in."],
+              ["Remember the deadline", "Optional browser reminders give you a friendly heads-up before work is due."],
+              ["See the whole month", "Course-colored calendars make busy weeks easier to understand at a glance."],
+              ["Make the space yours", "Move widgets, tune colors, and shape a workspace that fits how you think."],
+            ].map(([title, copy], index) => <article className="welcome-feature-card" key={title}><span aria-hidden="true">{index + 1}</span><h2>{title}</h2><p>{copy}</p></article>)}
+          </section>
+
+          <section ref={authPanelRef} id="auth-panel" className="auth-card welcome-auth-card" aria-labelledby="auth-heading">
+          <p className="eyebrow">Ready when you are</p>
+          <h2 id="auth-heading" className="app-title">{authMode === "forgot" ? "Reset your password" : authMode === "recovery" ? "Choose a new password" : "Open TaskCabinet"}</h2>
+          {authMode !== "forgot" && authMode !== "recovery" && <div className="auth-mode-tabs" role="tablist" aria-label="Account action">
+            <button type="button" role="tab" aria-selected={authMode === "signin"} className={`tab-button ${authMode === "signin" ? "active" : ""}`} onClick={() => showWelcomeAuth("signin")}>Sign In</button>
+            <button type="button" role="tab" aria-selected={authMode === "signup"} className={`tab-button ${authMode === "signup" ? "active" : ""}`} onClick={() => showWelcomeAuth("signup")}>Create Account</button>
+          </div>}
+
+          {authMode === "forgot" ? <form key="forgot" className="card-form auth-form auth-mode-content" onSubmit={handleForgotPassword}>
+            <p className="auth-form-intro">Enter your account email and Supabase will send you a secure recovery link.</p>
+            <label htmlFor="auth-username">Email</label>
+            <input id="auth-username" type="email" autoComplete="email" value={signInName} onChange={(event) => setSignInName(event.target.value)} />
+            {authError && <p className="auth-error" role="alert">{authError}</p>}
+            {authNotice && <p className="auth-notice" role="status" aria-live="polite">{authNotice}</p>}
+            <button type="submit" className="btn btn-primary" disabled={authBusy}>{authBusy ? "Sending…" : "Send Recovery Email"}</button>
+            <button type="button" className="auth-text-button" onClick={() => showWelcomeAuth("signin")}>Back to sign in</button>
+          </form> : authMode === "recovery" ? <form key="recovery" className="card-form auth-form auth-mode-content" onSubmit={handleRecoveryPassword}>
+            <p className="auth-form-intro">Use at least 8 characters. Your assignments and local profile will stay right where they are.</p>
+            <label htmlFor="recovery-password">New password</label>
+            <div className="password-input-row"><input id="recovery-password" type={showRecoveryPassword ? "text" : "password"} minLength={8} autoComplete="new-password" value={recoveryPassword} onChange={(event) => setRecoveryPassword(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" onClick={() => setShowRecoveryPassword((shown) => !shown)} aria-pressed={showRecoveryPassword} aria-label={showRecoveryPassword ? "Hide new password" : "Show new password"}><PasswordEyeIcon hidden={!showRecoveryPassword} /></button></div>
+            <label htmlFor="recovery-password-confirm">Confirm new password</label>
+            <div className="password-input-row"><input id="recovery-password-confirm" type={showRecoveryPasswordConfirm ? "text" : "password"} minLength={8} autoComplete="new-password" value={recoveryPasswordConfirm} onChange={(event) => setRecoveryPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" onClick={() => setShowRecoveryPasswordConfirm((shown) => !shown)} aria-pressed={showRecoveryPasswordConfirm} aria-label={showRecoveryPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"}><PasswordEyeIcon hidden={!showRecoveryPasswordConfirm} /></button></div>
+            {authError && <p className="auth-error" role="alert">{authError}</p>}
+            {authNotice && <p className="auth-notice" role="status" aria-live="polite">{authNotice}</p>}
+            <button type="submit" className="btn btn-primary" disabled={authBusy}>{authBusy ? "Updating…" : "Save New Password"}</button>
+          </form> : <form key={authMode} className="card-form auth-form auth-mode-content" onSubmit={handleAuthSubmit}>
             <label htmlFor="auth-username">{CLOUD_SYNC_CONFIGURED ? "Email" : "Username"}</label>
             <input
               id="auth-username"
@@ -6777,26 +6886,30 @@ function App() {
             {authMode === "signup" && (
               <>
                 <label htmlFor="auth-confirm">Confirm Password</label>
-                <input
+                <div className="password-input-row"><input
                   id="auth-confirm"
-                  type={showAuthPassword ? "text" : "password"}
+                  type={showAuthPasswordConfirm ? "text" : "password"}
                   autoComplete="new-password"
                   value={authPasswordConfirm}
                   onChange={(e) => setAuthPasswordConfirm(e.target.value)}
-                />
+                /><button type="button" className="password-visibility-button is-icon-only" onClick={() => setShowAuthPasswordConfirm((shown) => !shown)} aria-pressed={showAuthPasswordConfirm} aria-label={showAuthPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"}><PasswordEyeIcon hidden={!showAuthPasswordConfirm} /></button></div>
               </>
             )}
             {authError && <p className="auth-error" role="alert">{authError}</p>}
+            {authNotice && <p className="auth-notice" role="status" aria-live="polite">{authNotice}</p>}
+            {CLOUD_SYNC_CONFIGURED && authMode === "signin" && <button type="button" className="auth-text-button" onClick={() => showWelcomeAuth("forgot")}>Forgot password?</button>}
             <button type="submit" className="btn btn-primary" disabled={authBusy}>
               {authBusy ? "Working…" : authMode === "signin" ? "Sign In" : "Create Account"}
             </button>
-          </form>
+          </form>}
           <div className="auth-warning">
             <strong>{CLOUD_SYNC_CONFIGURED ? "Your password is handled by Supabase Auth." : "Password does not save, save independently!"}</strong>
             <p>
               {CLOUD_SYNC_CONFIGURED ? "Your account data can sync across devices. Attachment files and push-reminder connections still stay on each browser." : "TaskCabinet stores only a password verifier. Accounts and assignments stay on this browser, do not sync to other devices, and have no password recovery."}
             </p>
           </div>
+          </section>
+          <footer className="welcome-footer">TaskCabinet helps you organize the work. You stay in charge of it.</footer>
         </main>
       </div>
     );
@@ -8027,7 +8140,7 @@ function App() {
                   ))}
                 </nav>}
                 <div className="settings-content">
-                  <div className={`settings-grid${storageView ? " settings-grid-hidden" : ""}${settingsSection === "personalization" ? " settings-grid-personalization" : ""}`}>
+                  <div key={`${settingsSection}-${storageView || "main"}`} className={`settings-grid${storageView ? " settings-grid-hidden" : ""}${settingsSection === "personalization" ? " settings-grid-personalization" : ""}`}>
                 <section className="settings-section personalization-top-section appearance-settings-section" hidden={settingsSection !== "personalization"}>
                   <div className="settings-onboarding-card">
                     <div><p className="eyebrow">Getting started</p><h4>TaskCabinet Tutorial</h4><p className="hint-text">Replay the visual introduction or manage optional sample assignments.</p></div>
@@ -8555,9 +8668,9 @@ function App() {
                     <SettingsCard title="Password" description="Choose a new password with at least 8 characters. TaskCabinet never displays your current password." className="settings-section-wide">
                       <form className="account-settings-form account-password-form" onSubmit={handleAccountPasswordUpdate}>
                         <label htmlFor="account-new-password">New password</label>
-                        <div className="password-input-row"><input id="account-new-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide new passwords" : "Show new passwords"} onClick={() => setShowAccountPassword((shown) => !shown)}>{showAccountPassword ? "Hide" : "Show"}</button></div>
+                        <div className="password-input-row"><input id="account-new-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide new password" : "Show new password"} onClick={() => setShowAccountPassword((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPassword} /></button></div>
                         <label htmlFor="account-confirm-password">Confirm new password</label>
-                        <input id="account-confirm-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordConfirm} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} />
+                        <div className="password-input-row"><input id="account-confirm-password" type={showAccountPasswordConfirm ? "text" : "password"} value={accountPasswordConfirm} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPasswordConfirm} aria-label={showAccountPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"} onClick={() => setShowAccountPasswordConfirm((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPasswordConfirm} /></button></div>
                         <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountPasswordDraft || !accountPasswordConfirm}>{accountUpdateBusy === "password" ? "Updating…" : "Update Password"}</button>
                       </form>
                     </SettingsCard>
@@ -8571,7 +8684,7 @@ function App() {
                       <label htmlFor="upgrade-password">New account password</label>
                       <div className="password-input-row"><input id="upgrade-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide account passwords" : "Show account passwords"} onClick={() => setShowAccountPassword((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPassword} /></button></div>
                       <label htmlFor="upgrade-password-confirm">Confirm new account password</label>
-                      <input id="upgrade-password-confirm" type={showAccountPassword ? "text" : "password"} value={accountPasswordConfirm} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} />
+                      <div className="password-input-row"><input id="upgrade-password-confirm" type={showAccountPasswordConfirm ? "text" : "password"} value={accountPasswordConfirm} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPasswordConfirm} aria-label={showAccountPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"} onClick={() => setShowAccountPasswordConfirm((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPasswordConfirm} /></button></div>
                       <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountEmailDraft.trim() || !accountPasswordDraft || !accountPasswordConfirm}>{accountUpdateBusy === "upgrade" ? "Creating secure account…" : "Add Email & Enable Sync"}</button>
                     </form>
                     {accountUpdateStatus.message && <div className={`account-update-message is-${accountUpdateStatus.type}`} role="status">{accountUpdateStatus.message}</div>}

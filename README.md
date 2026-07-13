@@ -109,13 +109,15 @@ TaskCabinet uses Supabase Auth and one RLS-protected JSON snapshot per Auth user
 Setup:
 
 1. Review and run `supabase/migrations/202607130001_create_taskcabinet_cloud_state.sql` in the same Supabase project. Do not modify or replace the push-reminder migration.
-2. Enable Email/Password authentication in Supabase Authentication. Configure the Site URL and allowed redirect URLs for localhost and the production origin. Decide whether email confirmation is required before testing.
+2. Enable Email/Password authentication in Supabase Authentication. Configure the Site URL and add both the production origin and local development origin (for example, `http://localhost:5173/`) to Authentication > URL Configuration > Redirect URLs. These approved URLs are used for email confirmation and password recovery. Decide whether email confirmation is required before testing.
 3. Set `VITE_SUPABASE_URL` and the public anon/publishable key in local development and Vercel, then rebuild the frontend.
 4. Keep `SUPABASE_SECRET_KEY` server-only for the reminder registry. Cloud account sync does not use it in React.
 
 The synchronized snapshot contains assignments, attachment metadata, courses and colors, checklists, workspace layouts, account preferences, theme, and display name. Attachment blobs remain in the existing `taskacadia_attachments` IndexedDB database, so a file added on one device reports that it is unavailable when opened on another device. Notification permission, OneSignal subscriptions, device enrollment/cleanup records, notification history, local password verifiers, sync metadata, and temporary UI state are never uploaded.
 
 Sync is local-first: local writes happen immediately, cloud writes are debounced, revision-checked, and retried after reconnecting. Conflicting meaningful versions are backed up locally and require an explicit Keep cloud data or Use this device's data choice.
+
+Signed-out visitors see the public TaskCabinet welcome page with Sign In and Create Account embedded on the same page. Supabase account users can choose **Forgot password?** to request a recovery email. The recovery link returns to the configured TaskCabinet origin, opens the new-password form, and keeps the recovered session signed in after a successful update. Supabase Auth sends and validates these emails; SMTP secrets and service credentials must never be placed in React code or a `VITE_` variable. Local-only browser profiles do not have email recovery until they add an email and enable account sync from Account Settings.
 
 Two-device test:
 

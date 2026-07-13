@@ -932,6 +932,66 @@ button:disabled {
   padding: 24px;
 }
 
+.welcome-screen {
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--primary-color) 18%, transparent), transparent 35%),
+    radial-gradient(circle at 88% 22%, color-mix(in srgb, var(--accent-color, var(--primary-color)) 14%, transparent), transparent 32%),
+    var(--page-bg, var(--background-color));
+}
+
+.welcome-page { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 42px 0 28px; }
+.welcome-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr); align-items: center; gap: clamp(36px, 7vw, 90px); min-height: 540px; }
+.welcome-hero-copy { animation: welcome-copy-arrive 520ms var(--motion-ease-out) both; }
+.welcome-title { max-width: 720px; margin: 8px 0 18px; color: var(--text-color); font-size: clamp(2.6rem, 6vw, 5.4rem); line-height: .98; letter-spacing: -.055em; }
+.welcome-hero-copy > p:not(.eyebrow) { max-width: 650px; color: var(--muted-text); font-size: clamp(1.05rem, 2vw, 1.25rem); line-height: 1.65; }
+.welcome-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.welcome-actions .btn { min-height: 48px; padding-inline: 20px; }
+.welcome-trust { display: flex; max-width: 620px; align-items: flex-start; gap: 8px; margin-top: 22px; color: var(--muted-text); font-size: .92rem; line-height: 1.5; }
+.welcome-trust span { display: grid; width: 22px; height: 22px; flex: 0 0 22px; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--success-color) 16%, transparent); color: var(--success-color); font-weight: 900; }
+.welcome-preview { padding: 24px; border: 1px solid color-mix(in srgb, var(--primary-color) 28%, var(--border-color)); border-radius: 26px; background: color-mix(in srgb, var(--card-bg) 92%, transparent); box-shadow: 0 30px 80px color-mix(in srgb, var(--backdrop-color, #111827) 22%, transparent); transform: rotate(1.5deg); animation: welcome-preview-arrive 620ms 90ms var(--motion-ease-out) both; }
+.welcome-preview-top { display: grid; gap: 3px; margin-bottom: 20px; color: var(--text-color); }
+.welcome-preview-top span, .welcome-preview-task small { color: var(--muted-text); }
+.welcome-preview-task { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 12px; margin: 10px 0; padding: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--surface-alt); color: var(--text-color); }
+.welcome-preview-task i { width: 10px; height: 42px; border-radius: 99px; background: #3b82f6; }
+.welcome-preview-task i.is-purple { background: #8b5cf6; }
+.welcome-preview-task span { display: grid; gap: 3px; }
+.welcome-preview-task b { font-size: .8rem; }
+.welcome-preview-progress { height: 8px; margin-top: 20px; overflow: hidden; border-radius: 99px; background: var(--border-color); }
+.welcome-preview-progress span { display: block; height: 100%; border-radius: inherit; background: var(--primary-color); }
+.welcome-features { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; padding: 24px 0 72px; }
+.welcome-feature-card { padding: 20px; border: 1px solid var(--border-color); border-radius: 18px; background: var(--card-bg); color: var(--text-color); animation: surface-arrive 360ms var(--motion-ease-out) both; }
+.welcome-feature-card:nth-child(2) { animation-delay: 50ms; }.welcome-feature-card:nth-child(3) { animation-delay: 100ms; }.welcome-feature-card:nth-child(4) { animation-delay: 150ms; }.welcome-feature-card:nth-child(5) { animation-delay: 200ms; }
+.welcome-feature-card > span { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--primary-color) 14%, var(--surface-alt)); color: var(--primary-color); font-weight: 900; }
+.welcome-feature-card h2 { margin: 18px 0 8px; font-size: 1rem; }
+.welcome-feature-card p { margin: 0; color: var(--muted-text); font-size: .9rem; line-height: 1.5; }
+.welcome-auth-card { width: min(100%, 590px); margin: 0 auto 60px; scroll-margin-block: 40px; animation: floating-surface-arrive 360ms var(--motion-ease-out) both; }
+.auth-mode-content { animation: auth-mode-arrive 220ms var(--motion-ease-out) both; }
+.auth-form-intro { margin: 0 0 4px; color: var(--muted-text); line-height: 1.5; }
+.auth-text-button { width: fit-content; padding: 2px 0; border: 0; background: transparent; color: var(--primary-color); font: inherit; font-weight: 800; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.auth-notice { margin: 4px 0; padding: 11px 12px; border: 1px solid color-mix(in srgb, var(--success-color) 48%, var(--border-color)); border-radius: 11px; background: color-mix(in srgb, var(--success-color) 10%, var(--surface-alt)); color: var(--text-color); font-weight: 700; animation: status-settle 280ms var(--motion-ease-out) both; }
+.welcome-footer { padding: 8px 0 24px; color: var(--muted-text); text-align: center; }
+
+@keyframes welcome-copy-arrive { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes welcome-preview-arrive { from { opacity: 0; transform: translateY(20px) rotate(0) scale(.97); } to { opacity: 1; transform: translateY(0) rotate(1.5deg) scale(1); } }
+@keyframes auth-mode-arrive { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+
+@media (max-width: 900px) {
+  .welcome-hero { grid-template-columns: 1fr; padding: 48px 0; }
+  .welcome-preview { width: min(600px, 100%); transform: none; }
+  .welcome-features { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .welcome-page { width: min(100% - 24px, 1180px); padding-top: 18px; }
+  .welcome-hero { min-height: 0; gap: 32px; padding: 32px 0 42px; }
+  .welcome-title { font-size: clamp(2.45rem, 13vw, 3.5rem); }
+  .welcome-actions, .welcome-actions .btn { width: 100%; }
+  .welcome-features { grid-template-columns: 1fr; padding-bottom: 50px; }
+  .welcome-auth-card { padding: 22px 18px; }
+}
+
 .auth-card {
   width: min(100%, 480px);
   padding: 30px;
