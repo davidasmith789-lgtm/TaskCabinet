@@ -2080,7 +2080,7 @@ function App() {
         rootStyle.setProperty(variable, value);
       });
     });
-    const appBarColor = normalizeHexColor(activeColors.nav || "") || THEME_COLOR_DEFAULTS[theme].nav;
+    const appBarColor = normalizeHexColor(activeColors.page || "") || THEME_COLOR_DEFAULTS[theme].page;
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", appBarColor);
   }, [currentUser, theme, userSettings.customColors]);
 
