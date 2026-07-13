@@ -4619,6 +4619,13 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 .sync-conflict-dialog { width: min(560px, 100%); padding: 24px; border: 1px solid var(--border-color); border-radius: 18px; background: var(--card-bg); color: var(--text-color); box-shadow: var(--shadow-card); }
 .sync-conflict-dialog h2 { margin-top: 6px; }
 .sync-conflict-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.account-settings-form { display: grid; gap: 9px; }
+.account-settings-form label { color: var(--text-color); font-weight: 800; }
+.account-settings-form .btn { width: fit-content; margin-top: 4px; }
+.account-password-form { max-width: 620px; }
+.account-update-message { padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-alt); color: var(--text-color); font-weight: 700; }
+.account-update-message.is-success { border-color: color-mix(in srgb, var(--success-color) 55%, var(--border-color)); color: var(--success-color); }
+.account-update-message.is-error { border-color: color-mix(in srgb, var(--danger-color) 55%, var(--border-color)); color: var(--danger-color); }
 .friendly-empty { animation: friendly-empty-in var(--motion-standard) var(--motion-ease-out) both; }
 
 /* Small surface transitions keep view changes feeling connected without slowing work. */

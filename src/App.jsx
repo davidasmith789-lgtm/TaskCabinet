@@ -375,6 +375,7 @@ const COLOR_CSS_VARIABLES = {
 };
 
 const SETTINGS_SECTIONS = [
+  { id: "account", icon: "👤", label: "Account", description: "Display name, email, and password." },
   { id: "personalization", icon: "🎨", label: "Personalization", description: "Theme, layout, type, and every color." },
   { id: "assignments", icon: "📝", label: "Assignment Options", description: "Fields, defaults, and workflow behavior." },
   { id: "checklists", icon: "☑️", label: "Checklists", description: "Standalone list deadlines and appearance." },
@@ -1499,6 +1500,14 @@ function App() {
   });
   const [signInName, setSignInName] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountDisplayNameDraft, setAccountDisplayNameDraft] = useState("");
+  const [accountEmailDraft, setAccountEmailDraft] = useState("");
+  const [accountPasswordDraft, setAccountPasswordDraft] = useState("");
+  const [accountPasswordConfirm, setAccountPasswordConfirm] = useState("");
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
+  const [accountUpdateStatus, setAccountUpdateStatus] = useState({ type: "", message: "" });
+  const [accountUpdateBusy, setAccountUpdateBusy] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
@@ -1843,6 +1852,9 @@ function App() {
       const user = data.session?.user;
       setCurrentUser(user?.id || "");
       setDisplayName(user?.user_metadata?.display_name || user?.email?.split("@")[0] || "");
+      setAccountEmail(user?.email || "");
+      setAccountEmailDraft(user?.email || "");
+      setAccountDisplayNameDraft(user?.user_metadata?.display_name || user?.email?.split("@")[0] || "");
       setAuthInitializing(false);
       if (!user) setSyncStatus("signed-out");
     }).catch(() => {
@@ -1853,6 +1865,9 @@ function App() {
       const user = session?.user;
       setCurrentUser(user?.id || "");
       setDisplayName(user?.user_metadata?.display_name || user?.email?.split("@")[0] || "");
+      setAccountEmail(user?.email || "");
+      setAccountEmailDraft(user?.email || "");
+      setAccountDisplayNameDraft(user?.user_metadata?.display_name || user?.email?.split("@")[0] || "");
       if (!user) setSyncStatus("signed-out");
     });
     return () => { mounted = false; listener.subscription.unsubscribe(); };
@@ -4323,6 +4338,56 @@ function App() {
     setSyncConflictOpen(false);
     setSyncStatus("saving");
     setSyncRetryNonce((value) => value + 1);
+  };
+
+  const handleAccountDisplayNameUpdate = async (event) => {
+    event.preventDefault();
+    const nextName = accountDisplayNameDraft.trim();
+    if (!nextName) { setAccountUpdateStatus({ type: "error", message: "Enter a display name." }); return; }
+    setAccountUpdateBusy("display-name");
+    setAccountUpdateStatus({ type: "", message: "" });
+    try {
+      const { error } = await getSupabaseBrowserClient().auth.updateUser({ data: { display_name: nextName } });
+      if (error) throw error;
+      setDisplayName(nextName);
+      setAccountUpdateStatus({ type: "success", message: "Display name updated." });
+    } catch (error) {
+      setAccountUpdateStatus({ type: "error", message: error.message || "Display name could not be updated." });
+    } finally { setAccountUpdateBusy(""); }
+  };
+
+  const handleAccountEmailUpdate = async (event) => {
+    event.preventDefault();
+    const nextEmail = accountEmailDraft.trim().toLowerCase();
+    if (!nextEmail || nextEmail === accountEmail.toLowerCase()) { setAccountUpdateStatus({ type: "error", message: "Enter a different valid email address." }); return; }
+    setAccountUpdateBusy("email");
+    setAccountUpdateStatus({ type: "", message: "" });
+    try {
+      const { data, error } = await getSupabaseBrowserClient().auth.updateUser({ email: nextEmail });
+      if (error) throw error;
+      setAccountEmail(data.user?.email || accountEmail);
+      setAccountUpdateStatus({ type: "success", message: "Check your email to confirm the address change. Your current email remains active until confirmation is complete." });
+    } catch (error) {
+      setAccountUpdateStatus({ type: "error", message: error.message || "Email could not be updated." });
+    } finally { setAccountUpdateBusy(""); }
+  };
+
+  const handleAccountPasswordUpdate = async (event) => {
+    event.preventDefault();
+    if (accountPasswordDraft.length < 8) { setAccountUpdateStatus({ type: "error", message: "Your new password must contain at least 8 characters." }); return; }
+    if (accountPasswordDraft !== accountPasswordConfirm) { setAccountUpdateStatus({ type: "error", message: "The new password confirmation does not match." }); return; }
+    setAccountUpdateBusy("password");
+    setAccountUpdateStatus({ type: "", message: "" });
+    try {
+      const { error } = await getSupabaseBrowserClient().auth.updateUser({ password: accountPasswordDraft });
+      if (error) throw error;
+      setAccountPasswordDraft("");
+      setAccountPasswordConfirm("");
+      setShowAccountPassword(false);
+      setAccountUpdateStatus({ type: "success", message: "Password updated." });
+    } catch (error) {
+      setAccountUpdateStatus({ type: "error", message: error.message || "Password could not be updated." });
+    } finally { setAccountUpdateBusy(""); }
   };
 
   const handleRecommendationSubmit = async (event) => {
@@ -8352,6 +8417,35 @@ function App() {
                     />
                   </label>
                 </section>
+
+                {settingsSection === "account" && (
+                  CLOUD_SYNC_CONFIGURED ? <>
+                    <SettingsCard title="Display Name" description="This friendly name appears around TaskCabinet. It is not used as your database ownership key.">
+                      <form className="account-settings-form" onSubmit={handleAccountDisplayNameUpdate}>
+                        <label htmlFor="account-display-name">Display name</label>
+                        <input id="account-display-name" value={accountDisplayNameDraft} maxLength={80} autoComplete="nickname" onChange={(event) => setAccountDisplayNameDraft(event.target.value)} />
+                        <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountDisplayNameDraft.trim()}>{accountUpdateBusy === "display-name" ? "Saving…" : "Save Display Name"}</button>
+                      </form>
+                    </SettingsCard>
+                    <SettingsCard title="Email Address" description={`Your current sign-in email is ${accountEmail || "still loading"}. Supabase may ask you to confirm both addresses.`}>
+                      <form className="account-settings-form" onSubmit={handleAccountEmailUpdate}>
+                        <label htmlFor="account-email">New email</label>
+                        <input id="account-email" type="email" value={accountEmailDraft} autoComplete="email" onChange={(event) => setAccountEmailDraft(event.target.value)} />
+                        <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountEmailDraft.trim()}>{accountUpdateBusy === "email" ? "Sending confirmation…" : "Change Email"}</button>
+                      </form>
+                    </SettingsCard>
+                    <SettingsCard title="Password" description="Choose a new password with at least 8 characters. TaskCabinet never displays your current password." className="settings-section-wide">
+                      <form className="account-settings-form account-password-form" onSubmit={handleAccountPasswordUpdate}>
+                        <label htmlFor="account-new-password">New password</label>
+                        <div className="password-input-row"><input id="account-new-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide new passwords" : "Show new passwords"} onClick={() => setShowAccountPassword((shown) => !shown)}>{showAccountPassword ? "Hide" : "Show"}</button></div>
+                        <label htmlFor="account-confirm-password">Confirm new password</label>
+                        <input id="account-confirm-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordConfirm} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} />
+                        <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountPasswordDraft || !accountPasswordConfirm}>{accountUpdateBusy === "password" ? "Updating…" : "Update Password"}</button>
+                      </form>
+                    </SettingsCard>
+                    {accountUpdateStatus.message && <div className={`account-update-message is-${accountUpdateStatus.type} settings-section-wide`} role="status">{accountUpdateStatus.message}</div>}
+                  </> : <SettingsCard title="Local Account" description="Email and cross-device account controls become available when Supabase account sync is configured." className="settings-section-wide"><p className="hint-text">This local profile stays on this browser. Your existing assignments and password verifier are unchanged.</p></SettingsCard>
+                )}
 
                 {settingsSection === "checklists" && (
                   <>
