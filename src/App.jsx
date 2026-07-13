@@ -1786,6 +1786,7 @@ function App() {
   const [helpSearch, setHelpSearch] = useState("");
   const [isMobileUi, setIsMobileUi] = useState(() => window.matchMedia("(max-width: 767px)").matches);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(Math.max(0, window.innerWidth - 48)));
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(0);
   const workspaceMainRef = useRef(null);
@@ -2845,6 +2846,28 @@ function App() {
     if (isMobileUi || !["mobile-add", "mobile-tools", "mobile-courses"].includes(currentTab)) return;
     setCurrentTab("dashboard");
   }, [currentTab, isMobileUi]);
+
+  useEffect(() => {
+    if (!isMobileUi || (!mobileMoreOpen && !mobileSettingsOpen)) return undefined;
+    const scrollY = window.scrollY;
+    const previousBodyStyles = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+    };
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      Object.assign(document.body.style, previousBodyStyles);
+      window.scrollTo(0, scrollY);
+    };
+  }, [isMobileUi, mobileMoreOpen, mobileSettingsOpen]);
 
   useEffect(() => {
     if (!tutorialOpen) return undefined;
@@ -6959,9 +6982,12 @@ function App() {
   const mobileUsesOwnScreen = isMobileUi && mobileOwnedTabs.includes(currentTab);
   const mobileTaskTabActive = ["todo", "inProgress", "completed"].includes(currentTab);
   const mobileMoreActive = ["settings", "recommendations", "mobile-tools", "mobile-courses"].includes(currentTab);
+  const selectedMobileSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === settingsSection) || SETTINGS_SECTIONS[0];
   const openMobileTab = (tab) => {
     setCurrentTab(tab);
     setMobileMoreOpen(false);
+    setMobileSettingsOpen(false);
+    setStorageView(null);
     window.scrollTo({ top: 0, behavior: userSettings.reduceMotion ? "auto" : "smooth" });
   };
   const renderMobilePageTitle = (eyebrow, title, copy) => (
@@ -8250,6 +8276,7 @@ function App() {
                         onClick={() => {
                           setStorageView(null);
                           setSettingsSection(section.id);
+                          if (isMobileUi) setMobileSettingsOpen(true);
                         }}
                       >
                         <strong className="settings-nav-label">
@@ -8261,13 +8288,20 @@ function App() {
                     </div>
                   ))}
                 </nav>}
-                <div className="settings-content">
+                {isMobileUi && mobileSettingsOpen && <button type="button" className="mobile-settings-backdrop" onClick={() => { setMobileSettingsOpen(false); setStorageView(null); }} aria-label="Close settings section" />}
+                <div className={`settings-content${isMobileUi && mobileSettingsOpen ? " mobile-settings-panel-open" : ""}`}>
+                  {isMobileUi && (
+                    <header className="mobile-settings-panel-header">
+                      <div><span>Settings</span><h2>{selectedMobileSettingsSection.label}</h2><p>{selectedMobileSettingsSection.description}</p></div>
+                      <button type="button" onClick={() => { setMobileSettingsOpen(false); setStorageView(null); }} aria-label="Close settings section">×</button>
+                    </header>
+                  )}
                   <div key={`${settingsSection}-${storageView || "main"}`} className={`settings-grid${storageView ? " settings-grid-hidden" : ""}${settingsSection === "personalization" ? " settings-grid-personalization" : ""}`}>
                 <section className="settings-section personalization-top-section appearance-settings-section" hidden={settingsSection !== "personalization"}>
-                  <div className="settings-onboarding-card">
+                  {!isMobileUi && <div className="settings-onboarding-card">
                     <div><p className="eyebrow">Getting started</p><h4>TaskCabinet Tutorial</h4><p className="hint-text">Replay the visual introduction or manage optional sample assignments.</p></div>
                     <div className="settings-onboarding-actions"><button type="button" className="btn btn-primary" onClick={() => { setTutorialStep(0); setTutorialOpen(true); }}>Replay Tutorial</button></div>
-                  </div>
+                  </div>}
                   <div
                     className="settings-collapse-header double-click-collapse-header"
                     onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setAppearanceSettingsOpen((isOpen) => !isOpen))}
@@ -9195,7 +9229,6 @@ function App() {
             {mobileMoreOpen && (
               <div className="mobile-app-sheet-backdrop" role="presentation" onClick={() => setMobileMoreOpen(false)}>
                 <section className="mobile-app-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-more-title" onClick={(event) => event.stopPropagation()}>
-                  <div className="mobile-app-sheet-handle" aria-hidden="true" />
                   <header><div><span>TaskCabinet</span><h2 id="mobile-more-title">More</h2></div><button type="button" onClick={() => setMobileMoreOpen(false)} aria-label="Close more menu">×</button></header>
                   <div className="mobile-app-menu-grid">
                     <button type="button" onClick={() => openMobileTab("mobile-tools")}><strong>Study tools</strong><span>Reminders and course overview</span></button>
