@@ -8002,6 +8002,7 @@ function App() {
                   <Calendar
                     onChange={handleCalendarDateChange}
                     value={selectedDate}
+                    minDetail="decade"
                     calendarType={userSettings.calendarWeekStartsOn === "monday" ? "iso8601" : "gregory"}
                     showNeighboringMonth={userSettings.showNeighboringMonth !== false}
                     tileClassName={({ date, view }) => view === "month" && calendarTasks.some((task) => Number(task.dueMonth) === date.getMonth() + 1 && Number(task.dueDay) === date.getDate() && getTaskDueBucket(task).startsWith("Overdue")) ? "calendar-overdue-day" : ""}
