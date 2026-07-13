@@ -102,6 +102,31 @@ The React UI can run locally, but real closed-app delivery requires a configured
 
 Never log or expose the OneSignal API key, push signing secret, Supabase secret, full assignments, notes, passwords, visible usernames, arbitrary notification text, or external notification URLs.
 
+## Optional cross-device account sync
+
+TaskCabinet uses Supabase Auth and one RLS-protected JSON snapshot per Auth user when `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are configured. Without both public variables, the existing browser-local account system remains available. Never put a service-role or secret key in a `VITE_` variable.
+
+Setup:
+
+1. Review and run `supabase/migrations/202607130001_create_taskcabinet_cloud_state.sql` in the same Supabase project. Do not modify or replace the push-reminder migration.
+2. Enable Email/Password authentication in Supabase Authentication. Configure the Site URL and allowed redirect URLs for localhost and the production origin. Decide whether email confirmation is required before testing.
+3. Set `VITE_SUPABASE_URL` and the public anon/publishable key in local development and Vercel, then rebuild the frontend.
+4. Keep `SUPABASE_SECRET_KEY` server-only for the reminder registry. Cloud account sync does not use it in React.
+
+The synchronized snapshot contains assignments, attachment metadata, courses and colors, checklists, workspace layouts, account preferences, theme, and display name. Attachment blobs remain in the existing `taskacadia_attachments` IndexedDB database, so a file added on one device reports that it is unavailable when opened on another device. Notification permission, OneSignal subscriptions, device enrollment/cleanup records, notification history, local password verifiers, sync metadata, and temporary UI state are never uploaded.
+
+Sync is local-first: local writes happen immediately, cloud writes are debounced, revision-checked, and retried after reconnecting. Conflicting meaningful versions are backed up locally and require an explicit Keep cloud data or Use this device's data choice.
+
+Two-device test:
+
+1. Create or sign into the same confirmed email account in two clean browser profiles.
+2. Add an assignment, course color, checklist, and widget movement on device A; wait for Saved.
+3. Refresh device B and confirm all four appear, then edit on B and refresh A.
+4. Take one device offline, edit, reconnect, and wait for Saved.
+5. Edit the same account independently on both devices before either receives the other revision; confirm the conflict dialog appears and neither version is silently discarded.
+6. Add an attachment on A. Confirm its metadata appears on B and opening it clearly reports that the local file is unavailable.
+7. Confirm push permission and Push Reminders must still be enabled separately on each device.
+
 Reminder endpoints also enforce exact origin checks, signed installation ownership after enrollment, strict fixed payloads/targets, bounded reconciliation batches, and a best-effort per-instance request limit. For a larger public deployment, add an infrastructure-level distributed rate limiter in front of the Vercel Functions.
 
 ## Maintenance rules

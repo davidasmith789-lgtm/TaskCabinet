@@ -4612,6 +4612,13 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 .empty-state-action { justify-content: center; text-align: center; padding: 18px; }
 .empty-state-action p { flex-basis: 100%; }
 .recommended-plan-tip-bubble { width: fit-content; max-width: 100%; margin: 0 auto; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--primary-color) 35%, var(--border-color)); border-radius: 999px; background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg)); color: var(--text-color); font-size: 0.82rem; font-weight: 700; line-height: 1.35; }
+.cloud-sync-status { padding: 5px 9px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface-alt); color: var(--muted-text); font-size: 0.76rem; font-weight: 800; }
+.cloud-sync-status.is-saved { color: var(--success-color); }
+.cloud-sync-status:is(.is-failed, .is-conflict) { color: var(--danger-color); }
+.sync-conflict-backdrop { position: fixed; z-index: 10000; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, #000 72%, transparent); }
+.sync-conflict-dialog { width: min(560px, 100%); padding: 24px; border: 1px solid var(--border-color); border-radius: 18px; background: var(--card-bg); color: var(--text-color); box-shadow: var(--shadow-card); }
+.sync-conflict-dialog h2 { margin-top: 6px; }
+.sync-conflict-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .friendly-empty { animation: friendly-empty-in var(--motion-standard) var(--motion-ease-out) both; }
 
 /* Small surface transitions keep view changes feeling connected without slowing work. */

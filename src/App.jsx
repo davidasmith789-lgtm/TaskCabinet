@@ -39,6 +39,8 @@ import { buildDesiredReminders, EXTERNAL_PUSH_CLIENT_ENABLED, getPushDeviceStora
 import { cancelAllExternalReminders, cancelExternalReminder, reconcileExternalReminders, replaceExternalReminder, retryPendingExternalCleanup, scheduleExternalReminder, sendExternalReminderTest } from "./externalReminderClient.js";
 import { summarizeDeadlineConfidence } from "./deadlineConfidenceUtils.js";
 import { canSendReminderTest, clearReminderFailure, createReminderActionGuard, deriveReminderUserStatus, formatReminderLeadTime, friendlyReminderError, getAssignmentReminderIndicator, getReminderStatusCopy, shouldShowReminderSuggestion, shouldShowRepairReminderSync } from "./reminderUxUtils.js";
+import { CLOUD_SYNC_CONFIGURED, getSupabaseBrowserClient } from "./supabaseClient.js";
+import { applyCloudStateToLocal, collectSyncableState, createCloudSnapshot, hasMeaningfulState, loadCloudSnapshot, loadLocalMeta, loadLocalSnapshot, readLegacySnapshot, replaceCloudSnapshot, sameState, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
 /*
  * TASKCABINET APPLICATION MAP
  *
@@ -1046,7 +1048,7 @@ const PERSONALIZATION_TIPS = [
   ["Archive and Trash", "Archive keeps finished assignments out of the way. Trash is recoverable until you permanently delete it, so moving something there is not immediately final."],
   ["Calendar assignment details", "Choose a date to see everything due that day. Course-colored dots help you scan the month without changing the colors of the assignments themselves."],
   ["Dashboard reminder range", "The reminder widget’s upcoming range only changes what appears on the dashboard. It does not change when push notifications are sent."],
-  ["Local profiles", "Each username on this browser has its own assignments, settings, themes, layouts, and reminder connection. These are local profiles, not cloud accounts."],
+  ["Accounts and profiles", "With account sync configured, your assignments and personalization can follow your email account. Push permission, reminder connection, and attachment files still belong to each browser."],
   ["Keep local data safe", "TaskCabinet saves your work in this browser. Clearing browser storage or using a different device does not automatically bring that data with you."],
 ];
 
@@ -1485,6 +1487,7 @@ function App() {
   // Only an authenticated account may restore a profile. Older passwordless
   // currentUser values are deliberately ignored until that profile is claimed.
   const [currentUser, setCurrentUser] = useState(() => {
+    if (CLOUD_SYNC_CONFIGURED) return "";
     try {
       const authenticatedUser = localStorage.getItem(AUTH_USER_STORAGE_KEY) || "";
       const account = getStoredAccounts()[authenticatedUser.toLowerCase()];
@@ -1495,12 +1498,25 @@ function App() {
     }
   });
   const [signInName, setSignInName] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authPasswordConfirm, setAuthPasswordConfirm] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authMode, setAuthMode] = useState("signin");
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
+  const [authInitializing, setAuthInitializing] = useState(CLOUD_SYNC_CONFIGURED);
+  const [syncStatus, setSyncStatus] = useState(CLOUD_SYNC_CONFIGURED ? "initializing" : "local-only");
+  const [syncError, setSyncError] = useState("");
+  const [syncConflict, setSyncConflict] = useState(null);
+  const [syncConflictOpen, setSyncConflictOpen] = useState(false);
+  const [syncRetryNonce, setSyncRetryNonce] = useState(0);
+  const cloudRevisionRef = useRef(0);
+  const cloudHydratedUserRef = useRef("");
+  const cloudSaveTimerRef = useRef(null);
+  const cloudSavingRef = useRef(false);
+  const cloudSaveQueuedRef = useRef(false);
+  const latestCloudStateRef = useRef(null);
 
   // A username becomes part of each key. This keeps one user's data separate
   // from another user's data while still using the same browser localStorage.
@@ -1818,6 +1834,135 @@ function App() {
   ];
   const activeColorThemeId = userSettings.activeColorThemeId || theme;
 
+  useEffect(() => {
+    if (!CLOUD_SYNC_CONFIGURED) return undefined;
+    const client = getSupabaseBrowserClient();
+    let mounted = true;
+    client.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const user = data.session?.user;
+      setCurrentUser(user?.id || "");
+      setDisplayName(user?.user_metadata?.display_name || user?.email?.split("@")[0] || "");
+      setAuthInitializing(false);
+      if (!user) setSyncStatus("signed-out");
+    }).catch(() => {
+      if (mounted) { setAuthInitializing(false); setSyncStatus("local-only"); }
+    });
+    const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      const user = session?.user;
+      setCurrentUser(user?.id || "");
+      setDisplayName(user?.user_metadata?.display_name || user?.email?.split("@")[0] || "");
+      if (!user) setSyncStatus("signed-out");
+    });
+    return () => { mounted = false; listener.subscription.unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
+    if (!CLOUD_SYNC_CONFIGURED || !currentUser) return undefined;
+    const client = getSupabaseBrowserClient();
+    let cancelled = false;
+    setSyncStatus("cloud-loading");
+    setSyncError("");
+    const hydrate = async () => {
+      try {
+        const local = loadLocalSnapshot(localStorage, currentUser) || readLegacySnapshot(localStorage, currentUser, DEFAULT_USER_SETTINGS);
+        const localMeta = loadLocalMeta(localStorage, currentUser);
+        const cloud = await loadCloudSnapshot(client, currentUser);
+        if (cancelled) return;
+        let selected = local;
+        let revision = 0;
+        if (!cloud) {
+          const created = await createCloudSnapshot(client, currentUser, local);
+          revision = Number(created.revision);
+        } else {
+          revision = cloud.revision;
+          if (localMeta.pending && hasMeaningfulState(local) && !sameState(local, cloud.state)) {
+            saveLocalBackup(localStorage, currentUser, local);
+            setSyncConflict({ local, cloud: cloud.state, cloudRevision: cloud.revision });
+            setSyncConflictOpen(true);
+            setSyncStatus("conflict");
+            return;
+          }
+          if (!hasMeaningfulState(local) || localMeta.revision < cloud.revision || !sameState(local, cloud.state)) selected = cloud.state;
+        }
+        const localDeviceSettings = JSON.parse(localStorage.getItem(`settings_${currentUser}`) || "{}");
+        applyCloudStateToLocal(localStorage, currentUser, selected, {
+          externalPushEnabled: Boolean(localDeviceSettings.externalPushEnabled),
+          notificationsEnabled: Boolean(localDeviceSettings.notificationsEnabled),
+        });
+        saveLocalSnapshot(localStorage, currentUser, selected, revision, false);
+        cloudRevisionRef.current = revision;
+        cloudHydratedUserRef.current = currentUser;
+        setTasks(selected.tasks);
+        setCourses(selected.courses);
+        setCourseColors(selected.courseColors);
+        setUserSettings((settings) => ({ ...DEFAULT_USER_SETTINGS, ...selected.userSettings, externalPushEnabled: settings.externalPushEnabled, notificationsEnabled: settings.notificationsEnabled }));
+        setChecklists(selected.checklists);
+        const repairedWorkspace = repairLoadedWorkspace(selected.workspaceLayout);
+        workspaceLayoutRef.current = repairedWorkspace;
+        setWorkspaceLayout(repairedWorkspace);
+        setTheme(selected.theme || getSystemPreference());
+        setDisplayName((existingName) => selected.displayName || existingName);
+        setSyncStatus("saved");
+      } catch (error) {
+        if (cancelled) return;
+        setSyncError(error.message || "Cloud sync could not start.");
+        setSyncStatus(navigator.onLine ? "failed" : "offline");
+      }
+    };
+    void hydrate();
+    return () => { cancelled = true; };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!CLOUD_SYNC_CONFIGURED || !currentUser || cloudHydratedUserRef.current !== currentUser || syncConflict) return undefined;
+    const snapshot = collectSyncableState({ tasks, courses, courseColors, userSettings, checklists, workspaceLayout, theme, displayName });
+    latestCloudStateRef.current = snapshot;
+    saveLocalSnapshot(localStorage, currentUser, snapshot, cloudRevisionRef.current, true);
+    if (!navigator.onLine) { setSyncStatus("offline"); return undefined; }
+    setSyncStatus("saving");
+    window.clearTimeout(cloudSaveTimerRef.current);
+    const flush = async () => {
+      if (cloudSavingRef.current) { cloudSaveQueuedRef.current = true; return; }
+      cloudSavingRef.current = true;
+      try {
+        const stateToSave = latestCloudStateRef.current;
+        const result = await replaceCloudSnapshot(getSupabaseBrowserClient(), currentUser, stateToSave, cloudRevisionRef.current);
+        if (cloudHydratedUserRef.current !== currentUser) return;
+        cloudRevisionRef.current = Number(result.revision);
+        saveLocalSnapshot(localStorage, currentUser, stateToSave, result.revision, false);
+        setSyncStatus("saved");
+        setSyncError("");
+      } catch (error) {
+        if (error.code === "revision_conflict") {
+          const newest = await loadCloudSnapshot(getSupabaseBrowserClient(), currentUser).catch(() => null);
+          saveLocalBackup(localStorage, currentUser, latestCloudStateRef.current);
+          setSyncConflict({ local: latestCloudStateRef.current, cloud: newest?.state, cloudRevision: newest?.revision || cloudRevisionRef.current });
+          setSyncConflictOpen(true);
+          setSyncStatus("conflict");
+        } else {
+          setSyncError(error.message || "Cloud save failed.");
+          setSyncStatus(navigator.onLine ? "failed" : "offline");
+        }
+      } finally {
+        cloudSavingRef.current = false;
+        if (cloudSaveQueuedRef.current) { cloudSaveQueuedRef.current = false; void flush(); }
+      }
+    };
+    cloudSaveTimerRef.current = window.setTimeout(flush, 750);
+    return () => window.clearTimeout(cloudSaveTimerRef.current);
+  }, [tasks, courses, courseColors, userSettings, checklists, workspaceLayout, theme, displayName, currentUser, syncConflict, syncRetryNonce]);
+
+  useEffect(() => {
+    if (!CLOUD_SYNC_CONFIGURED) return undefined;
+    const handleOnline = () => { if (currentUser && ["offline", "failed"].includes(syncStatus)) { setSyncStatus("saving"); setSyncRetryNonce((value) => value + 1); } };
+    const handleOffline = () => { if (currentUser) setSyncStatus("offline"); };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => { window.removeEventListener("online", handleOnline); window.removeEventListener("offline", handleOffline); };
+  }, [currentUser, syncStatus]);
+
   // Build the one-line details shown beneath task names in several tabs.
   const formatTaskDetails = (task) => {
     const hasDate = task.dueMonth && task.dueDay;
@@ -1921,6 +2066,10 @@ function App() {
     if (currentUser) return;
     const pushId = new URLSearchParams(window.location.search).get("push");
     if (!pushId) return;
+    if (CLOUD_SYNC_CONFIGURED) {
+      const timer = window.setTimeout(() => setAuthError("Sign in to the same TaskCabinet account to open this reminder."), 0);
+      return () => window.clearTimeout(timer);
+    }
     const account = Object.values(getStoredAccounts()).find((candidate) => {
       try { return JSON.parse(localStorage.getItem(getPushDeviceStorageKey(candidate.profileKey)) || "null")?.profileInstallationId === pushId; } catch { return false; }
     });
@@ -4022,7 +4171,7 @@ function App() {
     setAuthError("");
 
     if (!trimmedName || !authPassword) {
-      setAuthError("Enter both a username and password.");
+      setAuthError(CLOUD_SYNC_CONFIGURED ? "Enter both an email and password." : "Enter both a username and password.");
       return;
     }
     if (authMode === "signup" && authPassword.length < 8) {
@@ -4036,6 +4185,41 @@ function App() {
 
     setAuthBusy(true);
     try {
+      if (CLOUD_SYNC_CONFIGURED) {
+        const client = getSupabaseBrowserClient();
+        if (authMode === "signin") {
+          const { data, error } = await client.auth.signInWithPassword({ email: trimmedName, password: authPassword });
+          if (error) throw error;
+          setCurrentUser(data.user.id);
+          setDisplayName(data.user.user_metadata?.display_name || data.user.email?.split("@")[0] || "");
+        } else {
+          if (!displayName.trim()) { setAuthError("Enter a display name."); return; }
+          const { data, error } = await client.auth.signUp({ email: trimmedName, password: authPassword, options: { data: { display_name: displayName.trim() } } });
+          if (error) throw error;
+          if (data.user) {
+            const legacyProfileKey = findLegacyProfileKey(displayName.trim());
+            const legacy = readLegacySnapshot(localStorage, legacyProfileKey, DEFAULT_USER_SETTINGS);
+            if (legacy && hasMeaningfulState(legacy) && !loadLocalSnapshot(localStorage, data.user.id)) {
+              const migrated = { ...legacy, displayName: displayName.trim() };
+              applyCloudStateToLocal(localStorage, data.user.id, migrated);
+              saveLocalSnapshot(localStorage, data.user.id, migrated, 0, true);
+            }
+          }
+          if (!data.session) {
+            setAuthError("Check your email to confirm the account, then sign in.");
+            setAuthMode("signin");
+            return;
+          }
+          setCurrentUser(data.user.id);
+          setTutorialStep(0);
+          setTutorialOpen(true);
+        }
+        setSignInName("");
+        setAuthPassword("");
+        setAuthPasswordConfirm("");
+        setCurrentTab("dashboard");
+        return;
+      }
       const accounts = getStoredAccounts();
       const existingAccount = accounts[normalizedName];
 
@@ -4094,9 +4278,51 @@ function App() {
 
   const handleSignOut = async () => {
     if (currentUser && userSettings.externalPushEnabled) await cancelAllExternalReminders(currentUser);
+    if (CLOUD_SYNC_CONFIGURED) await getSupabaseBrowserClient().auth.signOut();
     localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    cloudHydratedUserRef.current = "";
+    cloudRevisionRef.current = 0;
+    setSyncConflict(null);
+    setSyncConflictOpen(false);
     setCurrentUser("");
     setCurrentTab("dashboard");
+  };
+
+  const applyResolvedCloudState = (state, revision) => {
+    const deviceSettings = { externalPushEnabled: userSettings.externalPushEnabled, notificationsEnabled: userSettings.notificationsEnabled };
+    applyCloudStateToLocal(localStorage, currentUser, state, deviceSettings);
+    saveLocalSnapshot(localStorage, currentUser, state, revision, false);
+    cloudRevisionRef.current = revision;
+    setTasks(state.tasks);
+    setCourses(state.courses);
+    setCourseColors(state.courseColors);
+    setUserSettings({ ...DEFAULT_USER_SETTINGS, ...state.userSettings, ...deviceSettings });
+    setChecklists(state.checklists);
+    const repaired = repairLoadedWorkspace(state.workspaceLayout);
+    workspaceLayoutRef.current = repaired;
+    setWorkspaceLayout(repaired);
+    setTheme(state.theme || getSystemPreference());
+    setDisplayName(state.displayName || displayName);
+  };
+
+  const handleKeepCloudConflict = () => {
+    if (!syncConflict?.cloud) return;
+    saveLocalBackup(localStorage, currentUser, syncConflict.local);
+    applyResolvedCloudState(syncConflict.cloud, syncConflict.cloudRevision);
+    setSyncConflict(null);
+    setSyncConflictOpen(false);
+    setSyncStatus("saved");
+  };
+
+  const handleUseDeviceConflict = () => {
+    if (!syncConflict?.local) return;
+    saveLocalBackup(localStorage, currentUser, syncConflict.cloud);
+    cloudRevisionRef.current = syncConflict.cloudRevision;
+    saveLocalSnapshot(localStorage, currentUser, syncConflict.local, syncConflict.cloudRevision, true);
+    setSyncConflict(null);
+    setSyncConflictOpen(false);
+    setSyncStatus("saving");
+    setSyncRetryNonce((value) => value + 1);
   };
 
   const handleRecommendationSubmit = async (event) => {
@@ -4116,7 +4342,7 @@ function App() {
       const response = await fetch("/api/recommendations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: currentUser, message }),
+        body: JSON.stringify({ username: displayName || "TaskCabinet user", message }),
       });
 
       let result = null;
@@ -6306,6 +6532,10 @@ function App() {
     return extras.length > 0 ? <WorkspaceCanvas height={getWorkspaceCanvasHeight(extras)}>{extras.map(renderWorkspaceInstance)}</WorkspaceCanvas> : null;
   };
 
+  if (authInitializing) {
+    return <div className={`App ${theme} auth-screen`}><main className="auth-card" role="status"><h1 className="app-title">TaskCabinet</h1><p>Restoring your secure session…</p></main></div>;
+  }
+
   if (!currentUser) {
     return (
       <div className={`App ${theme} auth-screen`}>
@@ -6314,8 +6544,8 @@ function App() {
           <h1 className="app-title">TaskCabinet</h1>
           <p className="hero-subtitle">
             {authMode === "signin"
-              ? "Sign in to open your local assignment planner."
-              : "Create a local account or claim an existing username profile."}
+              ? CLOUD_SYNC_CONFIGURED ? "Sign in to open your planner on this device." : "Sign in to open your local assignment planner."
+              : CLOUD_SYNC_CONFIGURED ? "Create an account that can securely sync across your devices." : "Create a local account or claim an existing username profile."}
           </p>
           <div className="auth-mode-tabs">
             <button
@@ -6334,13 +6564,15 @@ function App() {
             </button>
           </div>
           <form className="card-form auth-form" onSubmit={handleAuthSubmit}>
-            <label htmlFor="auth-username">Username</label>
+            <label htmlFor="auth-username">{CLOUD_SYNC_CONFIGURED ? "Email" : "Username"}</label>
             <input
               id="auth-username"
-              autoComplete="username"
+              type={CLOUD_SYNC_CONFIGURED ? "email" : "text"}
+              autoComplete={CLOUD_SYNC_CONFIGURED ? "email" : "username"}
               value={signInName}
               onChange={(e) => setSignInName(e.target.value)}
             />
+            {CLOUD_SYNC_CONFIGURED && authMode === "signup" && <><label htmlFor="auth-display-name">Display name</label><input id="auth-display-name" autoComplete="nickname" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></>}
             <label htmlFor="auth-password">Password</label>
             <div className="password-input-row">
               <input
@@ -6378,11 +6610,9 @@ function App() {
             </button>
           </form>
           <div className="auth-warning">
-            <strong>Password does not save, save independently!</strong>
+            <strong>{CLOUD_SYNC_CONFIGURED ? "Your password is handled by Supabase Auth." : "Password does not save, save independently!"}</strong>
             <p>
-              TaskCabinet stores only a password verifier. Accounts and assignments
-              stay on this browser, do not sync to other devices, and have no
-              password recovery.
+              {CLOUD_SYNC_CONFIGURED ? "Your account data can sync across devices. Attachment files and push-reminder connections still stay on each browser." : "TaskCabinet stores only a password verifier. Accounts and assignments stay on this browser, do not sync to other devices, and have no password recovery."}
             </p>
           </div>
         </main>
@@ -6414,7 +6644,7 @@ function App() {
           </div>
 
           <div className="user-pill">
-            {currentUser ? `Signed in as ${currentUser}` : "Guest Mode"}
+            {currentUser ? `Signed in as ${displayName || "TaskCabinet user"}` : "Guest Mode"}
           </div>
         </header>
 
@@ -6503,7 +6733,10 @@ function App() {
 
           {currentUser && (
             <div className="account-action-group">
-              <span>{currentUser}</span>
+              <span>{displayName || "TaskCabinet user"}</span>
+              {CLOUD_SYNC_CONFIGURED && (syncStatus === "conflict" ? <button type="button" className={`cloud-sync-status is-${syncStatus}`} onClick={() => setSyncConflictOpen(true)}>Conflict needs review</button> : <span className={`cloud-sync-status is-${syncStatus}`} role="status">{{ saved: "Saved", saving: "Saving…", offline: "Offline — changes will sync", failed: "Sync failed", "cloud-loading": "Loading cloud data…" }[syncStatus] || "Preparing sync…"}</span>)}
+              {CLOUD_SYNC_CONFIGURED && syncStatus === "failed" && <button type="button" className="btn btn-secondary" onClick={() => setSyncRetryNonce((value) => value + 1)}>Retry</button>}
+              {CLOUD_SYNC_CONFIGURED && syncStatus === "failed" && syncError && <span className="cloud-sync-error" title={syncError}>Your local changes are safe.</span>}
               <button className="btn btn-danger sign-out-button" onClick={handleSignOut}>Sign Out</button>
             </div>
           )}
@@ -7551,7 +7784,7 @@ function App() {
                   <p className="eyebrow">Settings</p>
                   <div className="settings-profile-chip">
                     <span>Preferences for</span>
-                    <strong>{currentUser || "Guest profile"}</strong>
+                    <strong>{displayName || "TaskCabinet user"}</strong>
                   </div>
                   {getOrderedSettingsSections(userSettings.settingsSectionOrder).map((section) => (
                     <div
@@ -8075,7 +8308,7 @@ function App() {
                   <h4>Add Assignment Fields</h4>
                   <p className="hint-text">
                     {currentUser
-                      ? `Saved for ${currentUser}.`
+                      ? `Saved for ${displayName || "this account"}.`
                       : "Sign in to keep these preferences with a profile."}
                   </p>
 
@@ -8259,7 +8492,7 @@ function App() {
 
                 {settingsSection === "assignments" && (
                   <>
-                    <SettingsCard title="Add Assignment Fields" description={currentUser ? `Saved for ${currentUser}.` : "Sign in to keep these preferences with a profile."}>
+                    <SettingsCard title="Add Assignment Fields" description={currentUser ? `Saved for ${displayName || "this account"}.` : "Sign in to keep these preferences with a profile."}>
                       <label className="settings-toggle"><span>Priority</span><input type="checkbox" checked={userSettings.showPriority} onChange={(e) => handleAddFieldSettingChange("showPriority", e.target.checked)} /></label>
                       <label className="settings-toggle"><span>Repeat</span><input type="checkbox" checked={userSettings.showRepeat} onChange={(e) => handleAddFieldSettingChange("showRepeat", e.target.checked)} /></label>
                       <label className="settings-toggle"><span>Estimated Minutes</span><input type="checkbox" checked={userSettings.showEstimatedMinutes} onChange={(e) => handleAddFieldSettingChange("showEstimatedMinutes", e.target.checked)} /></label>
@@ -9152,6 +9385,20 @@ function App() {
                 : <button type="button" className="btn btn-primary" onClick={finishTutorial}>Finish</button>}
             </div>
             </>)}
+          </section>
+        </div>
+      )}
+      {syncConflict && syncConflictOpen && (
+        <div className="sync-conflict-backdrop" role="presentation">
+          <section className="sync-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="sync-conflict-title">
+            <p className="eyebrow">Nothing will be overwritten automatically</p>
+            <h2 id="sync-conflict-title">Choose which saved version to keep</h2>
+            <p>This device and the cloud both contain different TaskCabinet data. A local backup has already been saved in this browser.</p>
+            <div className="sync-conflict-actions">
+              <button type="button" className="btn btn-secondary" onClick={handleKeepCloudConflict}>Keep cloud data</button>
+              <button type="button" className="btn btn-primary" onClick={handleUseDeviceConflict}>Use this device’s data</button>
+              <button type="button" className="btn btn-secondary" onClick={() => setSyncConflictOpen(false)}>Cancel and decide later</button>
+            </div>
           </section>
         </div>
       )}
