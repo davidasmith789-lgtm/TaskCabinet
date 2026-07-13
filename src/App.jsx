@@ -1533,6 +1533,12 @@ function App() {
   const cloudSavingRef = useRef(false);
   const cloudSaveQueuedRef = useRef(false);
   const latestCloudStateRef = useRef(null);
+  const cloudLastSavedStateRef = useRef(null);
+
+  const waitForCloudRequest = (request, message) => Promise.race([
+    request,
+    new Promise((_, reject) => window.setTimeout(() => reject(new Error(message)), 15000)),
+  ]);
 
   // A username becomes part of each key. This keeps one user's data separate
   // from another user's data while still using the same browser localStorage.
@@ -1927,6 +1933,7 @@ function App() {
         saveLocalSnapshot(localStorage, currentUser, selected, revision, false);
         cloudRevisionRef.current = revision;
         cloudHydratedUserRef.current = currentUser;
+        cloudLastSavedStateRef.current = selected;
         setTasks(selected.tasks);
         setCourses(selected.courses);
         setCourseColors(selected.courseColors);
@@ -1952,6 +1959,11 @@ function App() {
     if (!CLOUD_SYNC_CONFIGURED || accountMode !== "cloud" || !currentUser || cloudHydratedUserRef.current !== currentUser || syncConflict) return undefined;
     const snapshot = collectSyncableState({ tasks, courses, courseColors, userSettings, checklists, workspaceLayout, theme, displayName });
     latestCloudStateRef.current = snapshot;
+    if (sameState(snapshot, cloudLastSavedStateRef.current)) {
+      saveLocalSnapshot(localStorage, currentUser, snapshot, cloudRevisionRef.current, false);
+      setSyncStatus("saved");
+      return undefined;
+    }
     saveLocalSnapshot(localStorage, currentUser, snapshot, cloudRevisionRef.current, true);
     if (!navigator.onLine) { setSyncStatus("offline"); return undefined; }
     setSyncStatus("saving");
@@ -1961,9 +1973,13 @@ function App() {
       cloudSavingRef.current = true;
       try {
         const stateToSave = latestCloudStateRef.current;
-        const result = await replaceCloudSnapshot(getSupabaseBrowserClient(), currentUser, stateToSave, cloudRevisionRef.current);
+        const result = await waitForCloudRequest(
+          replaceCloudSnapshot(getSupabaseBrowserClient(), currentUser, stateToSave, cloudRevisionRef.current),
+          "Cloud saving took too long. Your changes are still safe on this device.",
+        );
         if (cloudHydratedUserRef.current !== currentUser) return;
         cloudRevisionRef.current = Number(result.revision);
+        cloudLastSavedStateRef.current = stateToSave;
         saveLocalSnapshot(localStorage, currentUser, stateToSave, result.revision, false);
         setSyncStatus("saved");
         setSyncError("");
@@ -4319,6 +4335,7 @@ function App() {
     localStorage.removeItem(AUTH_USER_STORAGE_KEY);
     cloudHydratedUserRef.current = "";
     cloudRevisionRef.current = 0;
+    cloudLastSavedStateRef.current = null;
     setSyncConflict(null);
     setSyncConflictOpen(false);
     setCurrentUser("");
@@ -4331,6 +4348,7 @@ function App() {
     applyCloudStateToLocal(localStorage, currentUser, state, deviceSettings);
     saveLocalSnapshot(localStorage, currentUser, state, revision, false);
     cloudRevisionRef.current = revision;
+    cloudLastSavedStateRef.current = state;
     setTasks(state.tasks);
     setCourses(state.courses);
     setCourseColors(state.courseColors);
