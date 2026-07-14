@@ -67,6 +67,14 @@ npm run build
 
 Vercel can deploy the generated application from the connected repository. The service worker is registered only in production builds.
 
+## Installing TaskCabinet
+
+- **Desktop Chrome or Edge:** use the address-bar install icon or the browser menu and choose **Install TaskCabinet** / **Install app**.
+- **Android:** open the browser's three-dot menu and choose **Install app** or **Add to Home screen**.
+- **iPhone or iPad:** open TaskCabinet in Safari, tap **Share**, choose **Add to Home Screen**, and launch it from the new Home Screen icon. Open the installed version before enabling push reminders.
+
+Installation wording and availability vary by browser. A normal browser tab continues to work if installation is unavailable.
+
 ## Optional external reminders
 
 TaskCabinet can use OneSignal Web Push for assignment reminders while the app is closed. Full assignments remain in the browser. Supabase stores only an opaque profile-installation ID, task/occurrence identifiers, OneSignal subscription and message IDs, title, course, deadline, timezone, lead time, revision, and scheduling/cleanup state. Notification text may appear on a device lock screen.

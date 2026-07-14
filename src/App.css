@@ -5584,3 +5584,104 @@ html[data-theme="dark"] .tutorial-demo-link {
   .task-actions,
   .App.task-actions-stacked .task-actions { grid-template-columns: 1fr; }
 }
+
+/* Final mobile usability guardrails: touch, keyboard, notches, overflow, and contrast. */
+@media (max-width: 767px) {
+  html { color-scheme: light dark; }
+  html.taskcabinet-mobile-active,
+  body.taskcabinet-mobile-active,
+  .App.mobile-app-ui { max-width: 100%; }
+
+  .App.mobile-app-ui,
+  .mobile-app-ui .app-shell,
+  .mobile-app-main.mobile-add-fullscreen,
+  .mobile-fullscreen-panel,
+  .mobile-checklist-fullscreen,
+  .mobile-app-ui .settings-content.mobile-settings-panel-open {
+    height: var(--taskcabinet-mobile-height, 100dvh);
+  }
+
+  .mobile-app-ui .app-shell {
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-left: max(14px, env(safe-area-inset-left));
+    scroll-padding-top: calc(84px + env(safe-area-inset-top));
+    scroll-padding-bottom: calc(110px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-app-ui :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]), select, textarea) {
+    max-width: 100%;
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  .mobile-app-ui :where(.btn, summary, .settings-collapse-button, .widget-collapse-button, .widget-menu > summary, .checklist-item-delete, .subtask-remove-button, .delete-undo-dismiss) {
+    min-height: 44px;
+  }
+
+  .mobile-app-ui :where(.settings-collapse-button, .widget-collapse-button, .widget-menu > summary, .checklist-item-delete, .subtask-remove-button, .delete-undo-dismiss) {
+    min-width: 44px;
+  }
+
+  .mobile-app-ui :where(.settings-section, .settings-grid, .settings-content, .card-form, .edit-modal-grid, .task-card, .task-details, .account-settings-form, .recovery-center-card) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mobile-app-ui :where(p, small, strong, label, .task-details, .hint-text, .account-update-message) {
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-app-ui :where(.edit-modal, .copy-dates-modal, .mobile-app-sheet) {
+    max-height: min(92dvh, var(--taskcabinet-mobile-height, 92dvh));
+    padding-right: max(14px, env(safe-area-inset-right));
+    padding-left: max(14px, env(safe-area-inset-left));
+    scroll-padding-top: 78px;
+    scroll-padding-bottom: calc(32px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-app-ui .edit-modal-header {
+    top: 0;
+    margin-top: -18px;
+    padding-top: 18px;
+  }
+
+  .widget-menu-popover {
+    right: 0;
+    width: min(240px, calc(100vw - 32px));
+    max-height: min(360px, 55dvh);
+    overscroll-behavior: contain;
+  }
+
+  .weekly-calendar-scroll,
+  .bulk-import-review,
+  .external-push-detail-grid {
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .install-device-guidance {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--surface-alt);
+    color: var(--text-color);
+    line-height: 1.5;
+  }
+
+  .sync-conflict-backdrop {
+    align-items: end;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+  .sync-conflict-dialog { max-height: 90dvh; overflow-y: auto; }
+  .sync-conflict-actions .btn { width: 100%; min-height: 46px; }
+}
+
+html[data-theme="dark"] .install-device-guidance,
+html[data-theme="dark"] .mobile-app-menu-grid button,
+html[data-theme="dark"] .mobile-app-sheet,
+html[data-theme="dark"] .sync-conflict-dialog {
+  color: var(--text-color);
+  border-color: color-mix(in srgb, var(--text-color) 22%, var(--border-color));
+}

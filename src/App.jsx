@@ -1046,7 +1046,7 @@ const PERSONALIZATION_TIPS = [
   ["Hide or bring back a widget", "Choose Hide widget from its three-dot menu. To bring it back, open Widgets and choose Restore."],
   ["Lock your layout", "When everything is where you want it, open Widgets and choose Lock Layout. Buttons still work, but widgets will not move by accident."],
   ["Reset a layout", "Reset this tab puts only the current tab back to its starting layout. Reset all layouts resets desktop and mobile layouts, but never deletes assignments or checklists."],
-  ["Minimize or enlarge", "Use the + or − button, or double-click the header. This works on widgets, Settings cards, and optional assignment sections."],
+  ["Minimize or enlarge", "Use the + or − button. With a mouse, you can also double-click the header. This works on widgets, Settings cards, and optional assignment sections."],
   ["Change the app theme", "Pick a built-in or saved theme in Appearance. A theme changes the full color set, not your assignments or course colors."],
   ["Save your own theme", "Set up your colors in Full Color Studio, choose Make into theme, and give it a name. You can reuse it without rebuilding every color."],
   ["Full Color Studio", "Each group controls one part of TaskCabinet. Changes show right away, so you can try colors before saving a custom theme."],
@@ -1066,7 +1066,7 @@ const PERSONALIZATION_TIPS = [
   ["Dark and light themes", "Theme mode controls whether TaskCabinet uses a light or dark base. Custom themes remember which base they were made for."],
   ["Turn on push reminders", "Open Reminders & App in Settings and choose Enable Push Reminders. TaskCabinet waits for you to press that button before asking for notification permission."],
   ["Choose when reminders arrive", "The Remind me setting uses one timing choice for every assignment. The sentence below it shows exactly how early TaskCabinet will try to remind you."],
-  ["Reminder bell icons", "A small bell on an assignment means its reminder is healthy, still syncing, or needs attention. Hover over it or focus it to hear the exact status."],
+  ["Reminder bell icons", "A small bell on an assignment means its reminder is healthy, still syncing, or needs attention. Tap or focus it to hear the exact status; a mouse can also hover."],
   ["Repair reminder sync", "If Push Reminders says Needs attention, choose Repair Reminder Sync. Healthy reminders hide that button because there is nothing you need to fix."],
   ["Notifications are blocked", "TaskCabinet cannot reopen a permission prompt after the browser blocks it. Allow notifications from your browser’s site settings, then return and repair the sync."],
   ["Test your reminders", "Send Test Reminder becomes available once Push Reminders is fully active. It checks this browser without changing any assignment deadline."],
@@ -2902,6 +2902,25 @@ function App() {
     query.addEventListener?.("change", handleMobileUiChange);
     return () => query.removeEventListener?.("change", handleMobileUiChange);
   }, []);
+
+  useEffect(() => {
+    if (!isMobileUi || !window.visualViewport) return undefined;
+    const viewport = window.visualViewport;
+    const updateMobileViewport = () => {
+      document.documentElement.style.setProperty("--taskcabinet-mobile-height", `${viewport.height}px`);
+      if (viewport.height < window.innerHeight * 0.82 && document.activeElement?.matches?.("input, textarea, select")) {
+        window.requestAnimationFrame(() => document.activeElement?.scrollIntoView?.({ block: "center", behavior: "smooth" }));
+      }
+    };
+    updateMobileViewport();
+    viewport.addEventListener("resize", updateMobileViewport);
+    viewport.addEventListener("scroll", updateMobileViewport);
+    return () => {
+      viewport.removeEventListener("resize", updateMobileViewport);
+      viewport.removeEventListener("scroll", updateMobileViewport);
+      document.documentElement.style.removeProperty("--taskcabinet-mobile-height");
+    };
+  }, [isMobileUi]);
 
   useEffect(() => {
     const mobileShellActive = Boolean(isMobileUi && currentUser);
@@ -4741,6 +4760,27 @@ function App() {
       setAccountUpdateStatus({ type: "error", message: error.message || "Password could not be updated." });
     } finally { setAccountUpdateBusy(""); }
   };
+
+  useEffect(() => {
+    if (!editingTask && !copyingTask) return undefined;
+    const closeOpenDialog = (event) => {
+      if (event.key !== "Escape") return;
+      if (copyingTask) setCopyingTask(null);
+      else {
+        setEditingTaskId(null);
+        setEditingTask(null);
+        setEditSubtaskText("");
+        setEditLinkName("");
+        setEditLinkUrl("");
+        setEditLinkMessage("");
+        setPendingEditFiles([]);
+        setRemovedEditAttachmentIds([]);
+        setEditOptionalSections({ files: false, links: false, checklist: false });
+      }
+    };
+    document.addEventListener("keydown", closeOpenDialog);
+    return () => document.removeEventListener("keydown", closeOpenDialog);
+  }, [copyingTask, editingTask]);
 
   const handleUndoDeletedAssignment = () => {
     if (!deletedAssignmentUndo) return;
@@ -7236,6 +7276,12 @@ function App() {
   // such as currentTab === "todo" conditionally show only the selected screen.
   const showReminderSuggestion = shouldShowReminderSuggestion({ hasProfile: Boolean(currentUser), remindersEnabled: Boolean(userSettings.externalPushEnabled), dismissed: Boolean(userSettings.reminderSuggestionDismissed), hasDatedAssignment: tasks.some((task) => !task.isDeleted && !task.isCompleted && getEffectiveDeadline(task)) });
   const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isAndroidMobile = /Android/i.test(navigator.userAgent);
+  const installInstructions = isAppleMobile
+    ? "On iPhone or iPad: open TaskCabinet in Safari, tap Share, choose Add to Home Screen, then open TaskCabinet from its new Home Screen icon."
+    : isAndroidMobile
+      ? "On Android: open your browser menu and choose Install app or Add to Home screen. In Chrome, this is usually under the three-dot menu."
+      : "On a computer: open your browser’s address-bar install icon or menu, then choose Install TaskCabinet. Chrome and Edge usually show Install app.";
   const reminderLeadAlreadyPassedCount = tasks.filter((task) => { const deadline = getEffectiveDeadline(task); return deadline && deadline.getTime() > checklistNow.getTime() && deadline.getTime() - Number(userSettings.reminderMinutes || 60) * 60000 < checklistNow.getTime() && !task.isDeleted && !task.isCompleted; }).length;
   const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses"];
   const mobileUsesOwnScreen = isMobileUi && mobileOwnedTabs.includes(currentTab);
@@ -9196,14 +9242,15 @@ function App() {
 
                 {settingsSection === "reminders" && (
                   <>
-                    <SettingsCard title="Install TaskCabinet" description="Install the planner as a desktop or home-screen app with offline access.">
+                    <SettingsCard title="Install TaskCabinet" description="Install the planner on this device for an app-like window and offline access.">
                       {isStandalone ? (
                         <span className="settings-status-pill">Installed</span>
                       ) : installPrompt ? (
-                        <button type="button" className="btn btn-primary" onClick={handleInstallApp}>Install App</button>
+                        <button type="button" className="btn btn-primary" onClick={handleInstallApp}>Install TaskCabinet</button>
                       ) : (
                         <p className="hint-text">Use your browser’s “Install app” or “Add to Home Screen” menu.</p>
                       )}
+                      {!isStandalone && <p className="hint-text install-device-guidance">{installInstructions}</p>}
                     </SettingsCard>
                     <SettingsCard title="Due Reminders" description="Choose when TaskCabinet should give you a heads-up.">
                       <div className={`external-push-status is-${reminderUserStatus}`} role="status">
