@@ -48,6 +48,8 @@ import { APP_BUILD_METADATA, createReportMetadata } from "./buildMetadata.js";
 import { AssignmentCountdown, MobilePageTitle, PasswordEyeIcon, PersonalizationTip, SettingsCard, SubtaskProgressLine } from "./components/AppDisplayComponents.jsx";
 import { AssignmentFilterControls, AssignmentFilterToggle } from "./components/AssignmentFilters.jsx";
 import DeferredCalendar from "./components/DeferredCalendar.jsx";
+import FocusSession from "./components/FocusSession.jsx";
+import { getFocusTimeUpdate } from "./focusSessionUtils.js";
 
 /*
  * GLOWDOCKET APPLICATION MAP
@@ -1747,6 +1749,7 @@ function App() {
   const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
   const [quickMatchPresetDraft, setQuickMatchPresetDraft] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [focusTaskId, setFocusTaskId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calendarAddOpen, setCalendarAddOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -4021,6 +4024,53 @@ function App() {
       saveTasksForCurrentUser(updated);
       return updated;
     });
+  };
+
+  const handleFocusStart = (id) => {
+    const task = tasks.find((item) => item.id === id && !item.isCompleted && !item.isDeleted);
+    if (!task) return;
+    if (getTaskStatus(task) === "todo") handleStartTask(id);
+    setFocusTaskId(id);
+  };
+
+  const saveFocusSession = (id, elapsedSeconds, reduceEstimate) => {
+    if (elapsedSeconds <= 0) return;
+    setTasks((prev) => {
+      const updated = prev.map((task) => task.id === id
+        ? { ...task, ...getFocusTimeUpdate(task, elapsedSeconds, reduceEstimate) }
+        : task);
+      saveTasksForCurrentUser(updated);
+      return updated;
+    });
+  };
+
+  const closeFocusSession = (elapsedSeconds, reduceEstimate) => {
+    if (focusTaskId) saveFocusSession(focusTaskId, elapsedSeconds, reduceEstimate);
+    setFocusTaskId(null);
+  };
+
+  const keepFocusTaskInProgress = (elapsedSeconds, reduceEstimate) => {
+    closeFocusSession(elapsedSeconds, reduceEstimate);
+  };
+
+  const completeFocusTask = (elapsedSeconds, reduceEstimate) => {
+    const id = focusTaskId;
+    if (!id) return;
+    saveFocusSession(id, elapsedSeconds, reduceEstimate);
+    setFocusTaskId(null);
+    handleComplete(id);
+  };
+
+  const toggleFocusSubtask = (subtaskId, elapsedSeconds, reduceEstimate) => {
+    const task = tasks.find((item) => item.id === focusTaskId);
+    const updatedSteps = getSafeSubtasks(task).map((step) => step.id === subtaskId
+      ? { ...step, isDone: !step.isDone }
+      : step);
+    if (userSettings.autoCompleteChecklist && updatedSteps.length > 0 && updatedSteps.every((step) => step.isDone)) {
+      saveFocusSession(focusTaskId, elapsedSeconds, reduceEstimate);
+      setFocusTaskId(null);
+    }
+    handleSubtaskToggle(focusTaskId, subtaskId);
   };
 
   /**
@@ -7043,6 +7093,7 @@ function App() {
   if (status === "todo") {
     return (
       <div className="task-actions">
+        <button type="button" className="btn btn-primary focus-session-start-button" onClick={(event) => stopCardClick(event, () => handleFocusStart(task.id))}>Focus</button>
         <button
           type="button"
           className="btn btn-secondary status-action-button"
@@ -7083,6 +7134,7 @@ function App() {
   if (status === "inProgress") {
     return (
       <div className="task-actions task-actions-in-progress">
+        <button type="button" className="btn btn-primary focus-session-start-button" onClick={(event) => stopCardClick(event, () => handleFocusStart(task.id))}>Focus</button>
         <div className="task-action-pair task-action-pair-left">
           <button type="button" className="btn btn-warning status-action-button" onClick={(event) => stopCardClick(event, () => handleMoveToTodo(task.id))}>Back to To Do</button>
           <button type="button" className="btn btn-primary" onClick={(event) => stopCardClick(event, () => handleComplete(task.id))}>Complete ✅</button>
@@ -7867,6 +7919,7 @@ function App() {
                           </div>
                         </button>
                         <div className="recommended-plan-actions">
+                          <button type="button" className="btn btn-primary" onClick={() => handleFocusStart(task.id)}>Focus</button>
                           <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(task.id)}>{getFocusActionLabel(task)}</button>
                           {taskStatus === "todo" && (
                             <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(task.id)}>Start</button>
@@ -10572,6 +10625,15 @@ function App() {
             </>)}
           </section>
         </div>
+      )}
+      {focusTaskId && tasks.find((task) => task.id === focusTaskId && !task.isCompleted && !task.isDeleted) && (
+        <FocusSession
+          task={tasks.find((task) => task.id === focusTaskId)}
+          onClose={closeFocusSession}
+          onKeepInProgress={keepFocusTaskInProgress}
+          onComplete={completeFocusTask}
+          onToggleSubtask={toggleFocusSubtask}
+        />
       )}
       {syncConflict && syncConflictOpen && (
         <div className="sync-conflict-backdrop" role="presentation">
