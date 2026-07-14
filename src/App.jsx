@@ -257,8 +257,8 @@ const THEME_COLOR_DEFAULTS = {
     checklistPalette1: "#fff7cc", checklistPalette2: "#dff7e8", checklistPalette3: "#dceeff",
     checklistPalette4: "#f3e4ff", checklistPalette5: "#ffe1e1",
     heroStart: "#4f46e5", heroMiddle: "#7c3aed", heroEnd: "#2563eb", heroText: "#ffffff",
-    logoBackground: "#ffffff", logoGradientStart: "#08cdb3", logoGradientEnd: "#174ee8",
-    logoStar: "#ffffff", logoGlow: "#58e9df", logoSpeedLines: "#1765d7",
+    logoBackground: "#ffffff", logoGradientStart: "#4f46e5", logoGradientEnd: "#2563eb",
+    logoStar: "#ffffff", logoGlow: "#a78bfa", logoSpeedLines: "#4f46e5",
   },
   dark: {
     page: "#0b1020", surface: "#151b2e", surfaceAlt: "#1f2937",
@@ -273,8 +273,8 @@ const THEME_COLOR_DEFAULTS = {
     checklistPalette1: "#5a4b1f", checklistPalette2: "#173f32", checklistPalette3: "#173755",
     checklistPalette4: "#3e2854", checklistPalette5: "#512a31",
     heroStart: "#312e81", heroMiddle: "#581c87", heroEnd: "#1e3a8a", heroText: "#ffffff",
-    logoBackground: "#151b2e", logoGradientStart: "#21dec4", logoGradientEnd: "#5680ff",
-    logoStar: "#ffffff", logoGlow: "#58e9df", logoSpeedLines: "#60a5fa",
+    logoBackground: "#151b2e", logoGradientStart: "#818cf8", logoGradientEnd: "#60a5fa",
+    logoStar: "#ffffff", logoGlow: "#a78bfa", logoSpeedLines: "#60a5fa",
   },
 };
 
@@ -290,6 +290,8 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       primary: "#0284c7", primaryText: "#ffffff", secondary: "#dbeafe", secondaryText: "#0f172a",
       link: "#0369a1", calendarSelected: "#0284c7", calendarToday: "#bae6fd",
       checklistAccent: "#0ea5e9", heroStart: "#0284c7", heroMiddle: "#0f766e", heroEnd: "#1d4ed8",
+      logoBackground: "#ffffff", logoGradientStart: "#06b6d4", logoGradientEnd: "#1d4ed8",
+      logoStar: "#ffffff", logoGlow: "#67e8f9", logoSpeedLines: "#0284c7",
     },
   },
   {
@@ -303,6 +305,8 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       primary: "#15803d", primaryText: "#ffffff", secondary: "#dcfce7", secondaryText: "#14532d",
       success: "#16a34a", link: "#166534", calendarSelected: "#15803d", calendarToday: "#bbf7d0",
       checklistAccent: "#22c55e", heroStart: "#166534", heroMiddle: "#15803d", heroEnd: "#0f766e",
+      logoBackground: "#ffffff", logoGradientStart: "#22c55e", logoGradientEnd: "#0f766e",
+      logoStar: "#ffffff", logoGlow: "#86efac", logoSpeedLines: "#15803d",
     },
   },
   {
@@ -316,6 +320,8 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       primary: "#ea580c", primaryText: "#ffffff", secondary: "#fee2e2", secondaryText: "#7c2d12",
       warning: "#f59e0b", link: "#c2410c", calendarSelected: "#ea580c", calendarToday: "#fed7aa",
       checklistAccent: "#f97316", heroStart: "#f97316", heroMiddle: "#db2777", heroEnd: "#7c3aed",
+      logoBackground: "#ffffff", logoGradientStart: "#f97316", logoGradientEnd: "#7c3aed",
+      logoStar: "#ffffff", logoGlow: "#f9a8d4", logoSpeedLines: "#ea580c",
     },
   },
   {
@@ -329,6 +335,8 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       primary: "#22d3ee", primaryText: "#06121f", secondary: "#312e81", secondaryText: "#ffffff",
       link: "#67e8f9", calendarSelected: "#22d3ee", calendarToday: "#334155",
       checklistAccent: "#a78bfa", heroStart: "#0f172a", heroMiddle: "#312e81", heroEnd: "#0891b2",
+      logoBackground: "#111827", logoGradientStart: "#22d3ee", logoGradientEnd: "#8b5cf6",
+      logoStar: "#ffffff", logoGlow: "#67e8f9", logoSpeedLines: "#22d3ee",
     },
   },
   {
@@ -342,6 +350,8 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       primary: "#d946ef", primaryText: "#ffffff", secondary: "#581c87", secondaryText: "#ffffff",
       link: "#f0abfc", calendarSelected: "#c026d3", calendarToday: "#4a044e",
       checklistAccent: "#f472b6", heroStart: "#701a75", heroMiddle: "#be185d", heroEnd: "#7c2d12",
+      logoBackground: "#211027", logoGradientStart: "#f472b6", logoGradientEnd: "#7c3aed",
+      logoStar: "#ffffff", logoGlow: "#f0abfc", logoSpeedLines: "#d946ef",
     },
   },
 ];
@@ -2340,7 +2350,7 @@ function App() {
         const deadline = getEffectiveDeadline(task);
         const options = {
           body: `${task.course || task.category || "Task"} · due ${deadline.toLocaleString()}`,
-          icon: "/favicon.svg",
+          icon: "/glowdocket-icon-192.png",
           tag: `taskacadia-${currentUser}-${task.id}`,
         };
         try {
@@ -2436,7 +2446,7 @@ function App() {
           const difference = deadline.getTime() - now;
           const id = `${item.id}-${deadline.getTime()}`;
           if (difference < 0 || difference > windowMs || notified[id]) continue;
-          const options = { body: `${list.title || "Checklist"} · due ${deadline.toLocaleString()}`, icon: "/favicon.svg", tag: `taskcabinet-checklist-${item.id}` };
+          const options = { body: `${list.title || "Checklist"} · due ${deadline.toLocaleString()}`, icon: "/glowdocket-icon-192.png", tag: `taskcabinet-checklist-${item.id}` };
           try {
             if (navigator.serviceWorker?.controller) {
               const registration = await navigator.serviceWorker.ready;
