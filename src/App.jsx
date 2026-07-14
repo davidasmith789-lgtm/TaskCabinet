@@ -5705,7 +5705,7 @@ function App() {
     <form onSubmit={handleAddTask} className="card-form assignment-entry-form">
       <section className="bulk-import-panel" aria-label="Paste assignment list">
         <div className="bulk-import-heading">
-          <div><strong>{isMobileUi ? "Optional: Syllabus & Assignment Import" : "Paste Assignment List"}</strong><p>{isMobileUi ? "Upload a syllabus or paste several assignments when you need the importer." : "Create several assignments from one line each, with a review before saving."}</p></div>
+          <div>{isMobileUi && <span className="mobile-add-option-number">Option 2</span>}<strong>{isMobileUi ? "Import Syllabus or Assignments" : "Paste Assignment List"}</strong><p>{isMobileUi ? "Optional: upload a syllabus or paste several assignments." : "Create several assignments from one line each, with a review before saving."}</p></div>
           <button type="button" className="btn btn-secondary" onClick={() => setBulkImportOpen((open) => !open)}>{bulkImportOpen ? "Close" : isMobileUi ? "Open Optional Import" : "Open Importer"}</button>
         </div>
         {bulkImportOpen && (
@@ -5759,6 +5759,7 @@ function App() {
       {voiceRecordingSupported && (
         <section className="voice-assignment-panel" aria-label="Create assignments with voice">
           <div>
+            {isMobileUi && <span className="mobile-add-option-number">Option 1</span>}
             <strong>Voice Add</strong>
             <p>Try: “Add biology worksheet due July 10 at 3 PM, high priority, 45 minutes.” Say “then add” before another assignment.</p>
           </div>
@@ -5780,6 +5781,8 @@ function App() {
 
       {voiceError && <div className="voice-inline-error" role="alert">{voiceError}</div>}
 
+      <div className="manual-assignment-fields">
+      {isMobileUi && <div className="mobile-add-option-heading"><span>Option 3</span><h3>Manually Add Assignment</h3><p>Enter the assignment details yourself.</p></div>}
       <label htmlFor={`${formId}-assignment-name`}>{schoolLevelCopy.nameLabel}:</label>
       <input
         id={`${formId}-assignment-name`}
@@ -6143,6 +6146,7 @@ function App() {
       >
         {schoolLevelCopy.addLabel}
       </button>
+      </div>
     </form>
   );
 

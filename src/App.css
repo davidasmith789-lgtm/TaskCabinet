@@ -110,6 +110,8 @@ html { scrollbar-gutter: stable; }
   gap: 10px;
 }
 
+.manual-assignment-fields { display: contents; }
+
 .task-list {
   list-style: none;
   padding: 0;
@@ -1160,6 +1162,24 @@ button:disabled {
 
   .mobile-app-add-screen .card,
   .mobile-app-add-screen .card-container { margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+  .mobile-app-card.mobile-app-add-screen { padding: 0; overflow: visible; border: 0; background: transparent; box-shadow: none; }
+  .mobile-app-add-screen .assignment-entry-form { gap: 14px; }
+  .mobile-app-add-screen .voice-assignment-panel,
+  .mobile-app-add-screen .bulk-import-panel,
+  .mobile-app-add-screen .manual-assignment-fields {
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 22px;
+    color: var(--text-color);
+    background: var(--card-bg);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+  }
+  .mobile-app-add-screen .manual-assignment-fields { display: flex; flex-direction: column; gap: 10px; }
+  .mobile-add-option-number,
+  .mobile-add-option-heading > span { display: block; margin-bottom: 4px; color: var(--primary-color); font-size: 0.7rem; font-weight: 850; letter-spacing: 0.09em; text-transform: uppercase; }
+  .mobile-add-option-heading { margin-bottom: 4px; }
+  .mobile-add-option-heading h3 { margin: 0; color: var(--text-color); font-size: 1.1rem; }
+  .mobile-add-option-heading p { margin: 4px 0 0; color: var(--muted-text); font-size: 0.82rem; }
 
   .mobile-app-desktop-content-hidden { display: none !important; }
 
