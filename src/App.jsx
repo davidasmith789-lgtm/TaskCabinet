@@ -43,6 +43,7 @@ import { CLOUD_SYNC_CONFIGURED, getSupabaseBrowserClient } from "./supabaseClien
 import { applyCloudStateToLocal, collectSyncableState, createCloudSnapshot, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadCloudHistory, loadCloudSnapshot, loadLocalMeta, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, removeCloudAccountLocalData, replaceCloudSnapshot, resolveProfileDisplayName, sameState, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
 import { getTrashDaysRemaining, isTrashExpired } from "./trashUtils.js";
 import { friendlyAccountError, friendlyCloudSaveError } from "./userMessageUtils.js";
+import GlowDocketLogo from "./GlowDocketLogo.jsx";
 /*
  * GLOWDOCKET APPLICATION MAP
  *
@@ -196,6 +197,12 @@ const COLOR_PERSONALIZATION_FIELDS = [
   { key: "heroMiddle", label: "Header gradient middle", group: "Header" },
   { key: "heroEnd", label: "Header gradient end", group: "Header" },
   { key: "heroText", label: "Header text", group: "Header" },
+  { key: "logoBackground", label: "Logo background", group: "Logo" },
+  { key: "logoGradientStart", label: "Gradient start", group: "Logo" },
+  { key: "logoGradientEnd", label: "Gradient end", group: "Logo" },
+  { key: "logoStar", label: "Star", group: "Logo" },
+  { key: "logoGlow", label: "Star glow", group: "Logo" },
+  { key: "logoSpeedLines", label: "Speed lines", group: "Logo" },
 ];
 
 const normalizeHexColor = (colorId) => {
@@ -250,6 +257,8 @@ const THEME_COLOR_DEFAULTS = {
     checklistPalette1: "#fff7cc", checklistPalette2: "#dff7e8", checklistPalette3: "#dceeff",
     checklistPalette4: "#f3e4ff", checklistPalette5: "#ffe1e1",
     heroStart: "#4f46e5", heroMiddle: "#7c3aed", heroEnd: "#2563eb", heroText: "#ffffff",
+    logoBackground: "#ffffff", logoGradientStart: "#08cdb3", logoGradientEnd: "#174ee8",
+    logoStar: "#ffffff", logoGlow: "#58e9df", logoSpeedLines: "#1765d7",
   },
   dark: {
     page: "#0b1020", surface: "#151b2e", surfaceAlt: "#1f2937",
@@ -264,6 +273,8 @@ const THEME_COLOR_DEFAULTS = {
     checklistPalette1: "#5a4b1f", checklistPalette2: "#173f32", checklistPalette3: "#173755",
     checklistPalette4: "#3e2854", checklistPalette5: "#512a31",
     heroStart: "#312e81", heroMiddle: "#581c87", heroEnd: "#1e3a8a", heroText: "#ffffff",
+    logoBackground: "#151b2e", logoGradientStart: "#21dec4", logoGradientEnd: "#5680ff",
+    logoStar: "#ffffff", logoGlow: "#58e9df", logoSpeedLines: "#60a5fa",
   },
 };
 
@@ -406,6 +417,12 @@ const COLOR_CSS_VARIABLES = {
   heroMiddle: ["--hero-middle"],
   heroEnd: ["--hero-end"],
   heroText: ["--hero-text"],
+  logoBackground: ["--logo-background"],
+  logoGradientStart: ["--logo-gradient-start"],
+  logoGradientEnd: ["--logo-gradient-end"],
+  logoStar: ["--logo-star"],
+  logoGlow: ["--logo-glow"],
+  logoSpeedLines: ["--logo-speed-lines"],
 };
 
 const SETTINGS_SECTIONS = [
@@ -7189,7 +7206,7 @@ function App() {
   };
 
   if (authInitializing) {
-    return <div className={`App ${theme} auth-screen`}><main className="auth-card" role="status"><h1 className="app-title">GlowDocket</h1><p>Restoring your secure session…</p></main></div>;
+    return <div className={`App ${theme} auth-screen`}><main className="auth-card" role="status"><div className="brand-lockup brand-lockup-loading"><GlowDocketLogo decorative /><h1 className="app-title">GlowDocket</h1></div><p>Restoring your secure session…</p></main></div>;
   }
 
   if (!currentUser || authMode === "recovery") {
@@ -7198,6 +7215,7 @@ function App() {
         <main className="welcome-page">
           <section className="welcome-hero" aria-labelledby="welcome-title">
             <div className="welcome-hero-copy">
+              <div className="brand-lockup welcome-brand"><GlowDocketLogo decorative /><strong>GlowDocket</strong></div>
               <p className="eyebrow">Your schoolwork, finally in one place</p>
               <h1 id="welcome-title" className="welcome-title">Plan less. Know what to do next.</h1>
               <p>GlowDocket brings assignments, checklists, calendars, reminders, and your own workspace together in a planner that feels like yours.</p>
@@ -7402,7 +7420,7 @@ function App() {
         {isMobileUi && currentUser && (
           <header className="mobile-app-header">
             <button type="button" className="mobile-app-brand" onClick={() => openMobileTab("dashboard")} aria-label="Open mobile home">
-              <span>TC</span>
+              <GlowDocketLogo decorative />
               <div><strong>GlowDocket</strong></div>
             </button>
             <button type="button" className="mobile-app-profile-button" onClick={() => setMobileMoreOpen(true)} aria-label="Open account and more menu">
@@ -7414,7 +7432,7 @@ function App() {
         <header className="hero-card">
           <div>
             <p className="eyebrow">{schoolLevelCopy.eyebrow}</p>
-            <h1 className="app-title">GlowDocket</h1>
+            <div className="brand-lockup hero-brand"><GlowDocketLogo decorative /><h1 className="app-title">GlowDocket</h1></div>
             {userSettings.showHeaderSubtitle && (
               <p className="hero-subtitle">
                 {schoolLevelCopy.subtitle}
@@ -8968,6 +8986,8 @@ function App() {
                         </button>
                       </div>
                       {colorGroupsOpen[group] === true && (
+                        <>
+                        {group === "Logo" && <div className="logo-color-preview"><GlowDocketLogo label="Custom logo color preview" /><span>Logo preview</span></div>}
                         <div className="color-control-grid">
                         {COLOR_PERSONALIZATION_FIELDS.filter((field) => field.group === group).map((field) => {
                           const value =
@@ -9012,6 +9032,7 @@ function App() {
                           );
                         })}
                         </div>
+                        </>
                       )}
                     </div>
                   ))}

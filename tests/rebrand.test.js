@@ -8,12 +8,15 @@ import { getPushDeviceStorageKey } from "../src/externalReminderUtils.js";
 const read = (relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8");
 
 test("browser and installed-app metadata use GlowDocket", async () => {
-  const [html, manifestText] = await Promise.all([read("../index.html"), read("../public/manifest.webmanifest")]);
+  const [html, manifestText, favicon] = await Promise.all([read("../index.html"), read("../public/manifest.webmanifest"), read("../public/favicon.svg")]);
   const manifest = JSON.parse(manifestText);
   assert.match(html, /<title>GlowDocket<\/title>/);
   assert.match(html, /apple-mobile-web-app-title" content="GlowDocket"/);
   assert.equal(manifest.name, "GlowDocket");
   assert.equal(manifest.short_name, "GlowDocket");
+  assert.equal(manifest.icons[0].src, "/favicon.svg");
+  assert.match(favicon, /<title id="title">GlowDocket<\/title>/);
+  assert.match(favicon, /linearGradient id="brand"/);
 });
 
 test("public UI and active notification code contain no old product name", async () => {
@@ -36,6 +39,34 @@ test("compatibility-sensitive saved-data identifiers remain unchanged", () => {
 test("service-worker registration and rebranded cache update remain configured", async () => {
   const [main, worker] = await Promise.all([read("../src/main.jsx"), read("../public/sw.js")]);
   assert.match(main, /serviceWorker\.register\('\/sw\.js'\)/);
-  assert.match(worker, /taskacadia-shell-v2/);
+  assert.match(worker, /taskacadia-shell-v3/);
   assert.match(worker, /APP_SHELL = \["\/", "\/manifest\.webmanifest", "\/favicon\.svg"\]/);
+});
+
+test("customizable logo exposes independent theme layers with safe defaults", async () => {
+  const [app, component, styles] = await Promise.all([
+    read("../src/App.jsx"), read("../src/GlowDocketLogo.jsx"), read("../src/App.css"),
+  ]);
+  const keys = ["logoBackground", "logoGradientStart", "logoGradientEnd", "logoStar", "logoGlow", "logoSpeedLines"];
+  for (const key of keys) {
+    assert.equal(app.includes(`key: "${key}"`), true);
+    assert.equal(app.includes(`${key}: ["--logo-`), true);
+  }
+  assert.match(component, /glowdocket-logo-background/);
+  assert.match(component, /glowdocket-logo-gradient-start/);
+  assert.match(component, /glowdocket-logo-gradient-end/);
+  assert.match(component, /glowdocket-logo-star-glow/);
+  assert.match(component, /glowdocket-logo-speed-line/);
+  assert.match(styles, /--logo-background: #ffffff/);
+  assert.match(styles, /--logo-background: #151b2e/);
+});
+
+test("logo appears in loading, landing, desktop, mobile, and Color Studio surfaces", async () => {
+  const app = await read("../src/App.jsx");
+  assert.match(app, /brand-lockup-loading[^>]*><GlowDocketLogo/);
+  assert.match(app, /brand-lockup welcome-brand[^>]*><GlowDocketLogo/);
+  assert.match(app, /mobile-app-brand[\s\S]{0,300}<GlowDocketLogo decorative/);
+  assert.match(app, /brand-lockup hero-brand[^>]*><GlowDocketLogo/);
+  assert.match(app, /logo-color-preview"><GlowDocketLogo label="Custom logo color preview"/);
+  assert.match(app, /icon: "\/favicon\.svg"/);
 });
