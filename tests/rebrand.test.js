@@ -15,11 +15,11 @@ test("browser and installed-app metadata use GlowDocket", async () => {
   assert.equal(manifest.name, "GlowDocket");
   assert.equal(manifest.short_name, "GlowDocket");
   assert.deepEqual(manifest.icons.map(({ src, purpose }) => [src, purpose]), [
-    ["/glowdocket-icon-192.png", "any"],
-    ["/glowdocket-icon-512.png", "any"],
-    ["/glowdocket-maskable-512.png", "maskable"],
+    ["/glowdocket-icon-192.png?v=2", "any"],
+    ["/glowdocket-icon-512.png?v=2", "any"],
+    ["/glowdocket-maskable-512.png?v=2", "maskable"],
   ]);
-  assert.match(html, /apple-touch-icon[^>]+href="\/apple-touch-icon\.png"/);
+  assert.match(html, /apple-touch-icon[^>]+href="\/apple-touch-icon\.png\?v=2"/);
   assert.match(favicon, /<title id="title">GlowDocket<\/title>/);
   assert.match(favicon, /linearGradient id="brand"/);
 });
@@ -44,7 +44,7 @@ test("compatibility-sensitive saved-data identifiers remain unchanged", () => {
 test("service-worker registration and rebranded cache update remain configured", async () => {
   const [main, worker] = await Promise.all([read("../src/main.jsx"), read("../public/sw.js")]);
   assert.match(main, /serviceWorker\.register\('\/sw\.js'\)/);
-  assert.match(worker, /taskacadia-shell-v4/);
+  assert.match(worker, /taskacadia-shell-v5/);
   for (const asset of ["glowdocket-icon-192.png", "glowdocket-icon-512.png", "glowdocket-maskable-512.png", "apple-touch-icon.png"]) {
     assert.match(worker, new RegExp(asset.replace(".", "\\.")));
   }

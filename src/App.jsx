@@ -40,7 +40,7 @@ import { cancelAllExternalReminders, cancelExternalReminder, reconcileExternalRe
 import { summarizeDeadlineConfidence } from "./deadlineConfidenceUtils.js";
 import { canSendReminderTest, clearReminderFailure, createReminderActionGuard, deriveReminderUserStatus, formatReminderLeadTime, friendlyReminderError, getAssignmentReminderIndicator, getReminderStatusCopy, shouldShowReminderSuggestion, shouldShowRepairReminderSync } from "./reminderUxUtils.js";
 import { CLOUD_SYNC_CONFIGURED, getSupabaseBrowserClient } from "./supabaseClient.js";
-import { applyCloudStateToLocal, collectSyncableState, createCloudSnapshot, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadCloudHistory, loadCloudSnapshot, loadLocalMeta, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, removeCloudAccountLocalData, replaceCloudSnapshot, resolveProfileDisplayName, sameState, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
+import { applyCloudStateToLocal, collectSyncableState, createCloudSnapshot, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadCloudHistory, loadCloudSnapshot, loadLatestLocalBackup, loadLocalMeta, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, replaceCloudSnapshot, resolveProfileDisplayName, sameState, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
 import { getTrashDaysRemaining, isTrashExpired } from "./trashUtils.js";
 import { friendlyAccountError, friendlyCloudSaveError } from "./userMessageUtils.js";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
@@ -1749,6 +1749,8 @@ function App() {
   const [filterDueBucket, setFilterDueBucket] = useState("ALL");
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
+  const activeDialogRef = useRef(null);
+  const dialogTriggerRef = useRef(null);
   const [editSubtaskText, setEditSubtaskText] = useState("");
   const [editSubtaskDueMonth, setEditSubtaskDueMonth] = useState("");
   const [editSubtaskDueDay, setEditSubtaskDueDay] = useState("");
@@ -2884,56 +2886,30 @@ function App() {
   // state. The targeted lint exception documents that profile switching is the
   // synchronization event, rather than an accidental state-calculation effect.
   useEffect(() => {
-    try {
-      const rawTasks = localStorage.getItem(currentStorageKey);
-      setTasks(rawTasks ? JSON.parse(rawTasks) : []);
+    const isObject = (value) => Boolean(value && typeof value === "object" && !Array.isArray(value));
+    const loadedTasks = readStoredSection(localStorage, currentStorageKey, [], Array.isArray);
+    const loadedCourses = readStoredSection(localStorage, courseStorageKey, ["Other"], (value) => Array.isArray(value) && value.every((course) => typeof course === "string"));
+    const loadedCourseColors = readStoredSection(localStorage, courseColorsStorageKey, {}, isObject);
+    const storedSettings = readStoredSection(localStorage, settingsStorageKey, {}, isObject);
+    const loadedSettings = { ...DEFAULT_USER_SETTINGS, ...storedSettings };
+    const loadedChecklists = readStoredSection(localStorage, checklistStorageKey, [], Array.isArray);
+    const storedWorkspace = readStoredSection(localStorage, workspaceStorageKey, null, (value) => value === null || isObject(value));
+    const loadedWorkspace = repairLoadedWorkspace(storedWorkspace);
 
-      const rawCourses = localStorage.getItem(courseStorageKey);
-      setCourses(
-        rawCourses
-          ? JSON.parse(rawCourses)
-          : ["Other"],
-      );
-
-      const rawCourseColors = localStorage.getItem(courseColorsStorageKey);
-      setCourseColors(rawCourseColors ? JSON.parse(rawCourseColors) : {});
-
-      const rawSettings = localStorage.getItem(settingsStorageKey);
-      const loadedSettings = rawSettings
-        ? { ...DEFAULT_USER_SETTINGS, ...JSON.parse(rawSettings) }
-        : DEFAULT_USER_SETTINGS;
-      setUserSettings(loadedSettings);
-      const rawChecklists = localStorage.getItem(checklistStorageKey);
-      setChecklists(rawChecklists ? JSON.parse(rawChecklists) : []);
-      const rawWorkspace = localStorage.getItem(workspaceStorageKey);
-      const loadedWorkspace = repairLoadedWorkspace(
-        rawWorkspace ? JSON.parse(rawWorkspace) : null,
-      );
-
-      workspaceLayoutRef.current = loadedWorkspace;
-      setWorkspaceLayout(loadedWorkspace);
-      setSelectedChecklistId(null);
-      setCategory(loadedSettings.defaultCategory);
-      setPriority(loadedSettings.defaultPriority);
-      setEstTime(String(loadedSettings.defaultEstimatedMinutes || ""));
-      setRepeatFrequency(loadedSettings.defaultRepeat);
-      setDueHour(loadedSettings.defaultDueTime);
-      setDueAmPm(loadedSettings.defaultDueAmPm);
-    } catch (error) {
-      console.error("Failed to load user data from localStorage:", error);
-      setTasks([]);
-      setCourses(["Other"]);
-      setCourseColors({});
-      setUserSettings(DEFAULT_USER_SETTINGS);
-      setChecklists([]);
-      setWorkspaceLayout(createDefaultWorkspaceLayout());
-      setCategory(DEFAULT_USER_SETTINGS.defaultCategory);
-      setPriority(DEFAULT_USER_SETTINGS.defaultPriority);
-      setEstTime(DEFAULT_USER_SETTINGS.defaultEstimatedMinutes);
-      setRepeatFrequency(DEFAULT_USER_SETTINGS.defaultRepeat);
-      setDueHour(DEFAULT_USER_SETTINGS.defaultDueTime);
-      setDueAmPm(DEFAULT_USER_SETTINGS.defaultDueAmPm);
-    }
+    setTasks(loadedTasks);
+    setCourses(loadedCourses);
+    setCourseColors(loadedCourseColors);
+    setUserSettings(loadedSettings);
+    setChecklists(loadedChecklists);
+    workspaceLayoutRef.current = loadedWorkspace;
+    setWorkspaceLayout(loadedWorkspace);
+    setSelectedChecklistId(null);
+    setCategory(loadedSettings.defaultCategory);
+    setPriority(loadedSettings.defaultPriority);
+    setEstTime(String(loadedSettings.defaultEstimatedMinutes || ""));
+    setRepeatFrequency(loadedSettings.defaultRepeat);
+    setDueHour(loadedSettings.defaultDueTime);
+    setDueAmPm(loadedSettings.defaultDueAmPm);
 
     setIsCustomCourse(false);
     setCustomCourseName("");
@@ -4190,6 +4166,7 @@ function App() {
   // Copy the selected task into temporary editing state. Changes made in the
   // modal remain temporary until handleEditSave replaces the stored task.
   const handleEditStart = (task) => {
+    dialogTriggerRef.current = document.activeElement;
     setEditingTaskId(task.id);
     setEditingTask({
       ...task,
@@ -4823,25 +4800,53 @@ function App() {
   };
 
   useEffect(() => {
-    if (!editingTask && !copyingTask) return undefined;
-    const closeOpenDialog = (event) => {
-      if (event.key !== "Escape") return;
-      if (copyingTask) setCopyingTask(null);
-      else {
-        setEditingTaskId(null);
-        setEditingTask(null);
-        setEditSubtaskText("");
-        setEditLinkName("");
-        setEditLinkUrl("");
-        setEditLinkMessage("");
-        setPendingEditFiles([]);
-        setRemovedEditAttachmentIds([]);
-        setEditOptionalSections({ files: false, links: false, checklist: false });
+    if (!editingTaskId && !copyingTask) return undefined;
+    const dialog = activeDialogRef.current;
+    const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    window.requestAnimationFrame(() => {
+      const initialFocus = dialog?.querySelector("[data-dialog-initial-focus]:not([disabled])") || dialog?.querySelector(focusableSelector) || dialog;
+      initialFocus?.focus();
+    });
+    const handleDialogKeys = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (copyingTask) setCopyingTask(null);
+        else {
+          setEditingTaskId(null);
+          setEditingTask(null);
+          setEditSubtaskText("");
+          setEditLinkName("");
+          setEditLinkUrl("");
+          setEditLinkMessage("");
+          setPendingEditFiles([]);
+          setRemovedEditAttachmentIds([]);
+          setEditOptionalSections({ files: false, links: false, checklist: false });
+        }
+        return;
+      }
+      if (event.key !== "Tab" || !dialog) return;
+      const controls = [...dialog.querySelectorAll(focusableSelector)].filter((control) => control.getClientRects().length > 0);
+      if (controls.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
-    document.addEventListener("keydown", closeOpenDialog);
-    return () => document.removeEventListener("keydown", closeOpenDialog);
-  }, [copyingTask, editingTask]);
+    document.addEventListener("keydown", handleDialogKeys);
+    return () => {
+      document.removeEventListener("keydown", handleDialogKeys);
+      window.requestAnimationFrame(() => dialogTriggerRef.current?.focus?.());
+    };
+  }, [copyingTask, editingTaskId]);
 
   const handleUndoDeletedAssignment = () => {
     if (!deletedAssignmentUndo) return;
@@ -4971,6 +4976,23 @@ function App() {
     }
   };
 
+  const handleRestoreLocalBackup = () => {
+    setRecoveryStatus({ type: "", message: "" });
+    try {
+      const backup = loadLatestLocalBackup(localStorage, currentUser);
+      if (!backup) {
+        setRecoveryStatus({ type: "error", message: "No previous local version is available for this profile yet." });
+        return;
+      }
+      const savedLabel = backup.savedAt ? new Date(backup.savedAt).toLocaleString() : "an earlier time";
+      if (!window.confirm(`Restore the local version saved ${savedLabel}? GlowDocket will first save your current planner as another recovery copy.`)) return;
+      applyRecoveryState(backup.state);
+      setRecoveryStatus({ type: "success", message: "Previous local version restored. Your newer version was also saved locally in case you need it again." });
+    } catch (error) {
+      setRecoveryStatus({ type: "error", message: error.message || "GlowDocket could not restore the previous local version safely." });
+    }
+  };
+
   const handleLoadCloudHistory = async () => {
     setCloudHistoryBusy(true);
     setRecoveryStatus({ type: "", message: "" });
@@ -5069,6 +5091,7 @@ function App() {
   };
 
   const handleCopyStart = (task) => {
+    dialogTriggerRef.current = document.activeElement;
     const startingMonth = task.dueMonth
       ? Number(task.dueMonth) - 1
       : new Date().getMonth();
@@ -9508,9 +9531,10 @@ function App() {
                       <div><strong>Complete JSON backup</strong><p>Includes assignments, Trash, checklists, courses, preferences, and workspace layouts. Attachment files are browser-only and are not included.</p><button type="button" className="btn btn-primary" onClick={handleExportJson}>Download JSON Backup</button></div>
                       <div><strong>Assignment spreadsheet</strong><p>Exports assignment rows for Excel or Google Sheets. CSV files cannot restore the full app.</p><button type="button" className="btn btn-secondary" onClick={handleExportCsv}>Download Assignment CSV</button></div>
                       <div><strong>Restore from JSON</strong><p>Your current planner is backed up locally before the imported version replaces it.</p><label className="btn btn-secondary recovery-file-button">Choose JSON Backup<input type="file" accept="application/json,.json" onChange={handleImportBackup} /></label></div>
+                      <div><strong>Previous local version</strong><p>Restore the latest safety copy created before a backup, cloud conflict, or earlier restore.</p><button type="button" className="btn btn-secondary" onClick={handleRestoreLocalBackup}>Restore Previous Local Version</button></div>
                     </div>
                     {CLOUD_SYNC_CONFIGURED && accountMode === "cloud" && <div className="cloud-history-panel"><div><strong>Automatic cloud history</strong><p>GlowDocket keeps up to 20 earlier versions. Restoring one safely makes it the current version without silently overwriting newer work.</p></div><button type="button" className="btn btn-secondary" disabled={cloudHistoryBusy} onClick={handleLoadCloudHistory}>{cloudHistoryBusy ? "Loading earlier versions…" : cloudHistory.length ? "Refresh History" : "View Earlier Versions"}</button>{cloudHistory.length > 0 && <ul>{cloudHistory.map((entry) => <li key={entry.id}><span><strong>{new Date(entry.created_at).toLocaleString()}</strong><small>{entry.state.tasks.length} assignments</small></span><button type="button" className="btn btn-secondary" onClick={() => handleRestoreCloudHistory(entry)}>Restore This Version</button></li>)}</ul>}</div>}
-                    {recoveryStatus.message && <div className={`account-update-message is-${recoveryStatus.type}`} role="status">{recoveryStatus.message}</div>}
+                    {recoveryStatus.message && <div className={`account-update-message is-${recoveryStatus.type}`} role={recoveryStatus.type === "error" ? "alert" : "status"} aria-live={recoveryStatus.type === "error" ? "assertive" : "polite"}>{recoveryStatus.message}</div>}
                   </SettingsCard>
                 )}
 
@@ -9719,7 +9743,7 @@ function App() {
       */}
       {editingTask && (
         <div className={`modal-backdrop${isMobileUi ? " mobile-edit-backdrop" : ""}`} onClick={handleEditCancel}>
-          <div className={`edit-modal${isMobileUi ? " mobile-edit-screen" : ""}`} role="dialog" aria-modal="true" aria-labelledby="edit-assignment-title" onClick={(e) => e.stopPropagation()}>
+          <div ref={activeDialogRef} className={`edit-modal${isMobileUi ? " mobile-edit-screen" : ""}`} role="dialog" aria-modal="true" aria-labelledby="edit-assignment-title" tabIndex="-1" onClick={(e) => e.stopPropagation()}>
             <div className={`edit-modal-header${isMobileUi ? " mobile-fullscreen-header mobile-edit-header" : ""}`}>
               <div>
                 <p className={isMobileUi ? "" : "eyebrow modal-eyebrow"}>{isMobileUi ? "Update assignment" : "Edit Assignment"}</p>
@@ -9740,8 +9764,10 @@ function App() {
             <div className="edit-modal-grid">
               {isMobileUi && <div className="mobile-add-option-heading mobile-edit-option-heading"><span>Assignment details</span><h3>Edit Assignment</h3><p>Update the assignment details below.</p></div>}
               <div className="edit-field edit-field-full">
-                <label>Assignment Name</label>
+                <label htmlFor="edit-assignment-name">Assignment Name</label>
                 <input
+                  id="edit-assignment-name"
+                  data-dialog-initial-focus
                   type="text"
                   value={editingTask?.title || ""}
                   onChange={(e) =>
@@ -9754,8 +9780,9 @@ function App() {
               <div className="edit-main-layout">
                 <div className="edit-details-grid">
                   <div className="edit-field">
-                    <label>Category</label>
+                    <label htmlFor="edit-assignment-category">Category</label>
                     <select
+                      id="edit-assignment-category"
                       value={getTaskCategory(editingTask)}
                       onChange={(e) => handleEditFieldChange("category", e.target.value)}
                     >
@@ -9765,8 +9792,9 @@ function App() {
                     </select>
                   </div>
                   <div className="edit-field">
-                    <label>Course</label>
+                    <label htmlFor="edit-assignment-course">Course</label>
                     <select
+                      id="edit-assignment-course"
                       value={editingTask.course || "Other"}
                       disabled={getTaskCategory(editingTask) !== "School"}
                       onChange={(e) =>
@@ -9782,8 +9810,9 @@ function App() {
                   </div>
 
                   <div className="edit-field">
-                    <label>Priority</label>
+                    <label htmlFor="edit-assignment-priority">Priority</label>
                     <select
+                      id="edit-assignment-priority"
                       value={editingTask.priority || "MED"}
                       onChange={(e) =>
                         handleEditFieldChange("priority", e.target.value)
@@ -9796,8 +9825,9 @@ function App() {
                   </div>
 
                   <div className="edit-field">
-                    <label>Due Month</label>
+                    <label htmlFor="edit-assignment-due-month">Due Month</label>
                     <select
+                      id="edit-assignment-due-month"
                       value={editingTask.dueMonth || ""}
                       onChange={(e) =>
                         handleEditFieldChange("dueMonth", e.target.value)
@@ -9816,8 +9846,9 @@ function App() {
                   </div>
 
                   <div className="edit-field">
-                    <label>Due Day</label>
+                    <label htmlFor="edit-assignment-due-day">Due Day</label>
                     <select
+                      id="edit-assignment-due-day"
                       value={editingTask.dueDay || ""}
                       onChange={(e) =>
                         handleEditFieldChange("dueDay", e.target.value)
@@ -9838,8 +9869,9 @@ function App() {
                   </div>
 
                   <div className="edit-field">
-                    <label>Due Time</label>
+                    <label htmlFor="edit-assignment-due-time">Due Time</label>
                     <input
+                      id="edit-assignment-due-time"
                       type="text"
                       inputMode="numeric"
                       placeholder="e.g., 3 or 3:45"
@@ -9859,8 +9891,9 @@ function App() {
                   </div>
 
                   <div className="edit-field">
-                    <label>AM / PM</label>
+                    <label htmlFor="edit-assignment-due-period">AM / PM</label>
                     <select
+                      id="edit-assignment-due-period"
                       value={editingTask.dueAmPm || "PM"}
                       onChange={(e) =>
                         handleEditFieldChange("dueAmPm", e.target.value)
@@ -9872,8 +9905,9 @@ function App() {
                   </div>
 
                   <div className="edit-field">
-                    <label>Estimated Minutes</label>
+                    <label htmlFor="edit-assignment-estimated-minutes">Estimated Minutes</label>
                     <input
+                      id="edit-assignment-estimated-minutes"
                       type="number"
                       min="0"
                       value={editingTask.estimatedMinutes || ""}
@@ -9887,8 +9921,9 @@ function App() {
                   </div>
 
                   <div className="edit-field">
-                    <label>Repeat</label>
+                    <label htmlFor="edit-assignment-repeat">Repeat</label>
                     <select
+                      id="edit-assignment-repeat"
                       value={editingTask.repeat || "NONE"}
                       onChange={(e) =>
                         handleEditFieldChange("repeat", e.target.value)
@@ -9906,8 +9941,9 @@ function App() {
                 </div>
 
                 <div className="edit-field edit-notes-side">
-                  <label>Notes</label>
+                  <label htmlFor="edit-assignment-notes">Notes</label>
                   <textarea
+                    id="edit-assignment-notes"
                     value={editingTask.notes || ""}
                     onChange={(e) =>
                       handleEditFieldChange("notes", e.target.value)
@@ -10234,7 +10270,7 @@ function App() {
       )}
       {copyingTask && (
         <div className="modal-backdrop" onClick={() => setCopyingTask(null)}>
-          <div className="edit-modal copy-dates-modal" role="dialog" aria-modal="true" aria-labelledby="copy-assignment-title" onClick={(e) => e.stopPropagation()}>
+          <div ref={activeDialogRef} className="edit-modal copy-dates-modal" role="dialog" aria-modal="true" aria-labelledby="copy-assignment-title" tabIndex="-1" onClick={(e) => e.stopPropagation()}>
             <div className="edit-modal-header">
               <div>
                 <p className="eyebrow modal-eyebrow">Copy Assignment</p>
@@ -10250,6 +10286,7 @@ function App() {
               <label>
                 <span>Cycle-day filter</span>
                 <select
+                  data-dialog-initial-focus
                   value={copyCycleFilter}
                   disabled={!userSettings.cycleAnchorDate}
                   onChange={(e) => setCopyCycleFilter(e.target.value)}
@@ -10403,6 +10440,7 @@ function App() {
           key={completionCelebration.id}
           className="completion-celebration"
           role="status"
+          aria-live="polite"
           onAnimationEnd={() => setCompletionCelebration(null)}
         >
           <span aria-hidden="true">✓</span>
@@ -10410,7 +10448,7 @@ function App() {
         </div>
       )}
       {deletedAssignmentUndo && (
-        <div className="delete-undo-toast" role="status">
+        <div className="delete-undo-toast" role="status" aria-live="polite">
           <span><strong>Moved to Trash</strong><small>{deletedAssignmentUndo.title} can still be recovered.</small></span>
           <button type="button" className="btn btn-secondary" onClick={handleUndoDeletedAssignment}>Undo</button>
           <button type="button" className="delete-undo-dismiss" aria-label="Dismiss undo message" onClick={() => setDeletedAssignmentUndo(null)}>×</button>

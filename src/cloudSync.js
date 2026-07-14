@@ -8,6 +8,17 @@ export const getCloudCacheKey = (userId) => `taskcabinet_cloud_cache_${userId}`;
 export const getCloudMetaKey = (userId) => `taskcabinet_cloud_meta_${userId}`;
 export const getCloudBackupKey = (userId) => `taskcabinet_cloud_backup_${userId}_${Date.now()}`;
 
+export function readStoredSection(storage, key, fallback, isValid = () => true) {
+  try {
+    const raw = storage.getItem(key);
+    if (!raw) return fallback;
+    const value = JSON.parse(raw);
+    return isValid(value) ? value : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function isOpaqueProfileId(value) {
   return UUID_PATTERN.test(String(value || "").trim());
 }
@@ -62,6 +73,29 @@ export function saveLocalBackup(storage, userId, state) {
   const key = getCloudBackupKey(userId);
   storage.setItem(key, JSON.stringify(validateCloudState(state)));
   return key;
+}
+
+export function loadLatestLocalBackup(storage, userId) {
+  const prefix = `taskcabinet_cloud_backup_${String(userId || "")}_`;
+  const backupKeys = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key?.startsWith(prefix)) backupKeys.push(key);
+  }
+  backupKeys.sort((left, right) => Number(right.slice(prefix.length)) - Number(left.slice(prefix.length)));
+  if (backupKeys.length === 0) return null;
+  for (const key of backupKeys) {
+    try {
+      return {
+        key,
+        savedAt: Number(key.slice(prefix.length)) || 0,
+        state: validateCloudState(JSON.parse(storage.getItem(key))),
+      };
+    } catch {
+      // Keep looking so one damaged backup does not hide an earlier valid copy.
+    }
+  }
+  throw new Error("GlowDocket found a previous local version, but it could not be read safely.");
 }
 
 export function readLegacySnapshot(storage, profileKey, defaults) {

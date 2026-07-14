@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyCloudStateToLocal, collectSyncableState, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, removeCloudAccountLocalData, resolveProfileDisplayName, saveLocalSnapshot, validateCloudState } from "../src/cloudSync.js";
+import { applyCloudStateToLocal, collectSyncableState, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadLatestLocalBackup, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, resolveProfileDisplayName, saveLocalBackup, saveLocalSnapshot, validateCloudState } from "../src/cloudSync.js";
 
 function memoryStorage() {
   const values = new Map();
@@ -85,4 +85,38 @@ test("portable exports round-trip validated planner data", () => {
   assert.equal(exported.format, "taskcabinet-export");
   assert.deepEqual(parsePortableExport(exported), original);
   assert.throws(() => parsePortableExport({ format: "unknown" }), /supported/i);
+});
+
+test("damaged profile sections fall back independently", () => {
+  const storage = memoryStorage();
+  storage.setItem("tasks_student", "not-json");
+  storage.setItem("courses_student", JSON.stringify(["Biology", "Other"]));
+  storage.setItem("settings_student", JSON.stringify({ textSize: "large" }));
+  assert.deepEqual(readStoredSection(storage, "tasks_student", [], Array.isArray), []);
+  assert.deepEqual(readStoredSection(storage, "courses_student", ["Other"], Array.isArray), ["Biology", "Other"]);
+  assert.deepEqual(readStoredSection(storage, "settings_student", {}, (value) => value && typeof value === "object" && !Array.isArray(value)), { textSize: "large" });
+  storage.setItem("courses_student", JSON.stringify({ invalid: true }));
+  assert.deepEqual(readStoredSection(storage, "courses_student", ["Other"], Array.isArray), ["Other"]);
+});
+
+test("latest local recovery backup is validated and skips damaged newer copies", () => {
+  const storage = memoryStorage();
+  assert.equal(loadLatestLocalBackup(storage, "student"), null);
+  const originalNow = Date.now;
+  try {
+    Date.now = () => 100;
+    saveLocalBackup(storage, "student", state({ tasks: [{ id: "safe-copy" }] }));
+    storage.setItem("taskcabinet_cloud_backup_student_200", "damaged");
+    const backup = loadLatestLocalBackup(storage, "student");
+    assert.equal(backup.savedAt, 100);
+    assert.equal(backup.state.tasks[0].id, "safe-copy");
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test("local recovery reports when every saved backup is malformed", () => {
+  const storage = memoryStorage();
+  storage.setItem("taskcabinet_cloud_backup_student_100", "{}");
+  assert.throws(() => loadLatestLocalBackup(storage, "student"), /could not be read safely/i);
 });
