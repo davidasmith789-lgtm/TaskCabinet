@@ -44,7 +44,7 @@ import { MANUAL_ACCESSIBILITY_CHECKS, runAccessibilityAudit } from "./accessibil
 import { RECOVERY_SESSION_KEY } from "./AppErrorBoundary.jsx";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
 import { PrivacyDataDialog, PrivacyDataPanel } from "./PrivacyDataPanel.jsx";
-import { APP_BUILD_METADATA, createReportMetadata, createRuntimeDiagnostics, getBuildFingerprint } from "./buildMetadata.js";
+import { APP_BUILD_METADATA, createReportMetadata } from "./buildMetadata.js";
 import { AssignmentCountdown, MobilePageTitle, PasswordEyeIcon, PersonalizationTip, SettingsCard, SubtaskProgressLine } from "./components/AppDisplayComponents.jsx";
 import { AssignmentFilterControls, AssignmentFilterToggle } from "./components/AssignmentFilters.jsx";
 import DeferredCalendar from "./components/DeferredCalendar.jsx";
@@ -1105,7 +1105,7 @@ const PERSONALIZATION_TIPS = [
   ["Keep local data safe", "GlowDocket saves your work in this browser. Clearing browser storage or using a different device does not automatically bring that data with you."],
   ["Privacy and data use", "Open Privacy & Data to see where information is stored, what cloud accounts sync, and which features remain specific to this device. GlowDocket does not load usage analytics or advertising trackers."],
   ["Install a GlowDocket update", "When an update is ready, finish any open edit and choose Update. Choose Later if you need to keep working; GlowDocket will not force the new version into the middle of your task."],
-  ["Check your GlowDocket version", "Open Storage, then Version & Diagnostics, to see the app version, commit, environment, build time, and data schema. Copy these details when reporting a problem."],
+  ["Check your GlowDocket version", "Open Storage, then Version & Diagnostics, to see the app version, environment, and when that version was built."],
   ["Restore a previous local version", "Backup & Restore can recover the latest safety copy made before a restore or cloud conflict. GlowDocket saves the current version again before replacing it."],
   ["Storage and attachment warnings", "The Browser Storage card warns when this site is getting full. Attachment limits prevent one assignment from unexpectedly using too much browser space."],
   ["Verify accessibility", "Accessibility Settings includes an automated scan and a manual checklist. Use both because keyboard flow, zoom, focus order, and screen-reader clarity need human review."],
@@ -1845,7 +1845,6 @@ function App() {
   const [storageView, setStorageView] = useState(null);
   const [deletedAssignmentUndo, setDeletedAssignmentUndo] = useState(null);
   const [recoveryStatus, setRecoveryStatus] = useState({ type: "", message: "" });
-  const [diagnosticsStatus, setDiagnosticsStatus] = useState("");
   const [browserStorage, setBrowserStorage] = useState({ supported: null, usage: 0, quota: 0, error: "" });
   const [cloudHistory, setCloudHistory] = useState([]);
   const [cloudHistoryBusy, setCloudHistoryBusy] = useState(false);
@@ -5097,15 +5096,6 @@ function App() {
       setRecoveryStatus({ type: "success", message: "Backup restored. GlowDocket saved your previous version locally in case you need it." });
     } catch (error) {
       setRecoveryStatus({ type: "error", message: error.message || "GlowDocket could not read that backup." });
-    }
-  };
-
-  const handleCopyDiagnostics = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(createRuntimeDiagnostics(), null, 2));
-      setDiagnosticsStatus("Version diagnostics copied.");
-    } catch {
-      setDiagnosticsStatus("Copy was unavailable. The version details remain visible below.");
     }
   };
 
@@ -9679,17 +9669,12 @@ function App() {
                 )}
 
                 {settingsSection === "storage" && (
-                  <SettingsCard title="Version & Diagnostics" description="Use this build fingerprint when reporting a problem or checking whether GlowDocket is current." className="settings-section-wide build-diagnostics-card">
+                  <SettingsCard title="Version & Diagnostics" description="Check which GlowDocket version is running and when it was built." className="settings-section-wide build-diagnostics-card">
                     <dl className="build-diagnostics-list">
                       <div><dt>App version</dt><dd>v{APP_BUILD_METADATA.appVersion}</dd></div>
-                      <div><dt>Commit</dt><dd><code>{APP_BUILD_METADATA.commitSha}</code>{APP_BUILD_METADATA.sourceState === "dirty" ? " (local changes)" : ""}</dd></div>
                       <div><dt>Environment</dt><dd>{APP_BUILD_METADATA.environment}</dd></div>
                       <div><dt>Built</dt><dd>{APP_BUILD_METADATA.buildTimestamp === "unavailable" ? "Unavailable" : new Date(APP_BUILD_METADATA.buildTimestamp).toLocaleString()}</dd></div>
-                      <div><dt>Data schema</dt><dd>v{CLOUD_STATE_SCHEMA_VERSION}</dd></div>
                     </dl>
-                    <p className="hint-text">Fingerprint: {getBuildFingerprint()}</p>
-                    <button type="button" className="btn btn-secondary" onClick={handleCopyDiagnostics}>Copy Diagnostics</button>
-                    <div className="privacy-preference-status" role="status" aria-live="polite">{diagnosticsStatus}</div>
                   </SettingsCard>
                 )}
 
