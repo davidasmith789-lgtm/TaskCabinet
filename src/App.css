@@ -5361,37 +5361,73 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 
 /* Focus Session */
 .focus-session-backdrop { position: fixed; inset: 0; z-index: 12000; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, #07111f 78%, transparent); backdrop-filter: blur(8px); }
-.focus-session { width: min(780px, 100%); max-height: min(860px, calc(100dvh - 48px)); overflow: auto; border: 1px solid color-mix(in srgb, var(--primary-color) 38%, var(--border-color)); border-radius: 24px; background: var(--card-bg); color: var(--text-color); box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42); }
+.focus-session { position: relative; width: min(860px, 100%); max-height: min(900px, calc(100dvh - 48px)); overflow: auto; border: 1px solid color-mix(in srgb, var(--primary-color) 38%, var(--border-color)); border-radius: 24px; background: var(--card-bg); color: var(--text-color); box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42); }
+.focus-session:fullscreen { width: 100%; max-height: none; border: 0; border-radius: 0; }
 .focus-session-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 26px 28px 20px; border-bottom: 1px solid var(--border-color); }
 .focus-session-header h2, .focus-session-header p { margin: 0; }
 html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-color); font-size: clamp(1.45rem, 4vw, 2.2rem); }
 .focus-session-header > div > p:last-child { margin-top: 7px; color: var(--muted-text); }
-.focus-session-close { width: 42px; height: 42px; flex: 0 0 42px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-color); color: var(--text-color); cursor: pointer; font-size: 1.55rem; line-height: 1; }
-.focus-session-timer { display: grid; justify-items: center; gap: 10px; padding: 28px; background: color-mix(in srgb, var(--primary-color) 9%, var(--surface-color)); }
-.focus-session-timer > span { color: var(--muted-text); font-size: 0.78rem; font-weight: 850; letter-spacing: 0.14em; text-transform: uppercase; }
-.focus-session-timer > strong { font-variant-numeric: tabular-nums; font-size: clamp(3rem, 11vw, 5.5rem); line-height: 1; letter-spacing: -0.05em; }
+.focus-session-window-actions { display: flex; gap: 8px; }
+.focus-session-window-actions button { width: 42px; height: 42px; flex: 0 0 42px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-color); color: var(--text-color); cursor: pointer; font-size: 1.35rem; line-height: 1; }
+.focus-session-window-actions button:hover { border-color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 12%, var(--surface-color)); }
+.focus-session-timer { display: grid; justify-items: center; gap: 16px; padding: 28px; background: color-mix(in srgb, var(--primary-color) 9%, var(--surface-color)); }
+.focus-session-progress { --focus-progress: 0%; display: grid; width: clamp(210px, 33vw, 270px); aspect-ratio: 1; padding: 10px; border-radius: 50%; background: conic-gradient(var(--primary-color) var(--focus-progress), color-mix(in srgb, var(--border-color) 70%, transparent) 0); box-shadow: 0 14px 36px color-mix(in srgb, var(--primary-color) 18%, transparent); }
+.focus-session-progress > div { display: grid; place-content: center; justify-items: center; border-radius: inherit; background: var(--card-bg); }
+.focus-session-progress span { color: var(--muted-text); font-size: 0.76rem; font-weight: 850; letter-spacing: 0.13em; text-transform: uppercase; }
+.focus-session-progress strong { margin-top: 4px; color: var(--text-color); font-variant-numeric: tabular-nums; font-size: clamp(2.65rem, 8vw, 4.65rem); line-height: 1; letter-spacing: -0.05em; }
+.focus-session-progress small { margin-top: 8px; color: var(--muted-text); font-weight: 700; }
+.focus-session-goals { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
+.focus-session-goals button { padding: 7px 12px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--card-bg); color: var(--muted-text); cursor: pointer; font-weight: 800; }
+.focus-session-goals button.active { border-color: var(--primary-color); background: var(--primary-color); color: var(--hero-text); }
+.focus-session-intention { display: grid; width: min(560px, 100%); gap: 7px; }
+.focus-session-intention span { color: var(--text-color); font-size: 0.86rem; font-weight: 800; text-align: center; }
+.focus-session-intention input { width: 100%; padding: 11px 14px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--card-bg); color: var(--text-color); text-align: center; }
+.focus-session-intention input:focus { border-color: var(--primary-color); outline: 3px solid color-mix(in srgb, var(--primary-color) 20%, transparent); }
+.focus-session-timer-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; }
+.focus-session-shortcuts { color: var(--muted-text); font-size: 0.76rem; }
+.focus-session.is-break .focus-session-timer { min-height: 520px; align-content: center; background: color-mix(in srgb, var(--success-color) 10%, var(--surface-color)); }
+.focus-session.is-break .focus-session-progress { background: conic-gradient(var(--success-color) var(--focus-progress), color-mix(in srgb, var(--border-color) 70%, transparent) 0); box-shadow: 0 14px 36px color-mix(in srgb, var(--success-color) 18%, transparent); }
+.focus-session-milestone { display: flex; align-items: center; gap: 10px; padding: 16px 28px; border-block: 1px solid color-mix(in srgb, var(--success-color) 40%, var(--border-color)); background: color-mix(in srgb, var(--success-color) 10%, var(--card-bg)); }
+.focus-session-milestone > div { display: grid; flex: 1; gap: 3px; }
+.focus-session-milestone span { color: var(--muted-text); font-size: 0.88rem; }
 .focus-session-body { display: grid; gap: 24px; padding: 26px 28px; }
 .focus-session-body section h3 { margin: 0; }
 .focus-session-notes { margin: 10px 0 0; white-space: pre-wrap; line-height: 1.6; }
 .focus-session-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .focus-session-section-heading span { color: var(--muted-text); font-size: 0.9rem; font-weight: 700; }
+.focus-session-checklist-progress { height: 5px; margin-top: 12px; overflow: hidden; border-radius: 999px; background: var(--border-color); }
+.focus-session-checklist-progress span { display: block; height: 100%; border-radius: inherit; background: var(--accent-gradient); transition: width 180ms ease; }
 .focus-session-checklist { display: grid; gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
 .focus-session-checklist li { border: 1px solid var(--border-color); border-radius: 13px; background: var(--surface-color); }
 .focus-session-checklist label { display: flex; align-items: center; gap: 12px; padding: 13px 15px; cursor: pointer; }
 .focus-session-checklist input { width: 20px; height: 20px; accent-color: var(--primary-color); }
 .focus-session-checklist li.done span { color: var(--muted-text); text-decoration: line-through; }
 .focus-session-footer { display: grid; gap: 18px; padding: 20px 28px 26px; border-top: 1px solid var(--border-color); }
-.focus-session-footer > div { display: flex; justify-content: flex-end; gap: 10px; }
+.focus-session-session-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.focus-session-session-stats span { display: grid; gap: 2px; padding: 11px 13px; border: 1px solid var(--border-color); border-radius: 12px; color: var(--muted-text); font-size: 0.82rem; }
+.focus-session-session-stats strong { color: var(--text-color); font-size: 1rem; }
 .focus-session-estimate-option { display: flex; align-items: center; gap: 10px; color: var(--muted-text); font-size: 0.92rem; cursor: pointer; }
 .focus-session-estimate-option input { width: 18px; height: 18px; accent-color: var(--primary-color); }
+.focus-session-finish-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.focus-session-exit-confirm { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; padding: 22px; background: color-mix(in srgb, #07111f 76%, transparent); backdrop-filter: blur(6px); }
+.focus-session-exit-confirm > div { width: min(430px, 100%); padding: 24px; border: 1px solid var(--border-color); border-radius: 18px; background: var(--card-bg); box-shadow: var(--shadow-card); }
+.focus-session-exit-confirm h3, .focus-session-exit-confirm p { margin-top: 0; }
+.focus-session-exit-confirm p { color: var(--muted-text); line-height: 1.5; }
+.focus-session-exit-confirm > div > div { display: flex; justify-content: flex-end; gap: 9px; }
 
 @media (max-width: 640px) {
   .focus-session-backdrop { padding: 0; }
   .focus-session { width: 100%; height: 100dvh; max-height: none; border: 0; border-radius: 0; }
   .focus-session-header, .focus-session-body, .focus-session-footer { padding-left: 18px; padding-right: 18px; }
-  .focus-session-timer { padding: 24px 18px; }
-  .focus-session-footer > div { display: grid; }
-  .focus-session-footer .btn { width: 100%; min-height: 48px; }
+  .focus-session-header { padding-block: 18px 14px; }
+  .focus-session-window-actions button:first-child { display: none; }
+  .focus-session-timer { padding: 22px 18px; }
+  .focus-session-progress { width: min(215px, 62vw); }
+  .focus-session-shortcuts { display: none; }
+  .focus-session-milestone { align-items: stretch; flex-direction: column; padding-inline: 18px; }
+  .focus-session-session-stats { grid-template-columns: 1fr; }
+  .focus-session-finish-actions, .focus-session-exit-confirm > div > div { display: grid; }
+  .focus-session-footer .btn, .focus-session-milestone .btn { width: 100%; min-height: 48px; }
 }
 .cloud-sync-status { padding: 5px 9px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface-alt); color: var(--muted-text); font-size: 0.76rem; font-weight: 800; }
 .cloud-sync-status.is-saved { color: var(--success-color); }
