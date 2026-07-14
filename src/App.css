@@ -2259,7 +2259,6 @@ html[data-theme] .react-calendar__month-view__weekdays abbr { color: var(--muted
 .privacy-data-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .privacy-data-summary article { padding: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: color-mix(in srgb, var(--surface-alt) 72%, transparent); }
 .privacy-data-summary p, .privacy-dialog-intro { margin: 6px 0 0; color: var(--muted-text); line-height: 1.5; }
-.privacy-analytics-toggle { margin: 0; padding: 14px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--card-bg); }
 .privacy-preference-status { min-height: 1.4em; color: var(--muted-text); font-weight: 700; }
 .privacy-dialog { width: min(760px, 100%); }
 .privacy-dialog-intro { margin: -4px 0 20px; }

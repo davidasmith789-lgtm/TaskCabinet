@@ -1,25 +1,18 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useRef } from "react";
 
-export function PrivacyDataPanel({ analyticsEnabled, onAnalyticsChange, statusMessage = "" }) {
-  const analyticsId = useId();
+export function PrivacyDataPanel() {
   return (
     <div className="privacy-data-panel">
       <div className="privacy-data-summary">
         <article><strong>On this device</strong><p>Assignments, preferences, layouts, and attachment files are primarily kept in this browser. Removing this site’s browser data can remove that local information.</p></article>
         <article><strong>Optional cloud account</strong><p>When you use a cloud account, supported planner data syncs through GlowDocket’s account service. Attachments, notification permission, and reminder connections remain device-specific.</p></article>
-        <article><strong>No advertising tracking</strong><p>GlowDocket does not use a marketing or advertising-tracking category.</p></article>
+        <article><strong>No usage or advertising tracking</strong><p>GlowDocket does not load usage analytics, marketing trackers, or advertising trackers.</p></article>
       </div>
-      <label className="settings-toggle settings-toggle-copy privacy-analytics-toggle" htmlFor={analyticsId}>
-        <span><strong>Usage analytics</strong><small>Allow Vercel Analytics and Speed Insights to measure site usage and performance. These tools stay unloaded while this is off.</small></span>
-        <input id={analyticsId} type="checkbox" checked={analyticsEnabled} onChange={(event) => onAnalyticsChange(event.target.checked)} />
-      </label>
-      <p className="hint-text">This choice applies only to this browser. It is not included in profile sync or planner exports, and you can change it here at any time.</p>
-      <div className="privacy-preference-status" role="status" aria-live="polite">{statusMessage}</div>
     </div>
   );
 }
 
-export function PrivacyDataDialog({ open, onClose, analyticsEnabled, onAnalyticsChange, statusMessage }) {
+export function PrivacyDataDialog({ open, onClose }) {
   const dialogRef = useRef(null);
   useEffect(() => {
     if (!open) return undefined;
@@ -52,8 +45,8 @@ export function PrivacyDataDialog({ open, onClose, analyticsEnabled, onAnalytics
           <div><p className="eyebrow">Your choice</p><h2 id="privacy-dialog-title" tabIndex="-1" data-dialog-initial-focus>Privacy &amp; Data</h2></div>
           <button type="button" className="modal-close-button" onClick={onClose} aria-label="Close Privacy and Data">×</button>
         </header>
-        <p className="privacy-dialog-intro">A concise explanation of where GlowDocket keeps data and the optional measurement you control.</p>
-        <PrivacyDataPanel analyticsEnabled={analyticsEnabled} onAnalyticsChange={onAnalyticsChange} statusMessage={statusMessage} />
+        <p className="privacy-dialog-intro">A concise explanation of where GlowDocket keeps data and which features are specific to this device.</p>
+        <PrivacyDataPanel />
       </section>
     </div>
   );

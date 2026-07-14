@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useLayoutEffect, useRef } from "react";
 import "./App.css";
 import {
   formatChecklistCountdown,
@@ -44,13 +44,11 @@ import { MANUAL_ACCESSIBILITY_CHECKS, runAccessibilityAudit } from "./accessibil
 import { RECOVERY_SESSION_KEY } from "./AppErrorBoundary.jsx";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
 import { PrivacyDataDialog, PrivacyDataPanel } from "./PrivacyDataPanel.jsx";
-import { readPrivacyPreferences, writePrivacyPreferences } from "./privacyPreferences.js";
 import { APP_BUILD_METADATA, createReportMetadata, createRuntimeDiagnostics, getBuildFingerprint } from "./buildMetadata.js";
 import { AssignmentCountdown, MobilePageTitle, PasswordEyeIcon, PersonalizationTip, SettingsCard, SubtaskProgressLine } from "./components/AppDisplayComponents.jsx";
 import { AssignmentFilterControls, AssignmentFilterToggle } from "./components/AssignmentFilters.jsx";
 import DeferredCalendar from "./components/DeferredCalendar.jsx";
 
-const Telemetry = lazy(() => import("./Telemetry.jsx"));
 /*
  * GLOWDOCKET APPLICATION MAP
  *
@@ -451,7 +449,7 @@ const SETTINGS_SECTIONS = [
   { id: "reminders", icon: "🔔", label: "Reminders & App", description: "Notifications and installation." },
   { id: "cycle", icon: "🔁", label: "School Cycle", description: "Cycle labels, anchor date, and courses." },
   { id: "accessibility", icon: "♿", label: "Accessibility", description: "Automated checks and manual verification." },
-  { id: "privacy", icon: "🛡️", label: "Privacy & Data", description: "Local data, cloud sync, and optional analytics." },
+  { id: "privacy", icon: "🛡️", label: "Privacy & Data", description: "Local data, cloud sync, and device-specific behavior." },
   { id: "storage", icon: "🗄️", label: "Storage", description: "Archive, Trash, and preference tools." },
 ];
 
@@ -1100,7 +1098,7 @@ const PERSONALIZATION_TIPS = [
   ["Preferred name", "Add the name you like to be called under Account. GlowDocket can use it in friendly greetings and reminders, but never as your sign-in identity."],
   ["Welcome page", "The public welcome page explains GlowDocket before you sign in. Get Started and I Already Have an Account both move you straight to the account panel."],
   ["Keep local data safe", "GlowDocket saves your work in this browser. Clearing browser storage or using a different device does not automatically bring that data with you."],
-  ["Privacy and usage analytics", "Open Privacy & Data to see where information is stored. Usage analytics is optional, stays off until you enable it, and can be disabled again on this browser."],
+  ["Privacy and data use", "Open Privacy & Data to see where information is stored, what cloud accounts sync, and which features remain specific to this device. GlowDocket does not load usage analytics or advertising trackers."],
   ["Install a GlowDocket update", "When an update is ready, finish any open edit and choose Update. Choose Later if you need to keep working; GlowDocket will not force the new version into the middle of your task."],
   ["Check your GlowDocket version", "Open Storage, then Version & Diagnostics, to see the app version, commit, environment, build time, and data schema. Copy these details when reporting a problem."],
   ["Restore a previous local version", "Backup & Restore can recover the latest safety copy made before a restore or cloud conflict. GlowDocket saves the current version again before replacing it."],
@@ -1610,23 +1608,8 @@ function App() {
   const cloudLastSavedFingerprintRef = useRef("");
   const intentionalSignOutRef = useRef(false);
   const authPanelRef = useRef(null);
-  const [analyticsEnabled, setAnalyticsEnabled] = useState(() => readPrivacyPreferences(localStorage).analyticsEnabled);
   const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
-  const [privacyPreferenceStatus, setPrivacyPreferenceStatus] = useState("");
   const closePrivacyDialog = useCallback(() => setPrivacyDialogOpen(false), []);
-  const handleAnalyticsPreferenceChange = useCallback((enabled) => {
-    if (!enabled) setAnalyticsEnabled(false);
-    try {
-      writePrivacyPreferences(localStorage, enabled);
-      setAnalyticsEnabled(enabled);
-      setPrivacyPreferenceStatus(enabled ? "Usage analytics enabled on this browser." : "Usage analytics disabled on this browser.");
-    } catch (error) {
-      console.error("Privacy preference could not be saved:", error);
-      setPrivacyPreferenceStatus(enabled
-        ? "Usage analytics could not be enabled because this browser did not save the preference."
-        : "Usage analytics is off for this session, but this browser could not save the preference.");
-    }
-  }, []);
 
   const waitForCloudRequest = async (request, message) => {
     let timeoutId;
@@ -7411,8 +7394,7 @@ function App() {
             <button type="button" className="auth-text-button" onClick={() => setPrivacyDialogOpen(true)}>Privacy &amp; Data</button>
           </footer>
         </main>
-        <PrivacyDataDialog open={privacyDialogOpen} onClose={closePrivacyDialog} analyticsEnabled={analyticsEnabled} onAnalyticsChange={handleAnalyticsPreferenceChange} statusMessage={privacyPreferenceStatus} />
-        {analyticsEnabled && <Suspense fallback={null}><Telemetry /></Suspense>}
+        <PrivacyDataDialog open={privacyDialogOpen} onClose={closePrivacyDialog} />
       </div>
     );
   }
@@ -9619,7 +9601,7 @@ function App() {
 
                 {settingsSection === "privacy" && (
                   <SettingsCard title="Privacy & Data" description="Understand where GlowDocket keeps information and control optional usage measurement." className="settings-section-wide privacy-settings-card">
-                    <PrivacyDataPanel analyticsEnabled={analyticsEnabled} onAnalyticsChange={handleAnalyticsPreferenceChange} statusMessage={privacyPreferenceStatus} />
+                    <PrivacyDataPanel />
                   </SettingsCard>
                 )}
 
@@ -10599,7 +10581,6 @@ function App() {
           <button type="button" className="delete-undo-dismiss" aria-label="Dismiss undo message" onClick={() => setDeletedAssignmentUndo(null)}>×</button>
         </div>
       )}
-      {analyticsEnabled && <Suspense fallback={null}><Telemetry /></Suspense>}
     </div>
   );
 }

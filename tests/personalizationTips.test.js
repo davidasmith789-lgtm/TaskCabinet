@@ -26,7 +26,7 @@ test("personalization tips can be searched and filtered by useful topics", async
   assert.match(app, /aria-label="Filter personalization tips by topic"/);
   assert.match(app, /aria-pressed=\{helpCategory === category\}/);
   assert.match(app, /visiblePersonalizationTips\.length === 0/);
-  for (const title of ["Privacy and usage analytics", "Install a GlowDocket update", "Storage and attachment warnings", "Verify accessibility", "Edit assignments on mobile"]) {
+  for (const title of ["Privacy and data use", "Install a GlowDocket update", "Storage and attachment warnings", "Verify accessibility", "Edit assignments on mobile"]) {
     assert.match(app, new RegExp(title));
   }
   assert.match(display, /personalization-tip-category/);
