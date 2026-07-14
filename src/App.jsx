@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef } from "react";
+import { lazy, Suspense, useCallback, useState, useEffect, useLayoutEffect, useRef } from "react";
 import "./App.css";
 import {
   formatChecklistCountdown,
@@ -43,6 +43,8 @@ import { evaluateAttachmentSelection, formatStorageBytes, getStorageQuotaStatus,
 import { MANUAL_ACCESSIBILITY_CHECKS, runAccessibilityAudit } from "./accessibilityAudit.js";
 import { RECOVERY_SESSION_KEY } from "./AppErrorBoundary.jsx";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
+import { PrivacyDataDialog, PrivacyDataPanel } from "./PrivacyDataPanel.jsx";
+import { readPrivacyPreferences, writePrivacyPreferences } from "./privacyPreferences.js";
 
 const Calendar = lazy(() => import("./CalendarFeature.jsx"));
 const Telemetry = lazy(() => import("./Telemetry.jsx"));
@@ -98,7 +100,7 @@ const DEFAULT_USER_SETTINGS = {
   showCalendarCycleLabels: true,
   showCalendarTaskDots: true,
   checklistTimesEnabled: false,
-  settingsSectionOrder: ["personalization", "assignments", "checklists", "calendar", "reminders", "cycle", "accessibility", "storage"],
+  settingsSectionOrder: ["personalization", "assignments", "checklists", "calendar", "reminders", "cycle", "accessibility", "privacy", "storage"],
   cycleDayNames: ["A Day", "B Day"],
   cycleAnchorDate: "",
   courseCycleDays: {},
@@ -454,6 +456,7 @@ const SETTINGS_SECTIONS = [
   { id: "reminders", icon: "🔔", label: "Reminders & App", description: "Notifications and installation." },
   { id: "cycle", icon: "🔁", label: "School Cycle", description: "Cycle labels, anchor date, and courses." },
   { id: "accessibility", icon: "♿", label: "Accessibility", description: "Automated checks and manual verification." },
+  { id: "privacy", icon: "🛡️", label: "Privacy & Data", description: "Local data, cloud sync, and optional analytics." },
   { id: "storage", icon: "🗄️", label: "Storage", description: "Archive, Trash, and preference tools." },
 ];
 
@@ -1642,6 +1645,23 @@ function App() {
   const cloudLastSavedFingerprintRef = useRef("");
   const intentionalSignOutRef = useRef(false);
   const authPanelRef = useRef(null);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(() => readPrivacyPreferences(localStorage).analyticsEnabled);
+  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
+  const [privacyPreferenceStatus, setPrivacyPreferenceStatus] = useState("");
+  const closePrivacyDialog = useCallback(() => setPrivacyDialogOpen(false), []);
+  const handleAnalyticsPreferenceChange = useCallback((enabled) => {
+    if (!enabled) setAnalyticsEnabled(false);
+    try {
+      writePrivacyPreferences(localStorage, enabled);
+      setAnalyticsEnabled(enabled);
+      setPrivacyPreferenceStatus(enabled ? "Usage analytics enabled on this browser." : "Usage analytics disabled on this browser.");
+    } catch (error) {
+      console.error("Privacy preference could not be saved:", error);
+      setPrivacyPreferenceStatus(enabled
+        ? "Usage analytics could not be enabled because this browser did not save the preference."
+        : "Usage analytics is off for this session, but this browser could not save the preference.");
+    }
+  }, []);
 
   const waitForCloudRequest = async (request, message) => {
     let timeoutId;
@@ -7488,8 +7508,13 @@ function App() {
             </p>
           </div>
           </section>
-          <footer className="welcome-footer">GlowDocket helps you organize the work. You stay in charge of it.</footer>
+          <footer className="welcome-footer">
+            <span>GlowDocket helps you organize the work. You stay in charge of it.</span>
+            <button type="button" className="auth-text-button" onClick={() => setPrivacyDialogOpen(true)}>Privacy &amp; Data</button>
+          </footer>
         </main>
+        <PrivacyDataDialog open={privacyDialogOpen} onClose={closePrivacyDialog} analyticsEnabled={analyticsEnabled} onAnalyticsChange={handleAnalyticsPreferenceChange} statusMessage={privacyPreferenceStatus} />
+        {analyticsEnabled && <Suspense fallback={null}><Telemetry /></Suspense>}
       </div>
     );
   }
@@ -9675,6 +9700,12 @@ function App() {
                   </SettingsCard>
                 )}
 
+                {settingsSection === "privacy" && (
+                  <SettingsCard title="Privacy & Data" description="Understand where GlowDocket keeps information and control optional usage measurement." className="settings-section-wide privacy-settings-card">
+                    <PrivacyDataPanel analyticsEnabled={analyticsEnabled} onAnalyticsChange={handleAnalyticsPreferenceChange} statusMessage={privacyPreferenceStatus} />
+                  </SettingsCard>
+                )}
+
                 {settingsSection === "accessibility" && (
                   <>
                     <SettingsCard title="Automated Accessibility Check" description="Scan the current GlowDocket screen for common machine-detectable accessibility problems." className="settings-section-wide accessibility-verification-card">
@@ -10637,9 +10668,7 @@ function App() {
           <button type="button" className="delete-undo-dismiss" aria-label="Dismiss undo message" onClick={() => setDeletedAssignmentUndo(null)}>×</button>
         </div>
       )}
-      <Suspense fallback={null}>
-        <Telemetry />
-      </Suspense>
+      {analyticsEnabled && <Suspense fallback={null}><Telemetry /></Suspense>}
     </div>
   );
 }
