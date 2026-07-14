@@ -36,7 +36,7 @@ import { cancelAllExternalReminders, cancelExternalReminder, reconcileExternalRe
 import { summarizeDeadlineConfidence } from "./deadlineConfidenceUtils.js";
 import { canSendReminderTest, clearReminderFailure, createReminderActionGuard, deriveReminderUserStatus, formatReminderLeadTime, friendlyReminderError, getAssignmentReminderIndicator, getReminderStatusCopy, shouldShowReminderSuggestion, shouldShowRepairReminderSync } from "./reminderUxUtils.js";
 import { CLOUD_SYNC_CONFIGURED, getSupabaseBrowserClient } from "./supabaseClient.js";
-import { applyCloudStateToLocal, collectSyncableState, createCloudSnapshot, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadCloudHistory, loadCloudSnapshot, loadLatestLocalBackup, loadLocalMeta, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, replaceCloudSnapshot, resolveProfileDisplayName, sameState, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
+import { applyCloudStateToLocal, CLOUD_STATE_SCHEMA_VERSION, collectSyncableState, createCloudSnapshot, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadCloudHistory, loadCloudSnapshot, loadLatestLocalBackup, loadLocalMeta, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, replaceCloudSnapshot, resolveProfileDisplayName, sameState, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
 import { getTrashDaysRemaining, isTrashExpired } from "./trashUtils.js";
 import { friendlyAccountError, friendlyCloudSaveError } from "./userMessageUtils.js";
 import { evaluateAttachmentSelection, formatStorageBytes, getStorageQuotaStatus, MAX_ATTACHMENTS_PER_ASSIGNMENT } from "./storageQuotaUtils.js";
@@ -45,6 +45,7 @@ import { RECOVERY_SESSION_KEY } from "./AppErrorBoundary.jsx";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
 import { PrivacyDataDialog, PrivacyDataPanel } from "./PrivacyDataPanel.jsx";
 import { readPrivacyPreferences, writePrivacyPreferences } from "./privacyPreferences.js";
+import { APP_BUILD_METADATA, createReportMetadata, createRuntimeDiagnostics, getBuildFingerprint } from "./buildMetadata.js";
 
 const Calendar = lazy(() => import("./CalendarFeature.jsx"));
 const Telemetry = lazy(() => import("./Telemetry.jsx"));
@@ -1890,6 +1891,7 @@ function App() {
   const [storageView, setStorageView] = useState(null);
   const [deletedAssignmentUndo, setDeletedAssignmentUndo] = useState(null);
   const [recoveryStatus, setRecoveryStatus] = useState({ type: "", message: "" });
+  const [diagnosticsStatus, setDiagnosticsStatus] = useState("");
   const [browserStorage, setBrowserStorage] = useState({ supported: null, usage: 0, quota: 0, error: "" });
   const [cloudHistory, setCloudHistory] = useState([]);
   const [cloudHistoryBusy, setCloudHistoryBusy] = useState(false);
@@ -5077,9 +5079,18 @@ function App() {
   };
 
   const handleExportCsv = () => {
-    const columns = ["title", "course", "dueYear", "dueMonth", "dueDay", "dueTime", "priority", "estimatedMinutes", "status", "notes", "isArchived", "isDeleted"];
+    const exportedAt = new Date().toISOString();
+    const metadata = createReportMetadata(exportedAt, CLOUD_STATE_SCHEMA_VERSION);
+    const columns = ["title", "course", "dueYear", "dueMonth", "dueDay", "dueTime", "priority", "estimatedMinutes", "status", "notes", "isArchived", "isDeleted", "appVersion", "commitSha", "environment", "exportedAt", "dataSchemaVersion"];
     const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-    const rows = tasks.map((task) => columns.map((column) => escape(column === "status" ? getTaskStatus(task) : task[column])).join(","));
+    const rows = tasks.map((task) => columns.map((column) => escape({
+      status: getTaskStatus(task),
+      appVersion: metadata.appVersion,
+      commitSha: metadata.commitSha,
+      environment: metadata.environment,
+      exportedAt: metadata.createdAt,
+      dataSchemaVersion: metadata.dataSchemaVersion,
+    }[column] ?? task[column])).join(","));
     downloadTextFile(`glowdocket-assignments-${exportFileDate()}.csv`, [columns.join(","), ...rows].join("\r\n"), "text/csv;charset=utf-8");
     setRecoveryStatus({ type: "success", message: "Assignment CSV downloaded for spreadsheets. Use the JSON backup—not CSV—to restore GlowDocket." });
   };
@@ -5108,6 +5119,15 @@ function App() {
       setRecoveryStatus({ type: "success", message: "Backup restored. GlowDocket saved your previous version locally in case you need it." });
     } catch (error) {
       setRecoveryStatus({ type: "error", message: error.message || "GlowDocket could not read that backup." });
+    }
+  };
+
+  const handleCopyDiagnostics = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(createRuntimeDiagnostics(), null, 2));
+      setDiagnosticsStatus("Version diagnostics copied.");
+    } catch {
+      setDiagnosticsStatus("Copy was unavailable. The version details remain visible below.");
     }
   };
 
@@ -9736,6 +9756,21 @@ function App() {
                       <button type="button" className="btn btn-secondary" disabled={!accessibilityAudit && manualAccessibilityChecks.length === 0} onClick={handleResetAccessibilityChecks}>Reset Verification</button>
                     </SettingsCard>
                   </>
+                )}
+
+                {settingsSection === "storage" && (
+                  <SettingsCard title="Version & Diagnostics" description="Use this build fingerprint when reporting a problem or checking whether GlowDocket is current." className="settings-section-wide build-diagnostics-card">
+                    <dl className="build-diagnostics-list">
+                      <div><dt>App version</dt><dd>v{APP_BUILD_METADATA.appVersion}</dd></div>
+                      <div><dt>Commit</dt><dd><code>{APP_BUILD_METADATA.commitSha}</code>{APP_BUILD_METADATA.sourceState === "dirty" ? " (local changes)" : ""}</dd></div>
+                      <div><dt>Environment</dt><dd>{APP_BUILD_METADATA.environment}</dd></div>
+                      <div><dt>Built</dt><dd>{APP_BUILD_METADATA.buildTimestamp === "unavailable" ? "Unavailable" : new Date(APP_BUILD_METADATA.buildTimestamp).toLocaleString()}</dd></div>
+                      <div><dt>Data schema</dt><dd>v{CLOUD_STATE_SCHEMA_VERSION}</dd></div>
+                    </dl>
+                    <p className="hint-text">Fingerprint: {getBuildFingerprint()}</p>
+                    <button type="button" className="btn btn-secondary" onClick={handleCopyDiagnostics}>Copy Diagnostics</button>
+                    <div className="privacy-preference-status" role="status" aria-live="polite">{diagnosticsStatus}</div>
+                  </SettingsCard>
                 )}
 
                 {settingsSection === "storage" && (

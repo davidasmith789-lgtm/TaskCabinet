@@ -1,4 +1,5 @@
 import { Component, createRef } from "react";
+import { APP_BUILD_METADATA, createReportMetadata, getBuildFingerprint } from "./buildMetadata.js";
 
 export const RECOVERY_SESSION_KEY = "taskcabinet_open_recovery";
 
@@ -14,7 +15,9 @@ export class AppErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("GlowDocket encountered an unexpected interface error:", error, errorInfo);
+    console.error("GlowDocket encountered an unexpected interface error:", error, errorInfo, {
+      _metadata: createReportMetadata(),
+    });
   }
 
   componentDidUpdate(previousProps, previousState) {
@@ -56,6 +59,8 @@ export class AppErrorBoundary extends Component {
           <details className="app-crash-details">
             <summary>Technical details</summary>
             <code>{this.state.error?.message || "Unknown interface error"}</code>
+            <code>{getBuildFingerprint()}</code>
+            <small>Built {APP_BUILD_METADATA.buildTimestamp}</small>
           </details>
         </section>
       </main>

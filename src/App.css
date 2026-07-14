@@ -5315,6 +5315,12 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 .storage-quota-summary.is-critical { border-color: color-mix(in srgb, var(--danger-color) 55%, var(--border-color)); }
 .storage-quota-details { display: flex; flex-wrap: wrap; gap: 10px; }
 .storage-quota-details span { padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--card-bg); }
+.build-diagnostics-list { display: grid; gap: 8px; margin: 0; }
+.build-diagnostics-list div { display: grid; grid-template-columns: minmax(120px, .35fr) minmax(0, 1fr); gap: 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 11px; background: var(--surface-alt); }
+.build-diagnostics-list dt { font-weight: 800; }
+.build-diagnostics-list dd { min-width: 0; margin: 0; color: var(--muted-text); overflow-wrap: anywhere; }
+.build-diagnostics-list code { font-size: .82em; }
+@media (max-width: 560px) { .build-diagnostics-list div { grid-template-columns: 1fr; gap: 3px; } }
 .attachment-selection-message { margin: 4px 0 0; color: var(--warning-color); font-size: 0.8rem; font-weight: 700; line-height: 1.4; }
 .accessibility-verification-card { display: grid; gap: 16px; }
 .accessibility-audit-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }

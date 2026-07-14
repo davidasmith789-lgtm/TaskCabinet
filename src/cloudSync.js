@@ -1,3 +1,5 @@
+import { createReportMetadata } from "./buildMetadata.js";
+
 export const CLOUD_STATE_SCHEMA_VERSION = 1;
 const DEVICE_SETTING_KEYS = new Set(["externalPushEnabled", "notificationsEnabled", "activeColorThemeId", "customColors"]);
 const ACCOUNT_FIELDS = ["tasks", "courses", "courseColors", "userSettings", "checklists", "workspaceLayout", "displayName"];
@@ -167,7 +169,14 @@ export async function loadCloudHistory(client, userId, limit = 10) {
 }
 
 export function createPortableExport(state, exportedAt = new Date().toISOString()) {
-  return { format: "taskcabinet-export", version: 1, exportedAt, data: validateCloudState(state) };
+  const data = validateCloudState(state);
+  return {
+    format: "taskcabinet-export",
+    version: 1,
+    exportedAt,
+    _metadata: { ...createReportMetadata(exportedAt, data.schemaVersion), exportFormatVersion: 1 },
+    data,
+  };
 }
 
 export function parsePortableExport(value) {

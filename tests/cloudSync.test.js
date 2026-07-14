@@ -83,7 +83,12 @@ test("portable exports round-trip validated planner data", () => {
   const original = state({ tasks: [{ id: "assignment", title: "Essay" }] });
   const exported = createPortableExport(original, "2026-07-13T12:00:00.000Z");
   assert.equal(exported.format, "taskcabinet-export");
+  assert.equal(exported._metadata.createdAt, "2026-07-13T12:00:00.000Z");
+  assert.equal(exported._metadata.dataSchemaVersion, 1);
+  assert.equal(exported._metadata.exportFormatVersion, 1);
+  assert.equal(typeof exported._metadata.commitSha, "string");
   assert.deepEqual(parsePortableExport(exported), original);
+  assert.deepEqual(parsePortableExport({ format: "taskcabinet-export", version: 1, exportedAt: exported.exportedAt, data: original }), original);
   assert.throws(() => parsePortableExport({ format: "unknown" }), /supported/i);
 });
 
