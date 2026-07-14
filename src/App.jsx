@@ -9542,6 +9542,21 @@ function App() {
                       <label className="settings-toggle"><span>Links</span><input type="checkbox" checked={userSettings.showAssignmentLinks !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentLinks", e.target.checked)} /></label>
                       <label className="settings-toggle"><span>Checklist Steps</span><input type="checkbox" checked={userSettings.showAssignmentChecklistSteps !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentChecklistSteps", e.target.checked)} /></label>
                     </SettingsCard>
+                    <SettingsCard title="Assignment Card Display" description="Choose how much information appears on assignment cards across desktop and mobile." className="settings-section-wide assignment-card-display-settings">
+                      <div className="assignment-card-presets" role="group" aria-label="Assignment card display presets">
+                        <span>Quick presets</span>
+                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("minimal")}>Minimal</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("deadline")}>Deadline Focus</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("detailed")}>Show Everything</button>
+                      </div>
+                      <div className="assignment-card-option-grid">
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Course badges</strong><small>Show the course color and name beside each assignment title.</small></span><input type="checkbox" checked={userSettings.showTaskCourseBadge !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCourseBadge", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Assignment details</strong><small>Show due date, priority, estimate, and repeat information.</small></span><input type="checkbox" checked={userSettings.showTaskDetailLine !== false} onChange={(event) => handleAddFieldSettingChange("showTaskDetailLine", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Deadline countdowns</strong><small>Show the remaining days or hours beneath assignment details.</small></span><input type="checkbox" checked={userSettings.showTaskCountdown !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCountdown", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Checklist progress</strong><small>Show completed checklist steps directly on assignment cards.</small></span><input type="checkbox" checked={userSettings.showTaskChecklistProgress !== false} onChange={(event) => handleAddFieldSettingChange("showTaskChecklistProgress", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Reminder indicators</strong><small>Show reminder health icons beside assignments with notifications.</small></span><input type="checkbox" checked={userSettings.showTaskReminderIndicator !== false} onChange={(event) => handleAddFieldSettingChange("showTaskReminderIndicator", event.target.checked)} /></label>
+                      </div>
+                    </SettingsCard>
                     <SettingsCard title="New Assignment Defaults" description="These values prefill new assignments and return after each successful add." className="settings-section-wide">
                       <div className="settings-option-grid assignment-defaults-grid">
                         <label className="settings-select-row settings-option-card"><span>Category</span><select value={userSettings.defaultCategory || "School"} onChange={(e) => handleAssignmentDefaultChange("defaultCategory", e.target.value)}>{TASK_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
@@ -9637,22 +9652,6 @@ function App() {
                         </div>
                       )}
                     </SettingsCard>
-                    <SettingsCard title="Assignment Card Display" description="Choose how much information appears on assignment cards across desktop and mobile." className="settings-section-wide assignment-card-display-settings">
-                      <div className="assignment-card-presets" role="group" aria-label="Assignment card display presets">
-                        <span>Quick presets</span>
-                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("minimal")}>Minimal</button>
-                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("deadline")}>Deadline Focus</button>
-                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("detailed")}>Show Everything</button>
-                      </div>
-                      <div className="assignment-card-option-grid">
-                        <label className="settings-toggle settings-toggle-copy"><span><strong>Course badges</strong><small>Show the course color and name beside each assignment title.</small></span><input type="checkbox" checked={userSettings.showTaskCourseBadge !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCourseBadge", event.target.checked)} /></label>
-                        <label className="settings-toggle settings-toggle-copy"><span><strong>Assignment details</strong><small>Show due date, priority, estimate, and repeat information.</small></span><input type="checkbox" checked={userSettings.showTaskDetailLine !== false} onChange={(event) => handleAddFieldSettingChange("showTaskDetailLine", event.target.checked)} /></label>
-                        <label className="settings-toggle settings-toggle-copy"><span><strong>Deadline countdowns</strong><small>Show the remaining days or hours beneath assignment details.</small></span><input type="checkbox" checked={userSettings.showTaskCountdown !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCountdown", event.target.checked)} /></label>
-                        <label className="settings-toggle settings-toggle-copy"><span><strong>Checklist progress</strong><small>Show completed checklist steps directly on assignment cards.</small></span><input type="checkbox" checked={userSettings.showTaskChecklistProgress !== false} onChange={(event) => handleAddFieldSettingChange("showTaskChecklistProgress", event.target.checked)} /></label>
-                        <label className="settings-toggle settings-toggle-copy"><span><strong>Reminder indicators</strong><small>Show reminder health icons beside assignments with notifications.</small></span><input type="checkbox" checked={userSettings.showTaskReminderIndicator !== false} onChange={(event) => handleAddFieldSettingChange("showTaskReminderIndicator", event.target.checked)} /></label>
-                      </div>
-                    </SettingsCard>
-
                     <SettingsCard title="Manual Accessibility Verification" description="Complete these checks on the device and browser you are reviewing." className="settings-section-wide accessibility-verification-card">
                       <div className="accessibility-manual-progress"><strong>{manualAccessibilityChecks.length} of {MANUAL_ACCESSIBILITY_CHECKS.length} checked</strong><progress max={MANUAL_ACCESSIBILITY_CHECKS.length} value={manualAccessibilityChecks.length}>{manualAccessibilityChecks.length}</progress></div>
                       <div className="accessibility-checklist">

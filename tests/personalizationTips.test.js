@@ -63,3 +63,12 @@ test("assignment cards have persistent detail controls and quick presets", async
   assert.match(styles, /\.hide-task-course-badges \.task-card \.task-course-pill/);
   assert.match(styles, /\.hide-task-reminder-indicators \.task-card \.task-reminder-indicator/);
 });
+
+test("assignment card display belongs to Assignment Options, not Accessibility", async () => {
+  const app = await read("../src/App.jsx");
+  const assignmentsSection = app.match(/\{settingsSection === "assignments" && \(([\s\S]*?)\n\s*\)\}\n\n\s*\{settingsSection === "storage"/)?.[1] || "";
+  const accessibilitySection = app.match(/\{settingsSection === "accessibility" && \(([\s\S]*?)\n\s*\)\}\n\n\s*\{settingsSection === "storage"/)?.[1] || "";
+
+  assert.match(assignmentsSection, /title="Assignment Card Display"/);
+  assert.doesNotMatch(accessibilitySection, /title="Assignment Card Display"/);
+});
