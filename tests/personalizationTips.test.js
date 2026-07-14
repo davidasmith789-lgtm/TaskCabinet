@@ -44,3 +44,22 @@ test("assignment field and workflow settings expand horizontally on wider screen
   assert.match(styles, /\.settings-horizontal-options \.settings-collapsible-content \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(190px, 1fr\)\);/);
   assert.match(styles, /@media \(max-width: 560px\)[\s\S]*?\.settings-horizontal-options \.settings-collapsible-content \{[\s\S]*?grid-template-columns: 1fr;/);
 });
+
+test("assignment cards have persistent detail controls and quick presets", async () => {
+  const [app, styles] = await Promise.all([
+    read("../src/App.jsx"),
+    read("../src/App.css"),
+  ]);
+
+  for (const setting of ["showTaskCourseBadge", "showTaskDetailLine", "showTaskCountdown", "showTaskChecklistProgress", "showTaskReminderIndicator"]) {
+    assert.match(app, new RegExp(`${setting}: true`));
+    assert.match(app, new RegExp(`handleAddFieldSettingChange\\("${setting}"`));
+  }
+  assert.match(app, /const handleAssignmentCardPreset = \(preset\) =>/);
+  assert.match(app, /aria-label="Assignment card display presets"/);
+  assert.match(app, />Minimal<\/button>/);
+  assert.match(app, />Deadline Focus<\/button>/);
+  assert.match(app, />Show Everything<\/button>/);
+  assert.match(styles, /\.hide-task-course-badges \.task-card \.task-course-pill/);
+  assert.match(styles, /\.hide-task-reminder-indicators \.task-card \.task-reminder-indicator/);
+});

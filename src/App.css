@@ -2218,6 +2218,43 @@ html[data-theme] .react-calendar__month-view__weekdays abbr { color: var(--muted
   background: color-mix(in srgb, var(--surface-alt) 68%, transparent);
 }
 
+.assignment-card-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.assignment-card-presets > span {
+  margin-right: 4px;
+  color: var(--muted-text);
+  font-size: .82rem;
+  font-weight: 800;
+}
+
+.assignment-card-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.assignment-card-option-grid .settings-toggle {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-alt) 68%, transparent);
+}
+
+.hide-task-course-badges .task-card .task-course-pill,
+.hide-task-detail-lines .task-card .task-details,
+.hide-task-countdowns .task-card .assignment-countdown,
+.hide-task-checklist-progress .task-card .subtask-progress-line,
+.hide-task-reminder-indicators .task-card .task-reminder-indicator {
+  display: none;
+}
+
 .settings-option-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

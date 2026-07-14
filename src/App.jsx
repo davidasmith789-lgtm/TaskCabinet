@@ -66,6 +66,11 @@ const DEFAULT_USER_SETTINGS = {
   showAssignmentFiles: true,
   showAssignmentLinks: true,
   showAssignmentChecklistSteps: true,
+  showTaskCourseBadge: true,
+  showTaskDetailLine: true,
+  showTaskCountdown: true,
+  showTaskChecklistProgress: true,
+  showTaskReminderIndicator: true,
   defaultCategory: "School",
   defaultPriority: "MED",
   defaultEstimatedMinutes: "",
@@ -1106,6 +1111,8 @@ const PERSONALIZATION_TIPS = [
   ["Verify accessibility", "Accessibility Settings includes an automated scan and a manual checklist. Use both because keyboard flow, zoom, focus order, and screen-reader clarity need human review."],
   ["Tutorial after sign-in", "The quick tour opens after every successful sign-in so each account gets the same introduction. Use Finish on the last page, and replay it later from Personalization."],
   ["Edit assignments on mobile", "Edit opens as a full-screen mobile form. Labels stay beside their fields, Notes has its own section, and Save and Close remain reachable above the phone keyboard."],
+  ["Choose an assignment card preset", "Open Assignment Options, then Assignment Card Display. Minimal keeps cards quiet, Deadline Focus emphasizes timing, and Show Everything restores every card detail."],
+  ["Fine-tune assignment cards", "Course badges, detail lines, countdowns, checklist progress, and reminder indicators can each be shown or hidden independently after choosing a preset."],
 ];
 
 const PERSONALIZATION_TIP_CATEGORIES = ["All", "Workspace", "Appearance", "Assignments", "Reminders", "Calendar", "Data & Accounts", "Accessibility"];
@@ -2605,6 +2612,25 @@ function App() {
     if (field === "defaultRepeat") setRepeatFrequency(value);
     if (field === "defaultDueTime") setDueHour(value);
     if (field === "defaultDueAmPm") setDueAmPm(value);
+  };
+
+  const handleAssignmentCardPreset = (preset) => {
+    const presets = {
+      minimal: { showTaskCourseBadge: false, showTaskDetailLine: false, showTaskCountdown: false, showTaskChecklistProgress: false, showTaskReminderIndicator: false },
+      deadline: { showTaskCourseBadge: true, showTaskDetailLine: true, showTaskCountdown: true, showTaskChecklistProgress: false, showTaskReminderIndicator: true },
+      detailed: { showTaskCourseBadge: true, showTaskDetailLine: true, showTaskCountdown: true, showTaskChecklistProgress: true, showTaskReminderIndicator: true },
+    };
+    const selected = presets[preset];
+    if (!selected) return;
+    setUserSettings((previous) => {
+      const updated = { ...previous, ...selected };
+      try {
+        localStorage.setItem(settingsStorageKey, JSON.stringify(updated));
+      } catch (error) {
+        console.error("Failed to save assignment card preset:", error);
+      }
+      return updated;
+    });
   };
 
   const handleRunAccessibilityAudit = () => {
@@ -7486,7 +7512,7 @@ function App() {
     </ul>
   );
   return (
-    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} font-${userSettings.fontFamily || "sans"} density-${userSettings.interfaceDensity || "comfortable"} task-actions-${userSettings.taskActionLayout || "wrap"}${userSettings.reduceMotion ? " reduce-motion" : ""}${isMobileUi && currentUser ? " mobile-app-ui" : ""}${isMobileUi && (mobileMoreOpen || mobileSettingsOpen || mobileSummaryCategory || selectedChecklistId) ? " mobile-overlay-open" : ""}`}>
+    <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} font-${userSettings.fontFamily || "sans"} density-${userSettings.interfaceDensity || "comfortable"} task-actions-${userSettings.taskActionLayout || "wrap"}${userSettings.showTaskCourseBadge === false ? " hide-task-course-badges" : ""}${userSettings.showTaskDetailLine === false ? " hide-task-detail-lines" : ""}${userSettings.showTaskCountdown === false ? " hide-task-countdowns" : ""}${userSettings.showTaskChecklistProgress === false ? " hide-task-checklist-progress" : ""}${userSettings.showTaskReminderIndicator === false ? " hide-task-reminder-indicators" : ""}${userSettings.reduceMotion ? " reduce-motion" : ""}${isMobileUi && currentUser ? " mobile-app-ui" : ""}${isMobileUi && (mobileMoreOpen || mobileSettingsOpen || mobileSummaryCategory || selectedChecklistId) ? " mobile-overlay-open" : ""}`}>
       <div className="app-shell">
         {isMobileUi && currentUser && (
           <header className="mobile-app-header">
@@ -9600,7 +9626,7 @@ function App() {
                 )}
 
                 {settingsSection === "privacy" && (
-                  <SettingsCard title="Privacy & Data" description="Understand where GlowDocket keeps information and control optional usage measurement." className="settings-section-wide privacy-settings-card">
+                  <SettingsCard title="Privacy & Data" description="Understand where GlowDocket keeps information and which features are specific to this device." className="settings-section-wide privacy-settings-card">
                     <PrivacyDataPanel />
                   </SettingsCard>
                 )}
@@ -9620,6 +9646,21 @@ function App() {
                           {accessibilityAudit.groups.length > 0 && <ul>{accessibilityAudit.groups.map((group) => <li key={group.rule}><strong>{group.count} × {group.message}</strong><small>Examples: {group.examples.join("; ")}</small></li>)}</ul>}
                         </div>
                       )}
+                    </SettingsCard>
+                    <SettingsCard title="Assignment Card Display" description="Choose how much information appears on assignment cards across desktop and mobile." className="settings-section-wide assignment-card-display-settings">
+                      <div className="assignment-card-presets" role="group" aria-label="Assignment card display presets">
+                        <span>Quick presets</span>
+                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("minimal")}>Minimal</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("deadline")}>Deadline Focus</button>
+                        <button type="button" className="btn btn-secondary" onClick={() => handleAssignmentCardPreset("detailed")}>Show Everything</button>
+                      </div>
+                      <div className="assignment-card-option-grid">
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Course badges</strong><small>Show the course color and name beside each assignment title.</small></span><input type="checkbox" checked={userSettings.showTaskCourseBadge !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCourseBadge", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Assignment details</strong><small>Show due date, priority, estimate, and repeat information.</small></span><input type="checkbox" checked={userSettings.showTaskDetailLine !== false} onChange={(event) => handleAddFieldSettingChange("showTaskDetailLine", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Deadline countdowns</strong><small>Show the remaining days or hours beneath assignment details.</small></span><input type="checkbox" checked={userSettings.showTaskCountdown !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCountdown", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Checklist progress</strong><small>Show completed checklist steps directly on assignment cards.</small></span><input type="checkbox" checked={userSettings.showTaskChecklistProgress !== false} onChange={(event) => handleAddFieldSettingChange("showTaskChecklistProgress", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Reminder indicators</strong><small>Show reminder health icons beside assignments with notifications.</small></span><input type="checkbox" checked={userSettings.showTaskReminderIndicator !== false} onChange={(event) => handleAddFieldSettingChange("showTaskReminderIndicator", event.target.checked)} /></label>
+                      </div>
                     </SettingsCard>
 
                     <SettingsCard title="Manual Accessibility Verification" description="Complete these checks on the device and browser you are reviewing." className="settings-section-wide accessibility-verification-card">
