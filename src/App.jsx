@@ -4757,6 +4757,7 @@ function App() {
     prefillDueDate(selectedDate);
     if (isMobileUi) {
       setMobileReturnTab("calendar");
+      setBulkImportOpen(false);
       setCurrentTab("mobile-add");
       setCalendarAddOpen(false);
       return;
@@ -5704,8 +5705,8 @@ function App() {
     <form onSubmit={handleAddTask} className="card-form assignment-entry-form">
       <section className="bulk-import-panel" aria-label="Paste assignment list">
         <div className="bulk-import-heading">
-          <div><strong>Paste Assignment List</strong><p>Create several assignments from one line each, with a review before saving.</p></div>
-          <button type="button" className="btn btn-secondary" onClick={() => setBulkImportOpen((open) => !open)}>{bulkImportOpen ? "Close" : "Open Importer"}</button>
+          <div><strong>{isMobileUi ? "Optional: Syllabus & Assignment Import" : "Paste Assignment List"}</strong><p>{isMobileUi ? "Upload a syllabus or paste several assignments when you need the importer." : "Create several assignments from one line each, with a review before saving."}</p></div>
+          <button type="button" className="btn btn-secondary" onClick={() => setBulkImportOpen((open) => !open)}>{bulkImportOpen ? "Close" : isMobileUi ? "Open Optional Import" : "Open Importer"}</button>
         </div>
         {bulkImportOpen && (
           <div className="bulk-import-content">
@@ -7096,6 +7097,7 @@ function App() {
   const openMobileAdd = (returnTab = currentTab) => {
     setMobileReturnTab(returnTab === "mobile-add" ? "dashboard" : returnTab);
     setMobileSummaryCategory("");
+    setBulkImportOpen(false);
     setCurrentTab("mobile-add");
   };
   const closeMobileAdd = () => {

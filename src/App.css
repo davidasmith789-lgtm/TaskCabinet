@@ -1206,7 +1206,7 @@ button:disabled {
   .mobile-app-bottom-nav button > span { font-size: 1.25rem; font-weight: 800; line-height: 1; }
   .mobile-app-bottom-nav button > small { font-size: 0.66rem; font-weight: 800; }
   .mobile-app-bottom-nav button.active { color: var(--primary); background: color-mix(in srgb, var(--primary) 9%, transparent); }
-  .mobile-app-bottom-nav .mobile-app-add-nav { transform: translateY(-12px); }
+  .mobile-app-bottom-nav .mobile-app-add-nav { transform: translateY(-7px); }
   .mobile-app-bottom-nav .mobile-app-add-nav > span { display: grid !important; width: 48px; height: 48px; place-items: center; border-radius: 17px; color: var(--button-primary-color) !important; background: var(--primary-color) !important; box-shadow: 0 9px 20px color-mix(in srgb, var(--primary-color) 32%, transparent); font-size: 2rem; font-weight: 900; line-height: 1; opacity: 1 !important; visibility: visible !important; }
   .mobile-app-bottom-nav .mobile-app-add-nav > small { position: relative; z-index: 2; color: var(--primary); }
 
@@ -1392,6 +1392,8 @@ button:disabled {
   .mobile-app-ui :where(input, select, textarea) { color: var(--text-color); background-color: var(--input-bg); border-color: var(--border-color); }
   .mobile-app-ui :where(input, textarea)::placeholder { color: var(--muted-text); opacity: 0.82; }
   .mobile-app-ui :where(.mobile-app-card, .mobile-app-sheet, .mobile-fullscreen-panel, .mobile-checklist-fullscreen, .settings-content, .task-card) { color: var(--text-color); }
+  .mobile-app-ui .assignment-entry-form > .voice-assignment-panel { order: -20; }
+  .mobile-app-ui .assignment-entry-form > .voice-inline-error { order: -19; }
 }
 
 .welcome-screen {
