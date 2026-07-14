@@ -2873,6 +2873,16 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const mobileShellActive = Boolean(isMobileUi && currentUser);
+    document.documentElement.classList.toggle("taskcabinet-mobile-active", mobileShellActive);
+    document.body.classList.toggle("taskcabinet-mobile-active", mobileShellActive);
+    return () => {
+      document.documentElement.classList.remove("taskcabinet-mobile-active");
+      document.body.classList.remove("taskcabinet-mobile-active");
+    };
+  }, [currentUser, isMobileUi]);
+
+  useEffect(() => {
     if (!isMobileUi) return;
     setTutorialOpen(false);
     setTutorialPracticeOpen(false);
