@@ -44,6 +44,7 @@ import { applyCloudStateToLocal, collectSyncableState, createCloudSnapshot, crea
 import { getTrashDaysRemaining, isTrashExpired } from "./trashUtils.js";
 import { friendlyAccountError, friendlyCloudSaveError } from "./userMessageUtils.js";
 import { evaluateAttachmentSelection, formatStorageBytes, getStorageQuotaStatus, MAX_ATTACHMENTS_PER_ASSIGNMENT } from "./storageQuotaUtils.js";
+import { MANUAL_ACCESSIBILITY_CHECKS, runAccessibilityAudit } from "./accessibilityAudit.js";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
 /*
  * GLOWDOCKET APPLICATION MAP
@@ -89,7 +90,7 @@ const DEFAULT_USER_SETTINGS = {
   showCalendarCycleLabels: true,
   showCalendarTaskDots: true,
   checklistTimesEnabled: false,
-  settingsSectionOrder: ["personalization", "assignments", "checklists", "calendar", "reminders", "cycle", "storage"],
+  settingsSectionOrder: ["personalization", "assignments", "checklists", "calendar", "reminders", "cycle", "accessibility", "storage"],
   cycleDayNames: ["A Day", "B Day"],
   cycleAnchorDate: "",
   courseCycleDays: {},
@@ -444,6 +445,7 @@ const SETTINGS_SECTIONS = [
   { id: "calendar", icon: "📅", label: "Calendar", description: "Week layout and calendar details." },
   { id: "reminders", icon: "🔔", label: "Reminders & App", description: "Notifications and installation." },
   { id: "cycle", icon: "🔁", label: "School Cycle", description: "Cycle labels, anchor date, and courses." },
+  { id: "accessibility", icon: "♿", label: "Accessibility", description: "Automated checks and manual verification." },
   { id: "storage", icon: "🗄️", label: "Storage", description: "Archive, Trash, and preference tools." },
 ];
 
@@ -1832,6 +1834,8 @@ function App() {
   const [completionCelebration, setCompletionCelebration] = useState(null);
   const completionCelebrationSequenceRef = useRef(0);
   const [settingsSection, setSettingsSection] = useState("personalization");
+  const [accessibilityAudit, setAccessibilityAudit] = useState(null);
+  const [manualAccessibilityChecks, setManualAccessibilityChecks] = useState([]);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
   const [tutorialPracticeOpen, setTutorialPracticeOpen] = useState(false);
@@ -2607,6 +2611,24 @@ function App() {
     if (field === "defaultDueAmPm") setDueAmPm(value);
   };
 
+  const handleRunAccessibilityAudit = () => {
+    setAccessibilityAudit(runAccessibilityAudit(document));
+  };
+
+  const handleManualAccessibilityCheck = (checkId, isChecked) => {
+    const updated = isChecked
+      ? [...new Set([...manualAccessibilityChecks, checkId])]
+      : manualAccessibilityChecks.filter((id) => id !== checkId);
+    setManualAccessibilityChecks(updated);
+    if (currentUser) localStorage.setItem(`taskcabinet_accessibility_checklist_${currentUser}`, JSON.stringify(updated));
+  };
+
+  const handleResetAccessibilityChecks = () => {
+    setManualAccessibilityChecks([]);
+    setAccessibilityAudit(null);
+    if (currentUser) localStorage.removeItem(`taskcabinet_accessibility_checklist_${currentUser}`);
+  };
+
   const handleResetPreferences = () => {
     const confirmed = window.confirm(
       "Reset appearance, assignment, calendar, reminder, and school-cycle preferences? Your assignments and courses will not be deleted.",
@@ -2945,6 +2967,21 @@ function App() {
       .catch(() => { if (!cancelled) setBrowserStorage({ supported: true, usage: 0, quota: 0, error: "Storage details are temporarily unavailable." }); });
     return () => { cancelled = true; };
   }, [currentUser, tasks]);
+
+  useEffect(() => {
+    setAccessibilityAudit(null);
+    if (!currentUser) {
+      setManualAccessibilityChecks([]);
+      return;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem(`taskcabinet_accessibility_checklist_${currentUser}`) || "[]");
+      const validIds = new Set(MANUAL_ACCESSIBILITY_CHECKS.map((item) => item.id));
+      setManualAccessibilityChecks(Array.isArray(stored) ? stored.filter((id) => validIds.has(id)) : []);
+    } catch {
+      setManualAccessibilityChecks([]);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     const query = window.matchMedia("(max-width: 767px)");
@@ -9596,6 +9633,38 @@ function App() {
                     <p className="hint-text">Browser estimates cover this site’s IndexedDB, localStorage, caches, and related data. Attachment totals use assignment metadata and may include files unavailable on this device.</p>
                     <button type="button" className="btn btn-secondary" onClick={handleRefreshStorageEstimate}>Refresh Storage Check</button>
                   </SettingsCard>
+                )}
+
+                {settingsSection === "accessibility" && (
+                  <>
+                    <SettingsCard title="Automated Accessibility Check" description="Scan the current GlowDocket screen for common machine-detectable accessibility problems." className="settings-section-wide accessibility-verification-card">
+                      <div className="accessibility-audit-heading">
+                        <div><strong>Checks accessible names, form labels, image text alternatives, dialog names, duplicate IDs, and keyboard access for custom buttons.</strong><p className="hint-text">Automated checks cannot prove that the full experience is accessible. Complete the manual checks below too.</p></div>
+                        <button type="button" className="btn btn-primary" onClick={handleRunAccessibilityAudit}>Run Accessibility Check</button>
+                      </div>
+                      {!accessibilityAudit ? (
+                        <p className="accessibility-audit-empty">No automated check has been run in this session.</p>
+                      ) : (
+                        <div className={`accessibility-audit-result ${accessibilityAudit.passed ? "is-passed" : "is-warning"}`} role="status" aria-live="polite">
+                          <div><strong>{accessibilityAudit.passed ? "Automated checks passed" : `${accessibilityAudit.issueCount} possible issue${accessibilityAudit.issueCount === 1 ? "" : "s"} found`}</strong><span>Checked {new Date(accessibilityAudit.checkedAt).toLocaleTimeString()}</span></div>
+                          {accessibilityAudit.groups.length > 0 && <ul>{accessibilityAudit.groups.map((group) => <li key={group.rule}><strong>{group.count} × {group.message}</strong><small>Examples: {group.examples.join("; ")}</small></li>)}</ul>}
+                        </div>
+                      )}
+                    </SettingsCard>
+
+                    <SettingsCard title="Manual Accessibility Verification" description="Complete these checks on the device and browser you are reviewing." className="settings-section-wide accessibility-verification-card">
+                      <div className="accessibility-manual-progress"><strong>{manualAccessibilityChecks.length} of {MANUAL_ACCESSIBILITY_CHECKS.length} checked</strong><progress max={MANUAL_ACCESSIBILITY_CHECKS.length} value={manualAccessibilityChecks.length}>{manualAccessibilityChecks.length}</progress></div>
+                      <div className="accessibility-checklist">
+                        {MANUAL_ACCESSIBILITY_CHECKS.map((check) => (
+                          <label key={check.id} className="accessibility-check-item">
+                            <input type="checkbox" checked={manualAccessibilityChecks.includes(check.id)} onChange={(event) => handleManualAccessibilityCheck(check.id, event.target.checked)} />
+                            <span><strong>{check.label}</strong><small>{check.detail}</small></span>
+                          </label>
+                        ))}
+                      </div>
+                      <button type="button" className="btn btn-secondary" disabled={!accessibilityAudit && manualAccessibilityChecks.length === 0} onClick={handleResetAccessibilityChecks}>Reset Verification</button>
+                    </SettingsCard>
+                  </>
                 )}
 
                 {settingsSection === "storage" && (

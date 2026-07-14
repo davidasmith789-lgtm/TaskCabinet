@@ -119,6 +119,7 @@ export function removeCloudAccountLocalData(storage, userId) {
     `tasks_${id}`, `courses_${id}`, `courseColors_${id}`, `settings_${id}`,
     `checklists_${id}`, `workspaceLayout_${id}`, `taskacadia_preferred_name_${id}`,
     `taskacadia_notified_${id}`, `taskacadia_checklist_notified_${id}`,
+    `taskcabinet_accessibility_checklist_${id}`,
     getCloudCacheKey(id), getCloudMetaKey(id),
   ];
   exactKeys.forEach((key) => storage.removeItem(key));
