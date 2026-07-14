@@ -42,9 +42,10 @@ test("compatibility-sensitive saved-data identifiers remain unchanged", () => {
 });
 
 test("service-worker registration and rebranded cache update remain configured", async () => {
-  const [main, worker] = await Promise.all([read("../src/main.jsx"), read("../public/sw.js")]);
-  assert.match(main, /serviceWorker\.register\('\/sw\.js'\)/);
-  assert.match(worker, /taskacadia-shell-v5/);
+  const [main, updates, worker] = await Promise.all([read("../src/main.jsx"), read("../src/serviceWorkerUpdates.js"), read("../public/sw.js")]);
+  assert.match(main, /registerServiceWorkerUpdates\(\)/);
+  assert.match(updates, /serviceWorker\.register\("\/sw\.js"\)/);
+  assert.match(worker, /taskacadia-shell-v6/);
   for (const asset of ["glowdocket-icon-192.png", "glowdocket-icon-512.png", "glowdocket-maskable-512.png", "apple-touch-icon.png"]) {
     assert.match(worker, new RegExp(asset.replace(".", "\\.")));
   }
