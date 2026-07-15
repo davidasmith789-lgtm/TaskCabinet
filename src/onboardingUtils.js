@@ -4,6 +4,10 @@ export function getTutorialStorageKey(profileKey) {
   return `taskcabinet_tutorial_${profileKey || "guest"}`;
 }
 
+export function shouldStartTutorialForProfile(storage, profileKey) {
+  return storage.getItem(getTutorialStorageKey(profileKey)) === null;
+}
+
 export function createDemoData(now = new Date()) {
   const date = (offset) => {
     const value = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset);

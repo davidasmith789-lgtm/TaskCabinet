@@ -30,6 +30,7 @@ import {
 from "./recommendationUtils.js";
 import {
   getTutorialStorageKey,
+  shouldStartTutorialForProfile,
 } from "./onboardingUtils.js";
 import { buildDesiredReminders, EXTERNAL_PUSH_CLIENT_ENABLED, getPushDeviceStorageKey, shouldUseOpenAppFallback } from "./externalReminderUtils.js";
 import { cancelAllExternalReminders, cancelExternalReminder, reconcileExternalReminders, replaceExternalReminder, retryPendingExternalCleanup, scheduleExternalReminder, sendExternalReminderTest } from "./externalReminderClient.js";
@@ -1118,7 +1119,7 @@ const PERSONALIZATION_TIPS = [
   ["Restore a previous local version", "Backup & Restore can recover the latest safety copy made before a restore or cloud conflict. GlowDocket saves the current version again before replacing it."],
   ["Storage and attachment warnings", "The Browser Storage card warns when this site is getting full. Attachment limits prevent one assignment from unexpectedly using too much browser space."],
   ["Verify accessibility", "Accessibility Settings includes an automated scan and a manual checklist. Use both because keyboard flow, zoom, focus order, and screen-reader clarity need human review."],
-  ["Tutorial after sign-in", "The quick tour opens after every successful sign-in so each account gets the same introduction. Use Finish on the last page, and replay it later from Personalization."],
+  ["Tutorial after sign-in", "The quick tour opens the first time an account signs in. Use Finish on the last page, and replay it later from Personalization."],
   ["Edit assignments on mobile", "Edit opens as a full-screen mobile form. Labels stay beside their fields, Notes has its own section, and Save and Close remain reachable above the phone keyboard."],
   ["Choose an assignment card preset", "Open Assignment Options, then Assignment Card Display. Minimal keeps cards quiet, Deadline Focus emphasizes timing, and Show Everything restores every card detail."],
   ["Fine-tune assignment cards", "Course badges, detail lines, countdowns, checklist progress, and reminder indicators can each be shown or hidden independently after choosing a preset."],
@@ -4641,9 +4642,11 @@ function App() {
 
   const startTutorialForProfile = (profileKey) => {
     try {
+      if (!shouldStartTutorialForProfile(localStorage, profileKey)) return;
       localStorage.setItem(getTutorialStorageKey(profileKey), JSON.stringify({ complete: false }));
     } catch {
       // Tutorial persistence is optional and must never turn a successful sign-in into an error.
+      return;
     }
     setTutorialStep(0);
     setTutorialPracticeOpen(false);
@@ -7437,7 +7440,6 @@ function App() {
                 </p>
               )}
             </div>
-            <div className="user-pill">Guest Mode</div>
           </header>
           <section className="welcome-hero" aria-labelledby="welcome-title">
             <div className="welcome-hero-copy">
