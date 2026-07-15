@@ -152,6 +152,50 @@ Two-device test:
 
 Reminder endpoints also enforce exact origin checks, signed installation ownership after enrollment, strict fixed payloads/targets, bounded reconciliation batches, and a best-effort per-instance request limit. For a larger public deployment, add an infrastructure-level distributed rate limiter in front of the Vercel Functions.
 
+## Feedback & Support
+
+The former Recommendations navigation surface is now **Feedback & Support**. Its legacy `/api/recommendations` Google Docs endpoint remains in the repository so historical Recommendation data and rollback options are not destroyed. New submissions use `/api/feedback`, `public.feedback_submissions`, and the private `feedback-screenshots` Supabase Storage bucket.
+
+### Supabase setup
+
+Review and run `supabase/migrations/202607150001_create_feedback_submissions.sql` in the Supabase SQL Editor. The migration:
+
+- creates the constrained, RLS-enabled `public.feedback_submissions` table;
+- allows authenticated users to insert and read only their own rows while denying browser updates/deletes;
+- creates or updates `feedback-screenshots` as a private bucket limited to PNG, JPEG, and WebP files no larger than 5 MB;
+- restricts screenshot upload, read, and orphan cleanup to the authenticated user's own top-level UUID folder.
+
+Do not make the bucket public. Administrators can initially review records in Supabase Table Editor and inspect screenshots in Storage. Use the dashboard or a short-lived signed URL for administrative viewing; never create permanent public screenshot URLs. The migration is intentionally prepared for manual review and is not run automatically by this repository.
+
+### Feedback environment variables
+
+Public frontend configuration:
+
+```text
+VITE_SUPPORT_EMAIL=support@glowdocket.com
+```
+
+Server-only Vercel configuration:
+
+```text
+RESEND_API_KEY=replace_with_resend_api_key
+FEEDBACK_NOTIFICATION_TO=glowdocket@gmail.com
+FEEDBACK_FROM_EMAIL=GlowDocket Feedback <feedback@glowdocket.com>
+FEEDBACK_REPLY_TO=support@glowdocket.com
+SUPABASE_URL=https://PROJECT_ID.supabase.co
+SUPABASE_SECRET_KEY=replace_with_server_secret_or_service_role_key
+```
+
+`RESEND_API_KEY` and `SUPABASE_SECRET_KEY` must never use a `VITE_` prefix. The endpoint verifies the Supabase access token and resolves user ID and email server-side. Contact email is stored and emailed only when the user explicitly checks the contact-permission box. A missing or failed Resend configuration does not undo a successfully saved database record; the server logs a safe warning and Supabase remains the source of truth.
+
+### Feedback verification
+
+For local end-to-end testing, copy the variables into a local environment file, run the migration against a development Supabase project, and use `npm run dev:vercel` so `/api/feedback` is available. Sign into a cloud account and test no category, every category, whitespace rejection, the 5,000-character boundary, all three image types, invalid/oversized images, preview/remove/replace, contact off/on, a simulated network failure, and retry. Confirm failed submission attempts remove uploaded orphan screenshots when possible and preserve the visible form.
+
+For production, deploy to Preview first. Confirm the bucket remains private, submit with and without screenshots/contact permission, inspect the structured row in Supabase, verify no email address appears in the notification when permission is off, verify Reply-To uses `FEEDBACK_REPLY_TO`, and temporarily omit Resend configuration to confirm database submission still succeeds. Check desktop, installed PWA, narrow mobile, light mode, dark mode, keyboard navigation, and screen-reader status announcements.
+
+The visible app version comes from `package.json` through Vite's existing build metadata. Increment `package.json` before a release when the public application version should change; Vercel commit/deployment metadata is recorded independently by the server.
+
 ## Maintenance rules
 
 - Preserve localStorage and IndexedDB compatibility when changing persistence.

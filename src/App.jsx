@@ -46,6 +46,7 @@ import { RECOVERY_SESSION_KEY } from "./AppErrorBoundary.jsx";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
 import { PrivacyDataDialog, PrivacyDataPanel } from "./PrivacyDataPanel.jsx";
 import { APP_BUILD_METADATA, createReportMetadata } from "./buildMetadata.js";
+import { FEEDBACK_CATEGORIES, FEEDBACK_MAX_MESSAGE_LENGTH, feedbackScreenshotPath, validateFeedbackScreenshot } from "./feedbackUtils.js";
 import { AssignmentCountdown, MobilePageTitle, PasswordEyeIcon, PersonalizationTip, SettingsCard, SubtaskProgressLine } from "./components/AppDisplayComponents.jsx";
 import { AssignmentFilterControls, AssignmentFilterToggle } from "./components/AssignmentFilters.jsx";
 import DeferredCalendar from "./components/DeferredCalendar.jsx";
@@ -1764,9 +1765,13 @@ function App() {
   const [externalPushSubscriptionVersion, setExternalPushSubscriptionVersion] = useState(0);
   const externalPushSyncTimerRef = useRef(null);
   const [currentTab, setCurrentTab] = useState(() => recoveryRequestedOnLoad() ? "settings" : "dashboard");
-  const [recommendationMessage, setRecommendationMessage] = useState("");
-  const [recommendationStatus, setRecommendationStatus] = useState("idle");
-  const [recommendationFeedback, setRecommendationFeedback] = useState("");
+  const [feedbackCategory, setFeedbackCategory] = useState("");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackScreenshot, setFeedbackScreenshot] = useState(null);
+  const [feedbackScreenshotPreview, setFeedbackScreenshotPreview] = useState("");
+  const [feedbackAllowContact, setFeedbackAllowContact] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState("idle");
+  const [feedbackNotice, setFeedbackNotice] = useState("");
   const [quickMatchMinutes, setQuickMatchMinutes] = useState("");
   const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
   const [quickMatchPresetDraft, setQuickMatchPresetDraft] = useState("");
@@ -5282,45 +5287,85 @@ function App() {
     setCloudHistory([]);
   };
 
-  const handleRecommendationSubmit = async (event) => {
-    event.preventDefault();
-
-    const message = recommendationMessage.trim();
-    if (!message) {
-      setRecommendationStatus("error");
-      setRecommendationFeedback("Please write a recommendation before sending.");
+  const handleFeedbackScreenshotChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    const validation = validateFeedbackScreenshot(file);
+    if (!validation.valid) {
+      event.target.value = "";
+      setFeedbackStatus("error");
+      setFeedbackNotice(validation.error);
       return;
     }
+    if (feedbackScreenshotPreview) URL.revokeObjectURL(feedbackScreenshotPreview);
+    setFeedbackScreenshot(file);
+    setFeedbackScreenshotPreview(file ? URL.createObjectURL(file) : "");
+    setFeedbackStatus("idle");
+    setFeedbackNotice("");
+  };
 
-    setRecommendationStatus("sending");
-    setRecommendationFeedback("");
+  const removeFeedbackScreenshot = () => {
+    if (feedbackScreenshotPreview) URL.revokeObjectURL(feedbackScreenshotPreview);
+    setFeedbackScreenshot(null);
+    setFeedbackScreenshotPreview("");
+  };
 
+  useEffect(() => () => {
+    if (feedbackScreenshotPreview) URL.revokeObjectURL(feedbackScreenshotPreview);
+  }, [feedbackScreenshotPreview]);
+
+  const handleFeedbackSubmit = async (event) => {
+    event.preventDefault();
+    if (feedbackStatus === "sending") return;
+    const message = feedbackMessage.trim();
+    if (!message) {
+      setFeedbackStatus("error");
+      setFeedbackNotice("Write a feedback message before sending.");
+      return;
+    }
+    if (message.length > FEEDBACK_MAX_MESSAGE_LENGTH) {
+      setFeedbackStatus("error");
+      setFeedbackNotice("Feedback messages must be 5,000 characters or fewer.");
+      return;
+    }
+    setFeedbackStatus("sending");
+    setFeedbackNotice("");
+    let uploadedPath = null;
     try {
-      const response = await fetch("/api/recommendations", {
+      const client = await getSupabaseBrowserClient();
+      if (!client) throw new Error("Sign in to your GlowDocket account before sending feedback.");
+      const { data: sessionData } = await client.auth.getSession();
+      const session = sessionData.session;
+      if (!session?.access_token || !session.user?.id) throw new Error("Your session expired. Sign in again and retry.");
+      const feedbackId = crypto.randomUUID();
+      if (feedbackScreenshot) {
+        const validation = validateFeedbackScreenshot(feedbackScreenshot);
+        if (!validation.valid) throw new Error(validation.error);
+        uploadedPath = feedbackScreenshotPath(session.user.id, feedbackId, validation.extension);
+        const { error: uploadError } = await client.storage.from("feedback-screenshots").upload(uploadedPath, feedbackScreenshot, { contentType: feedbackScreenshot.type, upsert: false });
+        if (uploadError) throw new Error("GlowDocket could not securely upload the screenshot. Please retry.");
+      }
+      const response = await fetch("/api/feedback", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: displayName || "GlowDocket user", message }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ feedbackId, category: feedbackCategory || null, message, screenshotPath: uploadedPath, appVersion: APP_BUILD_METADATA.appVersion, allowContact: feedbackAllowContact }),
       });
-
-      let result = null;
-      try {
-        result = await response.json();
-      } catch {
-        // The fallback below also covers non-JSON errors from the hosting layer.
-      }
-
-      if (!response.ok) {
-        throw new Error(result?.error || "Your recommendation could not be sent. Please try again.");
-      }
-
-      setRecommendationMessage("");
-      setRecommendationStatus("success");
-      setRecommendationFeedback("Thanks! Your recommendation was sent.");
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result?.error || "GlowDocket could not send your feedback. Please try again.");
+      setFeedbackCategory("");
+      setFeedbackMessage("");
+      removeFeedbackScreenshot();
+      setFeedbackAllowContact(false);
+      setFeedbackStatus("success");
+      setFeedbackNotice("Thanks! Your feedback was sent securely.");
     } catch (error) {
-      setRecommendationStatus("error");
-      setRecommendationFeedback(error instanceof Error
-        ? error.message
-        : "Your recommendation could not be sent. Please try again.");
+      if (uploadedPath) {
+        try {
+          const client = await getSupabaseBrowserClient();
+          await client.storage.from("feedback-screenshots").remove([uploadedPath]);
+        } catch (cleanupError) { console.warn("Feedback screenshot cleanup could not finish.", cleanupError); }
+      }
+      setFeedbackStatus("error");
+      setFeedbackNotice(error instanceof Error ? error.message : "GlowDocket could not send your feedback. Please try again.");
     }
   };
 
@@ -7746,7 +7791,7 @@ function App() {
             className={`tab-button ${currentTab === "recommendations" ? "active" : ""}`}
             onClick={() => setCurrentTab("recommendations")}
           >
-            Recommendations
+            Feedback & Support
           </button>
 
           <button
@@ -8825,64 +8870,65 @@ function App() {
           )}
           {/* SETTINGS: central home for appearance and future app preferences. */}
           {currentTab === "recommendations" && (
-            <section className="recommendations-page panel-card" aria-labelledby="recommendations-title">
+            <section className="recommendations-page feedback-support-page panel-card" aria-labelledby="feedback-support-title">
               <div className="recommendations-header">
-                <p className="eyebrow">Help improve GlowDocket</p>
-                <h2 id="recommendations-title">Recommendations</h2>
-                <p>
-                  Suggest an improvement, report something confusing, or recommend a change.
-                  Please keep it respectful; profanity is blocked, and each account may send up to 10 messages per day.
-                </p>
+                <p className="eyebrow">We’re here to help</p>
+                <h2 id="feedback-support-title">Feedback & Support</h2>
+                <p>Report a problem, request a feature, or tell us what would make GlowDocket work better for you.</p>
               </div>
 
-              <form className="recommendations-form" onSubmit={handleRecommendationSubmit}>
-                <label htmlFor="recommendation-message">Your recommendation</label>
+              <form className="recommendations-form feedback-support-form" onSubmit={handleFeedbackSubmit}>
+                <label htmlFor="feedback-category">Feedback category</label>
+                <select id="feedback-category" value={feedbackCategory} onChange={(event) => { setFeedbackCategory(event.target.value); setFeedbackStatus("idle"); setFeedbackNotice(""); }} disabled={feedbackStatus === "sending"}>
+                  {FEEDBACK_CATEGORIES.map((item) => <option key={item.value || "none"} value={item.value}>{item.label}</option>)}
+                </select>
+                <label htmlFor="feedback-message">Message</label>
                 <textarea
-                  id="recommendation-message"
-                  value={recommendationMessage}
+                  id="feedback-message"
+                  value={feedbackMessage}
                   onChange={(event) => {
-                    setRecommendationMessage(event.target.value);
-                    if (recommendationStatus !== "sending") {
-                      setRecommendationStatus("idle");
-                      setRecommendationFeedback("");
-                    }
+                    setFeedbackMessage(event.target.value);
+                    setFeedbackStatus("idle");
+                    setFeedbackNotice("");
                   }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                      event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                  placeholder="Write your recommendation here..."
-                  maxLength={2000}
+                  placeholder="Tell us what happened, what you expected, or what could be improved."
+                  maxLength={FEEDBACK_MAX_MESSAGE_LENGTH}
                   rows={8}
-                  disabled={recommendationStatus === "sending"}
-                  aria-describedby="recommendation-keyboard-hint"
+                  required
+                  disabled={feedbackStatus === "sending"}
+                  aria-describedby="feedback-message-counter"
                 />
-                <small id="recommendation-keyboard-hint" className="recommendations-keyboard-hint">
-                  Press Enter to send. Use Shift+Enter for a new line.
-                </small>
+                <span id="feedback-message-counter" className="recommendations-counter" aria-live="polite">{feedbackMessage.length.toLocaleString()} / 5,000 characters</span>
+
+                <fieldset className="feedback-screenshot-fieldset" disabled={feedbackStatus === "sending"}>
+                  <legend>Optional screenshot</legend>
+                  <p>PNG, JPEG, or WebP · Maximum 5 MB · Stored privately</p>
+                  <label className="btn btn-secondary feedback-file-button">{feedbackScreenshot ? "Replace screenshot" : "Choose screenshot"}<input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFeedbackScreenshotChange} /></label>
+                  {feedbackScreenshotPreview && <div className="feedback-screenshot-preview"><img src={feedbackScreenshotPreview} alt="Selected feedback screenshot preview" /><div><span>{feedbackScreenshot?.type.replace("image/", "").toUpperCase()} · {(feedbackScreenshot.size / 1024 / 1024).toFixed(2)} MB</span><button type="button" className="btn btn-secondary" onClick={removeFeedbackScreenshot}>Remove screenshot</button></div></div>}
+                </fieldset>
+
+                <label className="feedback-contact-permission" htmlFor="feedback-allow-contact"><input id="feedback-allow-contact" type="checkbox" checked={feedbackAllowContact} onChange={(event) => setFeedbackAllowContact(event.target.checked)} disabled={feedbackStatus === "sending"} /><span>You may contact me about this feedback.</span></label>
                 <div className="recommendations-form-footer">
-                  <span className="recommendations-counter" aria-live="polite">
-                    {recommendationMessage.length.toLocaleString()} / 2,000 characters
-                  </span>
+                  <small>GlowDocket version {APP_BUILD_METADATA.appVersion}</small>
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={recommendationStatus === "sending" || !recommendationMessage.trim()}
+                    disabled={feedbackStatus === "sending" || !feedbackMessage.trim()}
                   >
-                    {recommendationStatus === "sending" ? "Sending…" : "Send"}
+                    {feedbackStatus === "sending" ? "Sending securely…" : "Send feedback"}
                   </button>
                 </div>
-                {recommendationFeedback && (
+                {feedbackNotice && (
                   <p
-                    className={`recommendations-feedback ${recommendationStatus}`}
-                    role={recommendationStatus === "error" ? "alert" : "status"}
+                    className={`recommendations-feedback ${feedbackStatus}`}
+                    role={feedbackStatus === "error" ? "alert" : "status"}
+                    aria-live={feedbackStatus === "error" ? "assertive" : "polite"}
                   >
-                    {recommendationFeedback}
+                    {feedbackNotice}
                   </p>
                 )}
               </form>
+              <p className="feedback-direct-support">Need direct help? Email <a href={`mailto:${String(import.meta.env.VITE_SUPPORT_EMAIL || "support@glowdocket.com").trim() || "support@glowdocket.com"}`}>{String(import.meta.env.VITE_SUPPORT_EMAIL || "support@glowdocket.com").trim() || "support@glowdocket.com"}</a></p>
             </section>
           )}
 
@@ -10027,7 +10073,7 @@ function App() {
                   <div className="mobile-app-menu-grid">
                     <button type="button" onClick={() => openMobileTab("mobile-tools")}><strong>Study tools</strong><span>Reminders and course overview</span></button>
                     <button type="button" onClick={() => openMobileTab("mobile-courses")}><strong>Courses & colors</strong><span>Manage your subjects</span></button>
-                    <button type="button" onClick={() => openMobileTab("recommendations")}><strong>Send feedback</strong><span>Recommend an improvement</span></button>
+                    <button type="button" onClick={() => openMobileTab("recommendations")}><strong>Feedback & Support</strong><span>Report a problem or suggest an improvement</span></button>
                     <button type="button" onClick={() => openMobileTab("settings")}><strong>Settings</strong><span>Appearance, reminders, and account</span></button>
                   </div>
                   <div className="mobile-app-account-row"><div><strong>{safeDisplayName}</strong><span>{accountMode === "cloud" ? "Cloud account" : "Local profile"}</span></div><button type="button" className="btn btn-danger" onClick={handleSignOut}>Sign out</button></div>

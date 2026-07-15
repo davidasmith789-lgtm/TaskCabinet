@@ -673,6 +673,16 @@ html[data-theme="dark"] .tab-row {
 }
 
 .recommendations-form label { font-weight: 800; }
+.feedback-support-form select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+}
 .recommendations-form textarea {
   width: 100%;
   min-height: 190px;
@@ -700,16 +710,43 @@ html[data-theme="dark"] .tab-row {
 .recommendations-feedback.success { color: var(--success-color); }
 .recommendations-feedback.error { color: var(--danger-color); }
 
+.feedback-screenshot-fieldset {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 8px 0;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--surface-alt);
+  color: var(--text-color);
+}
+.feedback-screenshot-fieldset legend { padding: 0 6px; font-weight: 800; }
+.feedback-screenshot-fieldset p { margin: 0; color: var(--muted-text); }
+.feedback-file-button { width: fit-content; }
+.feedback-file-button input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.feedback-screenshot-preview { display: grid; grid-template-columns: minmax(0, 240px) 1fr; gap: 14px; align-items: center; }
+.feedback-screenshot-preview img { width: 100%; max-height: 180px; object-fit: contain; border: 1px solid var(--border-color); border-radius: 12px; background: var(--card-bg); }
+.feedback-screenshot-preview > div { display: grid; gap: 10px; color: var(--muted-text); }
+.feedback-screenshot-preview .btn { width: fit-content; }
+.feedback-contact-permission { display: flex; gap: 10px; align-items: center; padding: 8px 0; color: var(--text-color); }
+.feedback-contact-permission input { width: 20px; height: 20px; margin: 0; accent-color: var(--primary-color); }
+.feedback-direct-support { margin: 24px 0 0; padding-top: 18px; border-top: 1px solid var(--border-color); color: var(--muted-text); text-align: center; }
+.feedback-direct-support a { color: var(--link-color); font-weight: 800; }
+.recommendations-form-footer small { color: var(--muted-text); }
+
 html[data-theme="dark"] .recommendations-page,
 html[data-theme="dark"] .recommendations-header h2,
 html[data-theme="dark"] .recommendations-form label {
-  color: #ffffff;
+  color: var(--text-color);
 }
 
 @media (max-width: 520px) {
   .recommendations-page { padding: 18px 14px; }
   .recommendations-form-footer { align-items: stretch; flex-direction: column; }
   .recommendations-form-footer .btn { width: 100%; min-height: 46px; }
+  .feedback-screenshot-preview { grid-template-columns: 1fr; }
+  .feedback-screenshot-preview .btn, .feedback-file-button { width: 100%; }
 }
 
 .assignment-entry-form {
