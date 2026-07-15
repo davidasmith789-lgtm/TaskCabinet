@@ -6,6 +6,12 @@ const inFlightUsers = new Set();
 const requestWindows = new Map();
 const DAILY_LIMIT = 20;
 const MINUTE_LIMIT = 5;
+const submittedDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
 function serverClient() {
   const url = String(process.env.SUPABASE_URL || "").trim();
@@ -34,7 +40,8 @@ export async function sendNotification(row, user, env = process.env, fetchImpl =
   const category = row.category || "No category";
   const displayName = String(user.user_metadata?.display_name || user.user_metadata?.preferred_name || "Not provided").trim().slice(0, 80);
   const contactDetails = row.allow_contact ? `<dt>Contact email</dt><dd>${escapeHtml(row.contact_email)}</dd>` : "";
-  const html = `<h1>New GlowDocket feedback</h1><dl><dt>Submission</dt><dd>${escapeHtml(row.id)}</dd><dt>Category</dt><dd>${escapeHtml(category)}</dd><dt>User display name</dt><dd>${escapeHtml(displayName)}</dd><dt>App version</dt><dd>${escapeHtml(row.app_version)}</dd><dt>Release</dt><dd>${escapeHtml(row.release_id || "Unavailable")}</dd><dt>Submitted</dt><dd>${escapeHtml(row.created_at)}</dd><dt>Contact permitted</dt><dd>${row.allow_contact ? "Yes" : "No"}</dd>${contactDetails}<dt>Private screenshot</dt><dd>${row.screenshot_path ? "Included; review securely in Supabase." : "Not included"}</dd></dl><h2>Message</h2><p>${escapeHtml(row.message).replace(/\n/g, "<br>")}</p>`;
+  const submittedDate = submittedDateFormatter.format(new Date(row.created_at));
+  const html = `<h1>New GlowDocket feedback</h1><dl><dt>Submission</dt><dd>${escapeHtml(row.id)}</dd><dt>Category</dt><dd>${escapeHtml(category)}</dd><dt>User display name</dt><dd>${escapeHtml(displayName)}</dd><dt>App version</dt><dd>${escapeHtml(row.app_version)}</dd><dt>Release</dt><dd>${escapeHtml(row.release_id || "Unavailable")}</dd><dt>Submitted</dt><dd>${escapeHtml(submittedDate)}</dd><dt>Contact permitted</dt><dd>${row.allow_contact ? "Yes" : "No"}</dd>${contactDetails}<dt>Private screenshot</dt><dd>${row.screenshot_path ? "Included; review securely in Supabase." : "Not included"}</dd></dl><h2>Message</h2><p>${escapeHtml(row.message).replace(/\n/g, "<br>")}</p>`;
   const response = await fetchImpl("https://api.resend.com/emails", {
     method: "POST",
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },

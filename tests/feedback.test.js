@@ -54,9 +54,14 @@ test("notification omits authenticated email when contact permission is false", 
 
 test("notification includes authenticated email only when contact permission is true", async () => {
   let payload;
-  await sendNotification({ id: feedbackId, category: "bug", message: "Hello", app_version: "1.0.0", release_id: "release", created_at: new Date().toISOString(), allow_contact: true, contact_email: "verified@example.com", screenshot_path: `${userId}/${feedbackId}/screenshot.webp` }, { email: "verified@example.com", user_metadata: { display_name: "Student" } }, { RESEND_API_KEY: "key", FEEDBACK_NOTIFICATION_TO: "team@example.com", FEEDBACK_FROM_EMAIL: "GlowDocket <feedback@example.com>", FEEDBACK_REPLY_TO: "support@example.com" }, async (_url, options) => { payload = JSON.parse(options.body); return { ok: true }; });
+  const createdAt = "2026-07-15T17:21:28.698839+00:00";
+  await sendNotification({ id: feedbackId, category: "bug", message: "Hello", app_version: "1.0.0", release_id: "release", created_at: createdAt, allow_contact: true, contact_email: "verified@example.com", screenshot_path: `${userId}/${feedbackId}/screenshot.webp` }, { email: "verified@example.com", user_metadata: { display_name: "Student" } }, { RESEND_API_KEY: "key", FEEDBACK_NOTIFICATION_TO: "team@example.com", FEEDBACK_FROM_EMAIL: "GlowDocket <feedback@example.com>", FEEDBACK_REPLY_TO: "support@example.com" }, async (_url, options) => { payload = JSON.parse(options.body); return { ok: true }; });
   assert.match(payload.html, /verified@example\.com/);
   assert.match(payload.html, /Included; review securely in Supabase/);
+  assert.match(payload.html, /<dt>Submitted<\/dt><dd>July 15, 2026<\/dd>/);
+  assert.doesNotMatch(payload.html, new RegExp(createdAt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(payload.html, /<dt>Submission<\/dt><dd>123e4567-e89b-42d3-a456-426614174001<\/dd>/);
+  assert.match(payload.html, /<dt>Release<\/dt><dd>release<\/dd>/);
   assert.equal(payload.reply_to, "support@example.com");
 });
 
