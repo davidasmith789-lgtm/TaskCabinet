@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyCloudStateToLocal, collectSyncableState, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadLatestLocalBackup, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, resolveProfileDisplayName, saveLocalBackup, saveLocalSnapshot, validateCloudState } from "../src/cloudSync.js";
+import { applyCloudStateToLocal, chooseHydrationState, collectSyncableState, createPortableExport, getCloudStateFingerprint, hasMeaningfulState, loadLatestLocalBackup, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, resolveProfileDisplayName, saveLocalBackup, saveLocalSnapshot, validateCloudState } from "../src/cloudSync.js";
 
 function memoryStorage() {
   const values = new Map();
@@ -90,6 +90,33 @@ test("portable exports round-trip validated planner data", () => {
   assert.deepEqual(parsePortableExport(exported), original);
   assert.deepEqual(parsePortableExport({ format: "taskcabinet-export", version: 1, exportedAt: exported.exportedAt, data: original }), original);
   assert.throws(() => parsePortableExport({ format: "unknown" }), /supported/i);
+});
+
+test("meaningful-state detection protects customized desktop and mobile layouts", () => {
+  const desktopLayout = { desktop: { dashboard: [{ id: "recommended-1", type: "recommended", x: 140, y: 80, width: 420, height: 300 }] }, mobile: {}, collapsed: {}, locked: { desktop: false, mobile: false }, userCustomized: true };
+  const mobileLayout = { desktop: {}, mobile: { dashboard: [{ id: "quick-match-2", type: "quick-match", x: 12, y: 24, width: 340, height: 260 }] }, collapsed: { "quick-match": true }, locked: { desktop: true, mobile: false } };
+  assert.equal(hasMeaningfulState(state({ workspaceLayout: desktopLayout })), true);
+  assert.equal(hasMeaningfulState(state({ workspaceLayout: mobileLayout })), true);
+});
+
+test("hydration never replaces a meaningful local layout with a different cloud layout", () => {
+  const localLayout = { desktop: { dashboard: [{ id: "recommended-1", type: "recommended", x: 140, y: 80, width: 420, height: 300 }] }, mobile: {}, collapsed: {}, locked: { desktop: false, mobile: false }, userCustomized: true };
+  const cloudLayout = { desktop: { dashboard: [{ id: "recommended-1", type: "recommended", x: 0, y: 0, width: 320, height: 260 }] }, mobile: {}, collapsed: {}, locked: { desktop: true, mobile: false } };
+  const local = state({ workspaceLayout: localLayout });
+  const cloud = { state: state({ workspaceLayout: cloudLayout }), revision: 12 };
+  const choice = chooseHydrationState(local, { revision: 12, pending: false }, cloud);
+  assert.equal(choice.conflict, true);
+  assert.strictEqual(choice.state, local);
+  assert.deepEqual(choice.state.workspaceLayout, localLayout);
+});
+
+test("new empty devices hydrate from meaningful cloud layouts without uploading defaults", () => {
+  const cloudLayout = { desktop: { dashboard: [{ id: "checklists-1", type: "checklists", x: 55, y: 35, width: 500, height: 400 }] }, mobile: {}, collapsed: {}, locked: { desktop: false, mobile: false }, userCustomized: true };
+  const emptyLocal = state();
+  const cloud = { state: state({ workspaceLayout: cloudLayout }), revision: 4 };
+  const choice = chooseHydrationState(emptyLocal, { revision: 0, pending: false }, cloud);
+  assert.equal(choice.conflict, false);
+  assert.strictEqual(choice.state, cloud.state);
 });
 
 test("damaged profile sections fall back independently", () => {

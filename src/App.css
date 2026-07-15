@@ -4413,25 +4413,6 @@ html[data-theme="dark"] {
 .workspace-widget.is-dragging { z-index: 10000 !important; opacity: 0.97; border-color: color-mix(in srgb, var(--focus-color) 52%, var(--border-color)); box-shadow: 0 22px 56px rgba(0, 0, 0, 0.24); }
 .workspace-widget.is-resizing { z-index: 9999 !important; border-color: color-mix(in srgb, var(--focus-color) 42%, var(--border-color)); box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18); }
 
-.detached-widget-window {
-  min-height: 100vh;
-  margin: 0;
-  overflow: hidden;
-  background: var(--page-bg);
-}
-.detached-widget-root { width: 100vw; height: 100vh; }
-.workspace-widget.is-detached-widget {
-  max-width: none;
-  min-width: 0;
-  min-height: 100vh;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  overflow: hidden;
-}
-.workspace-widget.is-detached-widget .workspace-widget-body { flex: 1; min-height: 0; overflow: auto; }
-.workspace-widget.is-detached-widget .workspace-widget-scaled-content { width: 100%; min-height: 100%; transform: none; }
-
 .workspace-widget.is-collapsed { overflow: visible; }
 
 .workspace-widget-header {
@@ -4465,7 +4446,6 @@ html[data-theme="dark"] {
 
 .widget-drag-grip,
 .widget-collapse-button,
-.widget-return-button,
 .widget-menu summary {
   display: inline-grid;
   width: 32px;
@@ -4479,7 +4459,6 @@ html[data-theme="dark"] {
 }
 .widget-drag-grip { cursor: grab; }
 .widget-collapse-button,
-.widget-return-button,
 .widget-menu summary { cursor: pointer; }
 .widget-drag-grip:active { cursor: grabbing; }
 .widget-drag-grip { touch-action: none; }

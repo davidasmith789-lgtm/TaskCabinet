@@ -53,7 +53,35 @@ export function validateCloudState(value) {
 
 export function hasMeaningfulState(state) {
   if (!state) return false;
-  return state.tasks?.length > 0 || state.checklists?.length > 0 || state.courses?.some((course) => course !== "Other") || Object.keys(state.courseColors || {}).length > 0;
+  const workspace = state.workspaceLayout;
+  const hasSavedWorkspace = Boolean(
+    workspace
+    && typeof workspace === "object"
+    && !Array.isArray(workspace)
+    && (
+      workspace.userCustomized
+      || workspace.updatedAt
+      || Object.keys(workspace.collapsed || {}).length > 0
+      || ["desktop", "mobile"].some((mode) => Object.values(workspace[mode] || {}).some((items) => Array.isArray(items) && items.length > 0))
+    )
+  );
+  return state.tasks?.length > 0
+    || state.checklists?.length > 0
+    || state.courses?.some((course) => course !== "Other")
+    || Object.keys(state.courseColors || {}).length > 0
+    || hasSavedWorkspace;
+}
+
+export function chooseHydrationState(local, localMeta, cloud) {
+  if (!cloud) return { state: local, conflict: false };
+  if (!hasMeaningfulState(local)) return { state: cloud.state, conflict: false };
+  if (sameState(local, cloud.state)) return { state: local, conflict: false };
+  return {
+    state: local,
+    conflict: true,
+    cloudRevision: Number(cloud.revision) || 0,
+    localRevision: Number(localMeta?.revision) || 0,
+  };
 }
 
 export function loadLocalSnapshot(storage, userId) {
