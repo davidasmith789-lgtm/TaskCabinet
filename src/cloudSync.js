@@ -2,7 +2,9 @@ import { createReportMetadata } from "./buildMetadata.js";
 
 export const CLOUD_STATE_SCHEMA_VERSION = 1;
 const DEVICE_SETTING_KEYS = new Set(["externalPushEnabled", "notificationsEnabled", "activeColorThemeId", "customColors"]);
-const ACCOUNT_FIELDS = ["tasks", "courses", "courseColors", "userSettings", "checklists", "workspaceLayout", "displayName"];
+// Workspace geometry is intentionally device-specific so a Chromebook layout
+// cannot replace the arrangement saved in a desktop browser (or vice versa).
+const ACCOUNT_FIELDS = ["tasks", "courses", "courseColors", "userSettings", "checklists", "displayName"];
 
 const parse = (value, fallback) => { try { return value ? JSON.parse(value) : fallback; } catch { return fallback; } };
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

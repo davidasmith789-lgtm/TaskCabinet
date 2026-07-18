@@ -99,14 +99,23 @@ test("meaningful-state detection protects customized desktop and mobile layouts"
   assert.equal(hasMeaningfulState(state({ workspaceLayout: mobileLayout })), true);
 });
 
-test("hydration uses cloud data without prompting when the device has no pending changes", () => {
+test("hydration keeps a device layout without prompting when only cloud geometry differs", () => {
   const localLayout = { desktop: { dashboard: [{ id: "recommended-1", type: "recommended", x: 140, y: 80, width: 420, height: 300 }] }, mobile: {}, collapsed: {}, locked: { desktop: false, mobile: false }, userCustomized: true };
   const cloudLayout = { desktop: { dashboard: [{ id: "recommended-1", type: "recommended", x: 0, y: 0, width: 320, height: 260 }] }, mobile: {}, collapsed: {}, locked: { desktop: true, mobile: false } };
   const local = state({ workspaceLayout: localLayout });
   const cloud = { state: state({ workspaceLayout: cloudLayout }), revision: 12 };
   const choice = chooseHydrationState(local, { revision: 12, pending: false }, cloud);
   assert.equal(choice.conflict, false);
-  assert.strictEqual(choice.state, cloud.state);
+  assert.strictEqual(choice.state, local);
+});
+
+test("workspace layouts are device-specific and do not create cloud conflicts", () => {
+  const desktop = state({ workspaceLayout: { desktop: { dashboard: [{ id: "pc-layout" }] } } });
+  const chromebook = state({ workspaceLayout: { chromebook: { dashboard: [{ id: "chromebook-layout" }] } } });
+  assert.equal(getCloudStateFingerprint(desktop), getCloudStateFingerprint(chromebook));
+  const choice = chooseHydrationState(desktop, { revision: 3, pending: false }, { state: chromebook, revision: 3 });
+  assert.equal(choice.conflict, false);
+  assert.strictEqual(choice.state, desktop);
 });
 
 test("hydration still prompts before replacing pending device changes", () => {

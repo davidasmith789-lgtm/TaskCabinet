@@ -2165,7 +2165,10 @@ function App() {
             setSyncStatus("conflict");
             return;
           }
-          selected = hydrationChoice.state;
+          selected = {
+            ...hydrationChoice.state,
+            workspaceLayout: local?.workspaceLayout || {},
+          };
         }
         const localDeviceSettings = JSON.parse(localStorage.getItem(`settings_${currentUser}`) || "{}");
         applyCloudStateToLocal(localStorage, currentUser, selected, {
@@ -4909,19 +4912,17 @@ function App() {
 
   const applyResolvedCloudState = (state, revision) => {
     const deviceSettings = { externalPushEnabled: userSettings.externalPushEnabled, notificationsEnabled: userSettings.notificationsEnabled, activeColorThemeId: userSettings.activeColorThemeId, customColors: userSettings.customColors };
-    applyCloudStateToLocal(localStorage, currentUser, state, deviceSettings);
-    saveLocalSnapshot(localStorage, currentUser, state, revision, false);
+    const deviceState = { ...state, workspaceLayout };
+    applyCloudStateToLocal(localStorage, currentUser, deviceState, deviceSettings);
+    saveLocalSnapshot(localStorage, currentUser, deviceState, revision, false);
     cloudRevisionRef.current = revision;
-    cloudLastSavedFingerprintRef.current = getCloudStateFingerprint(state);
-    setTasks(state.tasks);
-    setCourses(state.courses);
-    setCourseColors(state.courseColors);
-    setUserSettings({ ...DEFAULT_USER_SETTINGS, ...state.userSettings, ...deviceSettings });
-    setChecklists(state.checklists);
-    const repaired = repairLoadedWorkspace(state.workspaceLayout);
-    workspaceLayoutRef.current = repaired;
-    setWorkspaceLayout(repaired);
-    setDisplayName(resolveProfileDisplayName(state.displayName, currentUser, displayName));
+    cloudLastSavedFingerprintRef.current = getCloudStateFingerprint(deviceState);
+    setTasks(deviceState.tasks);
+    setCourses(deviceState.courses);
+    setCourseColors(deviceState.courseColors);
+    setUserSettings({ ...DEFAULT_USER_SETTINGS, ...deviceState.userSettings, ...deviceSettings });
+    setChecklists(deviceState.checklists);
+    setDisplayName(resolveProfileDisplayName(deviceState.displayName, currentUser, displayName));
   };
 
   const handleKeepCloudConflict = () => {
