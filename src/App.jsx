@@ -7588,7 +7588,7 @@ function App() {
             </div>
           </section>
 
-          <div className="welcome-energy-rail" aria-hidden="true"><div><span>Assignments organized</span><i /> <span>Deadlines conquered</span><i /> <span>Study plans activated</span><i /> <span>Focus mode engaged</span><i /> <span>GlowDocket energy</span><i /> <span>Assignments organized</span><i /> <span>Deadlines conquered</span><i /> <span>Study plans activated</span></div></div>
+          <div className="welcome-energy-rail" aria-hidden="true"><div className="welcome-energy-track">{[0, 1].map((group) => <div className="welcome-energy-group" key={group}>{["Assignments organized", "Deadlines conquered", "Study plans activated", "Focus mode engaged", "GlowDocket energy", "Priorities sorted", "Courses coordinated", "Progress unlocked", "Workload balanced", "Reminders ready", "Calendar conquered", "Momentum building"].map((phrase) => <span className="welcome-energy-item" key={`${group}-${phrase}`}><b>{phrase}</b><i /></span>)}</div>)}</div></div>
 
           <section className="welcome-features" aria-label="What GlowDocket helps with">
             {[
