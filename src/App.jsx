@@ -466,11 +466,12 @@ const SETTINGS_SECTIONS = [
 ];
 
 function getOrderedSettingsSections(savedOrder) {
-  const validIds = new Set(SETTINGS_SECTIONS.map((section) => section.id));
+  const visibleSections = SETTINGS_SECTIONS.filter((section) => section.id !== "privacy");
+  const validIds = new Set(visibleSections.map((section) => section.id));
   const safeOrder = Array.isArray(savedOrder)
     ? savedOrder.filter((id, index, items) => validIds.has(id) && items.indexOf(id) === index)
     : [];
-  const missingIds = SETTINGS_SECTIONS.map((section) => section.id).filter((id) => !safeOrder.includes(id));
+  const missingIds = visibleSections.map((section) => section.id).filter((id) => !safeOrder.includes(id));
   const completeOrder = [...safeOrder, ...missingIds];
   return completeOrder.map((id) => SETTINGS_SECTIONS.find((section) => section.id === id));
 }
@@ -9842,7 +9843,7 @@ function App() {
 
                 {settingsSection === "accessibility" && (
                   <>
-                    <SettingsCard title="Automated Accessibility Check" description="Scan the current GlowDocket screen for common machine-detectable accessibility problems." className="settings-section-wide accessibility-verification-card">
+                    <SettingsCard title="Automated Accessibility Check" description="Scan the current GlowDocket screen for common machine-detectable accessibility problems." className="settings-section-wide accessibility-verification-card" mobileAlwaysOpen>
                       <div className="accessibility-audit-heading">
                         <div><strong>Checks accessible names, form labels, image text alternatives, dialog names, duplicate IDs, and keyboard access for custom buttons.</strong><p className="hint-text">Automated checks cannot prove that the full experience is accessible. Complete the manual checks below too.</p></div>
                         <button type="button" className="btn btn-primary" onClick={handleRunAccessibilityAudit}>Run Accessibility Check</button>
@@ -9856,7 +9857,7 @@ function App() {
                         </div>
                       )}
                     </SettingsCard>
-                    <SettingsCard title="Manual Accessibility Verification" description="Complete these checks on the device and browser you are reviewing." className="settings-section-wide accessibility-verification-card">
+                    <SettingsCard title="Manual Accessibility Verification" description="Complete these checks on the device and browser you are reviewing." className="settings-section-wide accessibility-verification-card" mobileAlwaysOpen>
                       <div className="accessibility-manual-progress"><strong>{manualAccessibilityChecks.length} of {MANUAL_ACCESSIBILITY_CHECKS.length} checked</strong><progress max={MANUAL_ACCESSIBILITY_CHECKS.length} value={manualAccessibilityChecks.length}>{manualAccessibilityChecks.length}</progress></div>
                       <div className="accessibility-checklist">
                         {MANUAL_ACCESSIBILITY_CHECKS.map((check) => (
