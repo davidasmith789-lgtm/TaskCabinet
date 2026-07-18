@@ -4805,6 +4805,24 @@ html[data-theme="dark"] {
 .widget-resize-edge.is-bottom-right { right: -5px; bottom: -5px; cursor: nwse-resize; }
 .widget-resize-edge.is-bottom-left { bottom: -5px; left: -5px; cursor: nesw-resize; }
 
+/* ChromeOS touchpads can release a very small edge while a pointer is moving.
+   Chromebook workspaces use larger, overlapping hit targets while preserving
+   the same edge-and-corner resize behavior as desktop. */
+.workspace-mode-chromebook .widget-resize-edge.is-top,
+.workspace-mode-chromebook .widget-resize-edge.is-bottom { right: 16px; left: 16px; height: 16px; }
+.workspace-mode-chromebook .widget-resize-edge.is-top { top: -8px; }
+.workspace-mode-chromebook .widget-resize-edge.is-bottom { bottom: -8px; }
+.workspace-mode-chromebook .widget-resize-edge.is-left,
+.workspace-mode-chromebook .widget-resize-edge.is-right { top: 16px; bottom: 16px; width: 16px; }
+.workspace-mode-chromebook .widget-resize-edge.is-left { left: -8px; }
+.workspace-mode-chromebook .widget-resize-edge.is-right { right: -8px; }
+.workspace-mode-chromebook .widget-resize-edge:is(.is-top-left, .is-top-right, .is-bottom-left, .is-bottom-right) { width: 24px; height: 24px; }
+.workspace-mode-chromebook .widget-resize-edge.is-top-left { top: -10px; left: -10px; }
+.workspace-mode-chromebook .widget-resize-edge.is-top-right { top: -10px; right: -10px; }
+.workspace-mode-chromebook .widget-resize-edge.is-bottom-right { right: -10px; bottom: -10px; }
+.workspace-mode-chromebook .widget-resize-edge.is-bottom-left { bottom: -10px; left: -10px; }
+.workspace-mode-chromebook .workspace-widget:not(.is-locked):hover { outline: 2px solid color-mix(in srgb, var(--focus-color) 22%, transparent); outline-offset: 2px; }
+
 .quick-match-preset-settings { display: grid; gap: 12px; }
 .quick-match-preset-settings > label { display: grid; gap: 7px; font-weight: 800; }
 .quick-match-preset-entry { display: flex; align-items: center; gap: 9px; }

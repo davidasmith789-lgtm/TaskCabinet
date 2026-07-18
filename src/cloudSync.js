@@ -62,7 +62,7 @@ export function hasMeaningfulState(state) {
       workspace.userCustomized
       || workspace.updatedAt
       || Object.keys(workspace.collapsed || {}).length > 0
-      || ["desktop", "mobile"].some((mode) => Object.values(workspace[mode] || {}).some((items) => Array.isArray(items) && items.length > 0))
+      || ["desktop", "chromebook", "mobile"].some((mode) => Object.values(workspace[mode] || {}).some((items) => Array.isArray(items) && items.length > 0))
     )
   );
   return state.tasks?.length > 0

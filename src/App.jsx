@@ -1049,8 +1049,10 @@ const WORKSPACE_TABS = [
 ];
 
 const WORKSPACE_COMPACT_BREAKPOINT = 1100;
-const getWorkspaceModeForWidth = (width) =>
-  Number(width) < WORKSPACE_COMPACT_BREAKPOINT ? "mobile" : "desktop";
+const getWorkspaceModeForWidth = (width, userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent) => {
+  if (/CrOS/i.test(userAgent)) return "chromebook";
+  return Number(width) < WORKSPACE_COMPACT_BREAKPOINT ? "mobile" : "desktop";
+};
 
 /**
  * Normalize a stored workspace before React uses it. Older unstamped layouts
@@ -1069,6 +1071,7 @@ function repairLoadedWorkspace(layout) {
     ...repaired,
     locked: {
       desktop: isOldUnstampedLayout ? false : Boolean(repaired.locked?.desktop),
+      chromebook: isOldUnstampedLayout ? false : Boolean(repaired.locked?.chromebook),
       mobile: isOldUnstampedLayout ? false : Boolean(repaired.locked?.mobile),
     },
   };
@@ -1196,6 +1199,9 @@ function WorkspaceWidget({
   const resizeStart = (event, edges = { right: true, bottom: true }) => {
     event.preventDefault();
     event.stopPropagation();
+    const resizeHandle = event.currentTarget;
+    const activePointerId = event.pointerId;
+    try { resizeHandle.setPointerCapture?.(activePointerId); } catch { /* Window listeners remain as a fallback. */ }
     const widget = event.currentTarget.closest(".workspace-widget");
     const canvas = widget?.closest(".workspace-widget-canvas");
     widget?.classList.add("is-resizing");
@@ -1217,6 +1223,8 @@ function WorkspaceWidget({
       height: startHeight,
     };
     const move = (moveEvent) => {
+      if (moveEvent.pointerId !== activePointerId) return;
+      moveEvent.preventDefault();
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
       const desiredX = edges.left ? Math.min(widgetX + startWidth - 190, Math.max(0, widgetX + deltaX)) : widgetX;
@@ -1261,11 +1269,13 @@ function WorkspaceWidget({
         widget.style.setProperty("--widget-content-scale", liveScale);
       }
     };
-    const stop = () => {
+    const stop = (stopEvent) => {
+      if (stopEvent?.pointerId !== undefined && stopEvent.pointerId !== activePointerId) return;
       widget?.classList.remove("is-resizing");
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
       window.removeEventListener("pointercancel", stop);
+      try { if (resizeHandle.hasPointerCapture?.(activePointerId)) resizeHandle.releasePointerCapture(activePointerId); } catch { /* Capture may already be released. */ }
       onResize(nextWidth, nextHeight, canvas?.clientWidth, lastSafe.x, lastSafe.y);
     };
     window.addEventListener("pointermove", move);
@@ -8057,7 +8067,7 @@ function App() {
           </section>
         )}
 
-        <div className={`workspace-layout${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}${workspaceCanvasWidth > 0 ? " is-measured" : " is-measuring"}${mobileUsesOwnScreen ? " mobile-app-desktop-content-hidden" : ""}`}>
+        <div className={`workspace-layout workspace-mode-${workspaceMode}${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}${workspaceCanvasWidth > 0 ? " is-measured" : " is-measuring"}${mobileUsesOwnScreen ? " mobile-app-desktop-content-hidden" : ""}`}>
           <main className="workspace-main" ref={workspaceMainRef}>
 
         {currentTab === "dashboard" && renderWorkspaceForTab("dashboard")}

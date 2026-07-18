@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { formatChecklistCountdown, getChecklistDeadline } from "../src/checklistUtils.js";
 import { preparePastedAssignmentLines } from "../src/bulkImportUtils.js";
 import { findLikelySyllabusAssignments, getSyllabusFileKind } from "../src/syllabusImport.js";
@@ -199,6 +200,35 @@ test("default desktop and mobile workspace layouts do not overlap", () => {
 
   assert.deepEqual(findWidgetOverlaps(layout.desktop.dashboard), []);
   assert.deepEqual(findWidgetOverlaps(layout.mobile.dashboard), []);
+});
+
+test("Chromebook widgets use an independent compact workspace", () => {
+  const layout = createDefaultWorkspaceLayout();
+  assert.ok(layout.chromebook);
+  assert.notStrictEqual(layout.chromebook, layout.desktop);
+  assert.notStrictEqual(layout.chromebook, layout.mobile);
+  assert.equal(layout.locked.chromebook, false);
+  assert.ok(layout.chromebook.dashboard.every((item) => item.width <= 540));
+  assert.deepEqual(findWidgetOverlaps(layout.chromebook.dashboard), []);
+});
+
+test("older workspace layouts gain Chromebook defaults without changing saved desktop geometry", () => {
+  const saved = createDefaultWorkspaceLayout();
+  delete saved.chromebook;
+  saved.version = 2;
+  saved.userCustomized = true;
+  const desktopBefore = structuredClone(saved.desktop);
+  const normalized = normalizeWorkspaceLayout(saved, { preservePositions: true, preserveUnmeasuredPositions: true });
+  assert.ok(normalized.chromebook.dashboard.length > 0);
+  assert.deepEqual(normalized.desktop, desktopBefore);
+});
+
+test("ChromeOS mode detection and pointer-captured resizing stay wired", async () => {
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /CrOS/);
+  assert.match(app, /return "chromebook"/);
+  assert.match(app, /setPointerCapture/);
+  assert.match(app, /releasePointerCapture/);
 });
 
 test("desktop dashboard defaults use the full landscape canvas", () => {

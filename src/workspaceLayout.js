@@ -1,11 +1,11 @@
 /*
  * Workspace layout domain model.
  *
- * Widgets are persisted separately for desktop and mobile modes. This module
+ * Widgets are persisted separately for desktop, Chromebook, and mobile modes. This module
  * creates defaults, repairs older saved layouts, enforces usable sizes, and
  * resolves placement without depending on React or the browser DOM.
  */
-export const DEFAULT_LAYOUT_VERSION = 2;
+export const DEFAULT_LAYOUT_VERSION = 3;
 export const WORKSPACE_LAYOUT_VERSION = DEFAULT_LAYOUT_VERSION;
 
 export const PROTECTED_WIDGETS = new Set([
@@ -105,19 +105,35 @@ const MOBILE_DEFAULT_HEIGHTS = {
   "completed-master": 620,
 };
 
+const CHROMEBOOK_DEFAULT_HEIGHTS = {
+  recommended: 420, "quick-match": 400, "mini-calendar": 410,
+  "stat-active": 125, "stat-today": 125, "stat-overdue": 125, "stat-workload": 125,
+  reminders: 360, "course-overview": 390, checklists: 430, "course-colors": 390,
+  "add-assignment": 560, "todo-master": 560, "in-progress-master": 560, "completed-master": 560,
+};
+
 /** Create compact new-layout geometry without rewriting a saved mobile layout. */
-const getModeDefaultItem = (item, mode) => mode === "mobile"
-  ? {
+const getModeDefaultItem = (item, mode) => {
+  if (mode === "mobile") return {
       ...item,
       width: Math.min(Number(item.width) || 360, 420),
       height: item.type?.includes("-bucket-")
         ? 360
         : MOBILE_DEFAULT_HEIGHTS[item.type] || Math.min(Number(item.height) || 320, 420),
-    }
-  : item;
+    };
+  if (mode === "chromebook") return {
+    ...item,
+    width: item.type?.startsWith("stat-") ? 230 : Math.min(Number(item.width) || 480, 540),
+    height: item.type?.includes("-bucket-") ? 390 : CHROMEBOOK_DEFAULT_HEIGHTS[item.type] || Math.min(Number(item.height) || 360, 440),
+    x: undefined,
+    xRatio: undefined,
+    y: undefined,
+  };
+  return item;
+};
 
 const getCanvasWidth = (mode, override) => {
-  const fallback = mode === "mobile" ? 720 : 1680;
+  const fallback = mode === "mobile" ? 720 : mode === "chromebook" ? 1160 : 1680;
   const measuredWidth = Number(override);
   return Math.max(320, Number.isFinite(measuredWidth) && measuredWidth > 0 ? measuredWidth : fallback);
 };
@@ -484,9 +500,10 @@ export function createDefaultWorkspaceLayout() {
   return {
     version: WORKSPACE_LAYOUT_VERSION,
     desktop: makeMode("desktop"),
+    chromebook: makeMode("chromebook"),
     mobile: makeMode("mobile"),
     collapsed: { "add-assignment": true },
-    locked: { desktop: true, mobile: false },
+    locked: { desktop: true, chromebook: false, mobile: false },
   };
 }
 
@@ -499,7 +516,7 @@ export function normalizeWorkspaceLayout(value, options = {}) {
   }
 
   const userCustomized = Boolean(value.userCustomized);
-  const modes = options.mode ? [options.mode] : ["desktop", "mobile"];
+  const modes = options.mode ? [options.mode] : ["desktop", "chromebook", "mobile"];
   const collapsedState = options.collapsed ?? value?.collapsed ?? {};
 
   for (const mode of modes) {
