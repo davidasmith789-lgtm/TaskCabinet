@@ -28,3 +28,12 @@ test("tutorial is available on mobile and has no skip control", async () => {
   assert.doesNotMatch(styles, /\.tutorial-skip/);
   assert.match(app, /<button type="button" className="btn btn-primary" onClick=\{finishTutorial\}>Finish<\/button>/);
 });
+
+test("the welcome page offers an isolated browser-only guest preview", async () => {
+  const [app, styles] = await Promise.all([read("../src/App.jsx"), read("../src/App.css")]);
+
+  assert.match(app, /const continueAsGuest = \(\) =>/);
+  assert.match(app, /setAccountMode\("local"\);[\s\S]*?setCurrentUser\("guest"\);/);
+  assert.match(app, /onClick=\{continueAsGuest\}>Continue as Guest<\/button>/);
+  assert.match(styles, /\.welcome-header-actions \{[^}]*display: grid;/);
+});

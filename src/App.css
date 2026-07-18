@@ -1727,7 +1727,9 @@ button:disabled {
 .welcome-page > .hero-card::after { content: ""; position: absolute; z-index: -1; inset: -100% -30%; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.38) 48%, transparent 61%); animation: welcome-header-shimmer 5s 1.4s ease-in-out infinite; }
 .welcome-page .hero-brand .glowdocket-logo { animation: welcome-logo-float 3.2s ease-in-out infinite, welcome-logo-glow 2s ease-in-out infinite alternate; }
 .welcome-top-header { align-items: center; }
+.welcome-header-actions { display: grid; flex: 0 0 auto; gap: 8px; }
 .welcome-header-signin { flex: 0 0 auto; min-height: 46px; padding-inline: 18px; white-space: nowrap; }
+.welcome-header-guest { min-height: 42px; padding-inline: 18px; white-space: nowrap; }
 .welcome-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(320px, .9fr); align-items: center; gap: clamp(36px, 7vw, 90px); min-height: 540px; }
 .welcome-hero-copy { animation: welcome-copy-arrive 520ms var(--motion-ease-out) both; }
 .welcome-title { max-width: 720px; margin: 8px 0 18px; color: var(--text-color); font-size: clamp(2.6rem, 6vw, 5.4rem); line-height: .98; letter-spacing: -.055em; }
@@ -1809,7 +1811,7 @@ button:disabled {
   .welcome-title { font-size: clamp(2.45rem, 13vw, 3.5rem); }
   .welcome-actions, .welcome-actions .btn { width: 100%; }
   .welcome-top-header { align-items: stretch; flex-direction: column; }
-  .welcome-header-signin { width: 100%; white-space: normal; }
+  .welcome-header-actions, .welcome-header-signin, .welcome-header-guest { width: 100%; white-space: normal; }
   .welcome-features { grid-template-columns: 1fr; padding-bottom: 50px; }
   .welcome-auth-card { padding: 22px 18px; }
 }

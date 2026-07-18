@@ -1133,7 +1133,7 @@ const PERSONALIZATION_TIPS = [
   ["Forgot your password", "On the welcome page, choose Sign In and then Forgot password? Enter your account email, open the recovery link, and choose a new password. Your planner data is not reset."],
   ["Password eye buttons", "Each password box has its own eye button. Showing one password never reveals the confirmation box, so you can check either entry safely."],
   ["Preferred name", "Add the name you like to be called under Account. GlowDocket can use it in friendly greetings and reminders, but never as your sign-in identity."],
-  ["Welcome page", "The public welcome page explains GlowDocket before you sign in. Get Started and I Already Have an Account both move you straight to the account panel."],
+  ["Welcome page", "The public welcome page explains GlowDocket before you sign in. Get Started and I Already Have an Account open the account panel, while Continue as Guest lets you preview the planner using browser-only data."],
   ["Keep local data safe", "GlowDocket saves your work in this browser. Clearing browser storage or using a different device does not automatically bring that data with you."],
   ["Privacy and data use", "Open Privacy & Data to see where information is stored, what cloud accounts sync, and which features remain specific to this device. GlowDocket does not load usage analytics or advertising trackers."],
   ["Install a GlowDocket update", "When an update is ready, finish any open edit and choose Update. Choose Later if you need to keep working; GlowDocket will not force the new version into the middle of your task."],
@@ -6354,6 +6354,17 @@ function App() {
     );
   };
 
+  const continueAsGuest = () => {
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    setWelcomeAuthOpen(false);
+    setAuthError("");
+    setAuthNotice("");
+    setDisplayName("Guest");
+    setAccountMode("local");
+    setCurrentUser("guest");
+    setCurrentTab("dashboard");
+  };
+
   const renderAddAssignmentForm = (formId) => (
     <form onSubmit={handleAddTask} className="card-form assignment-entry-form">
       <section className="bulk-import-panel" aria-label="Paste assignment list">
@@ -7611,7 +7622,10 @@ function App() {
                 </p>
               )}
             </div>
-            <button type="button" className="btn btn-secondary welcome-header-signin" onClick={() => showWelcomeAuth("signin")}>I Already Have an Account</button>
+            <div className="welcome-header-actions">
+              <button type="button" className="btn btn-secondary welcome-header-signin" onClick={() => showWelcomeAuth("signin")}>I Already Have an Account</button>
+              <button type="button" className="btn btn-secondary welcome-header-guest" onClick={continueAsGuest}>Continue as Guest</button>
+            </div>
           </header>
           <section className="welcome-hero" aria-labelledby="welcome-title">
             <div className="welcome-hero-copy">
