@@ -16,6 +16,8 @@ test("mobile edit remains a full-screen assignment form with accessible fields",
   assert.match(app, /renderDueDateField\(editingTask\.dueMonth, editingTask\.dueDay/);
   assert.match(app, /"edit-assignment-due-date"/);
   assert.match(app, /type="date"/);
+  assert.match(app, /className="date-picker-logo-button"[\s\S]{0,900}<input[\s\S]{0,120}id=\{id\}[\s\S]{0,80}type="date"/);
+  assert.match(app, /event\.currentTarget\.nextElementSibling/);
 });
 
 test("mobile keyboard, horizontal labels, notes spacing, and trash toast stay hardened", async () => {

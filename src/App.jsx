@@ -6322,15 +6322,6 @@ function App() {
       <label className="mobile-due-date-field" htmlFor={id}>
         Due date
         <span className="date-picker-control">
-          <input
-            id={id}
-            type="date"
-            value={value}
-            onChange={(event) => {
-              const [, selectedMonth = "", selectedDay = ""] = event.target.value.split("-");
-              onChange(selectedMonth, selectedDay);
-            }}
-          />
           <button
             type="button"
             className="date-picker-logo-button"
@@ -6338,7 +6329,7 @@ function App() {
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              const input = event.currentTarget.previousElementSibling;
+              const input = event.currentTarget.nextElementSibling;
               try {
                 if (typeof input.showPicker === "function") input.showPicker();
                 else input.click();
@@ -6349,6 +6340,15 @@ function App() {
           >
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v3M17 3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" /></svg>
           </button>
+          <input
+            id={id}
+            type="date"
+            value={value}
+            onChange={(event) => {
+              const [, selectedMonth = "", selectedDay = ""] = event.target.value.split("-");
+              onChange(selectedMonth, selectedDay);
+            }}
+          />
         </span>
       </label>
     );
