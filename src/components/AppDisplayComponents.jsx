@@ -78,5 +78,5 @@ export function SubtaskProgressLine({ label, extraClassName = "" }) {
 }
 
 export function MobilePageTitle({ eyebrow, title, copy }) {
-  return <header className="mobile-app-page-heading"><p>{eyebrow}</p><h2>{title}</h2>{copy && <span>{copy}</span>}</header>;
+  return <header className="mobile-app-page-heading">{eyebrow && <p>{eyebrow}</p>}<h2>{title}</h2>{copy && <span>{copy}</span>}</header>;
 }

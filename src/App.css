@@ -143,6 +143,19 @@
   .guided-entry-date label { display: grid; gap: 7px; font-weight: 800; }
   .guided-entry-date { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .guided-checklist-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .guided-course-step, .guided-course-create { display: grid; gap: 10px; }
+  .guided-course-create { padding: 12px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--surface-alt); }
+  .guided-course-create > div { display: flex; justify-content: flex-end; gap: 8px; }
+  .guided-course-create input[type="color"] { width: 100%; min-height: 46px; }
+  .guided-course-error { margin: 0; color: var(--danger-color); font-weight: 700; }
+  .mobile-due-date-field { display: grid; grid-column: 1 / -1; gap: 7px; min-width: 0; font-weight: 800; }
+  .mobile-due-date-field input[type="date"] { width: 100%; min-width: 0; min-height: 48px; box-sizing: border-box; color-scheme: light dark; }
+  .creation-related-task-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: related-task; }
+  .creation-related-task-list li { display: grid; grid-template-columns: 1.5rem 22px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; counter-increment: related-task; }
+  .creation-related-task-list li::before { content: counter(related-task) "."; font-weight: 800; text-align: right; }
+  .creation-related-task-list input[type="checkbox"] { width: 20px; height: 20px; margin: 0; opacity: 1; pointer-events: none; }
+  .creation-related-task-list span { min-width: 0; overflow-wrap: anywhere; }
+  .creation-related-task-list .subtask-remove-button { min-width: 0; }
   .guided-entry-review { display: grid; gap: 0; margin: 0; border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; }
   .guided-entry-review div { display: grid; grid-template-columns: minmax(80px, .7fr) minmax(0, 1.3fr); gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border-color); }
   .guided-entry-review div:last-child { border-bottom: 0; }

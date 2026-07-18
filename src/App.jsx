@@ -1114,7 +1114,7 @@ const PERSONALIZATION_TIPS = [
   ["What Should I Do?", "Enter how much time you have and GlowDocket will look for work that fits. If nothing fits perfectly, it favors the most urgent useful choice."],
   ["To Do and In Progress", "Use Start when you begin something so it moves to In Progress. Move it back to To Do if you started by accident; your notes and checklist steps stay with it."],
   ["Repeating assignments", "Completing a repeating assignment creates its next occurrence. Each occurrence keeps its own deadline and reminder instead of reusing the finished one."],
-  ["Assignment checklist steps", "Use optional checklist steps to break a large assignment into smaller pieces. If automatic completion is on, checking the final step completes the assignment."],
+  ["Assignment related tasks", "Use optional related tasks to break a large assignment into smaller pieces. If automatic completion is on, completing the final related task completes the assignment."],
   ["Files stay on this browser", "Assignment files are stored in this browser, not uploaded with your reminder. Clearing site data can remove them, so keep another copy of anything important."],
   ["Assignment links", "Give each link a useful name and web address. Leave the link field after typing so it is added to the list before you save the assignment."],
   ["Import a syllabus", "Paste a list or choose a PDF, DOCX, TXT, Markdown, or CSV file. Review the preview before importing so dates and course headings look right."],
@@ -1716,6 +1716,10 @@ function App() {
   const [customCourseName, setCustomCourseName] = useState("");
   const [customCategoryName, setCustomCategoryName] = useState("");
   const [newCourseName, setNewCourseName] = useState("");
+  const [guidedCourseCreationOpen, setGuidedCourseCreationOpen] = useState(false);
+  const [guidedCourseName, setGuidedCourseName] = useState("");
+  const [guidedCourseColor, setGuidedCourseColor] = useState("#3b82f6");
+  const [guidedCourseError, setGuidedCourseError] = useState("");
 
   // ---------------------------------------------------------------------------
   // ADD ASSIGNMENT FORM
@@ -3620,26 +3624,45 @@ function App() {
     }
   };
 
-  const handleAddCourse = (event) => {
-    event.preventDefault();
-
-    const trimmedCourseName = newCourseName.trim();
-
-    if (!trimmedCourseName) return;
+  const createCourse = (courseName, color = "") => {
+    const trimmedCourseName = courseName.trim();
+    if (!trimmedCourseName) return { ok: false, message: "Enter a course name." };
 
     const courseAlreadyExists = courses.some(
       (course) => course.toLowerCase() === trimmedCourseName.toLowerCase(),
     );
 
     if (courseAlreadyExists) {
-      alert(`"${trimmedCourseName}" is already in your course list.`);
-      return;
+      return { ok: false, message: `"${trimmedCourseName}" is already in your course list.` };
     }
 
     const updatedCourses = [...courses, trimmedCourseName];
     setCourses(updatedCourses);
     saveCoursesForCurrentUser(updatedCourses);
+    if (color) handleCourseColorChange(trimmedCourseName, color);
+    return { ok: true, course: trimmedCourseName };
+  };
+
+  const handleAddCourse = (event) => {
+    event.preventDefault();
+    const result = createCourse(newCourseName);
+    if (!result.ok) {
+      alert(result.message);
+      return;
+    }
     setNewCourseName("");
+  };
+
+  const handleGuidedCourseCreate = () => {
+    const result = createCourse(guidedCourseName, guidedCourseColor);
+    if (!result.ok) {
+      setGuidedCourseError(result.message);
+      return;
+    }
+    setSelectedCourse(result.course);
+    setGuidedCourseName("");
+    setGuidedCourseError("");
+    setGuidedCourseCreationOpen(false);
   };
 
   const saveCourseOrder = (updatedCourses) => {
@@ -6105,7 +6128,7 @@ function App() {
     return (
       <div className="subtask-checklist-panel">
         <div className="subtask-checklist-header">
-          <span>Finish checklist</span>
+          <span>Related Tasks to Complete</span>
           <span>{progress?.label}</span>
         </div>
 
@@ -6145,7 +6168,7 @@ function App() {
 
         {!isReadOnly && (
           <p className="subtask-checklist-hint">
-            Checking every step automatically completes this assignment.
+            Completing every related task automatically completes this assignment.
           </p>
         )}
       </div>
@@ -6247,6 +6270,27 @@ function App() {
     ? bulkImportRowsWithWarnings.filter(({ warnings }) => warnings.length > 0)
     : bulkImportRowsWithWarnings;
 
+  const renderMobileDueDateField = (month, day, onChange, id) => {
+    const today = new Date();
+    const value = month && day
+      ? `${today.getFullYear()}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+      : "";
+    return (
+      <label className="mobile-due-date-field" htmlFor={id}>
+        Due date
+        <input
+          id={id}
+          type="date"
+          value={value}
+          onChange={(event) => {
+            const [, selectedMonth = "", selectedDay = ""] = event.target.value.split("-");
+            onChange(selectedMonth, selectedDay);
+          }}
+        />
+      </label>
+    );
+  };
+
   const renderAddAssignmentForm = (formId) => (
     <form onSubmit={handleAddTask} className="card-form assignment-entry-form">
       <section className="bulk-import-panel" aria-label="Paste assignment list">
@@ -6335,14 +6379,14 @@ function App() {
       {isMobileUi && guidedEntryOpen && (
         <section className="guided-assignment-entry" aria-labelledby="guided-entry-title">
           <div className="guided-entry-progress"><span>Step {guidedEntryStep + 1} of 7</span><progress max="7" value={guidedEntryStep + 1}>{guidedEntryStep + 1}</progress></div>
-          <h3 id="guided-entry-title">{["What is the assignment called?", "Which course is it for?", "When is it due?", "What is its priority?", "Would you like to add notes?", "Would you like to add a checklist?", "Review your assignment"][guidedEntryStep]}</h3>
+          <h3 id="guided-entry-title">{["What is the assignment called?", "Which course is it for?", "When is it due?", "What is its priority?", "Would you like to add notes?", "Would you like to add related tasks to complete?", "Review your assignment"][guidedEntryStep]}</h3>
           {guidedEntryStep === 0 && <label>Assignment name<input autoFocus value={taskName} onChange={(event) => setTaskName(event.target.value)} /></label>}
-          {guidedEntryStep === 1 && <label>Course<select value={selectedCourse} onChange={(event) => setSelectedCourse(event.target.value)}><option value="">Select a course</option>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>}
-          {guidedEntryStep === 2 && <div className="guided-entry-date"><label>Month<select value={dueMonth} onChange={(event) => setDueMonth(event.target.value)}><option value="">Month</option>{monthNames.map((month, index) => <option key={month} value={String(index + 1).padStart(2, "0")}>{month}</option>)}</select></label><label>Day<select value={dueDay} onChange={(event) => setDueDay(event.target.value)}><option value="">Day</option>{Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={String(day).padStart(2, "0")}>{day}</option>)}</select></label><label>Time<input value={dueHour} inputMode="numeric" onChange={(event) => setDueHour(event.target.value)} /></label><label>AM/PM<select value={dueAmPm} onChange={(event) => setDueAmPm(event.target.value)}><option>AM</option><option>PM</option></select></label></div>}
+          {guidedEntryStep === 1 && <div className="guided-course-step"><label>Course<select value={selectedCourse} onChange={(event) => { setSelectedCourse(event.target.value); setGuidedCourseError(""); }}><option value="">Select a course</option>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label><button type="button" className="btn btn-secondary" onClick={() => { setGuidedCourseCreationOpen((open) => !open); setGuidedCourseError(""); }}>+ Create New Course</button>{guidedCourseCreationOpen && <div className="guided-course-create"><label>Course name<input autoFocus value={guidedCourseName} onChange={(event) => { setGuidedCourseName(event.target.value); setGuidedCourseError(""); }} /></label><label>Course color<input type="color" value={guidedCourseColor} onChange={(event) => setGuidedCourseColor(event.target.value)} /></label>{guidedCourseError && <p className="guided-course-error" role="alert">{guidedCourseError}</p>}<div><button type="button" className="btn btn-secondary" onClick={() => { setGuidedCourseCreationOpen(false); setGuidedCourseError(""); }}>Cancel</button><button type="button" className="btn btn-primary" onClick={handleGuidedCourseCreate}>Create course</button></div></div>}</div>}
+          {guidedEntryStep === 2 && <div className="guided-entry-date">{renderMobileDueDateField(dueMonth, dueDay, (month, day) => { setDueMonth(month); setDueDay(day); }, "guided-assignment-due-date")}<label>Time<input value={dueHour} inputMode="numeric" onChange={(event) => setDueHour(event.target.value)} /></label><label>AM/PM<select value={dueAmPm} onChange={(event) => setDueAmPm(event.target.value)}><option>AM</option><option>PM</option></select></label></div>}
           {guidedEntryStep === 3 && <label>Priority<select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option></select></label>}
           {guidedEntryStep === 4 && <label>Notes<textarea value={guidedNotes} onChange={(event) => setGuidedNotes(event.target.value)} rows="5" placeholder="Optional notes" /></label>}
-          {guidedEntryStep === 5 && <><div className="guided-checklist-add"><input value={newSubtaskText} onChange={(event) => setNewSubtaskText(event.target.value)} placeholder="Checklist item" /><button type="button" className="btn btn-secondary" onClick={handleAddDraftSubtask} disabled={!newSubtaskText.trim()}>Add</button></div>{draftSubtasks.length > 0 && <ul>{draftSubtasks.map((item) => <li key={item.id}>{item.text}</li>)}</ul>}</>}
-          {guidedEntryStep === 6 && <dl className="guided-entry-review"><div><dt>Name</dt><dd>{taskName || "Missing"}</dd></div><div><dt>Course</dt><dd>{selectedCourse || "Other"}</dd></div><div><dt>Due</dt><dd>{dueMonth && dueDay ? `${dueMonth}/${dueDay} at ${dueHour} ${dueAmPm}` : "Missing"}</dd></div><div><dt>Priority</dt><dd>{{ LOW: "Low", MED: "Medium", HIGH: "High" }[priority]}</dd></div><div><dt>Notes</dt><dd>{guidedNotes || "None"}</dd></div><div><dt>Checklist</dt><dd>{draftSubtasks.length} item{draftSubtasks.length === 1 ? "" : "s"}</dd></div></dl>}
+          {guidedEntryStep === 5 && <><div className="guided-checklist-add"><input value={newSubtaskText} onChange={(event) => setNewSubtaskText(event.target.value)} placeholder="Related task to complete" /><button type="button" className="btn btn-secondary" onClick={handleAddDraftSubtask} disabled={!newSubtaskText.trim()}>Add</button></div>{draftSubtasks.length > 0 ? <ol className="creation-related-task-list">{draftSubtasks.map((item) => <li key={item.id}><input type="checkbox" checked={false} readOnly tabIndex="-1" aria-hidden="true" /><span>{item.text}</span><button type="button" className="subtask-remove-button" onClick={() => handleRemoveDraftSubtask(item.id)}>Remove</button></li>)}</ol> : <p className="subtask-form-hint">No related tasks added.</p>}</>}
+          {guidedEntryStep === 6 && <dl className="guided-entry-review"><div><dt>Name</dt><dd>{taskName || "Missing"}</dd></div><div><dt>Course</dt><dd>{selectedCourse || "Other"}</dd></div><div><dt>Due</dt><dd>{dueMonth && dueDay ? `${dueMonth}/${dueDay} at ${dueHour} ${dueAmPm}` : "Missing"}</dd></div><div><dt>Priority</dt><dd>{{ LOW: "Low", MED: "Medium", HIGH: "High" }[priority]}</dd></div><div><dt>Notes</dt><dd>{guidedNotes || "None"}</dd></div><div><dt>Related tasks</dt><dd>{draftSubtasks.length} item{draftSubtasks.length === 1 ? "" : "s"}</dd></div></dl>}
           <div className="guided-entry-actions">
             <button type="button" className="btn btn-secondary" onClick={() => { if (guidedEntryStep > 0) setGuidedEntryStep((step) => step - 1); else if (!taskName && !selectedCourse && !guidedNotes && draftSubtasks.length === 0 || window.confirm("Exit guided entry without saving?")) setGuidedEntryOpen(false); }}>{guidedEntryStep > 0 ? "Back" : "Exit"}</button>
             {guidedEntryStep > 3 && guidedEntryStep < 6 && <button type="button" className="btn btn-secondary" onClick={() => setGuidedEntryStep((step) => step + 1)}>Skip</button>}
@@ -6416,7 +6460,7 @@ function App() {
         </select>
       )}</>}
 
-      <label>Due Date:</label>
+      {isMobileUi ? renderMobileDueDateField(dueMonth, dueDay, (month, day) => { setDueMonth(month); setDueDay(day); }, `${formId}-assignment-due-date`) : <><label>Due Date:</label>
       <div style={{ display: "flex", gap: "8px" }}>
         <select value={dueMonth} onChange={(e) => setDueMonth(e.target.value)}>
           <option value="">Month</option>
@@ -6437,7 +6481,7 @@ function App() {
             </option>
           ))}
         </select>
-      </div>
+      </div></>}
 
       <label>Due Time:</label>
       <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -6605,15 +6649,15 @@ function App() {
       </div>}
 
       {userSettings.showAssignmentChecklistSteps !== false && <div className="subtask-form-section optional-assignment-section">
-        <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setOptionalChecklistOpen((open) => !open))} title="Double-click to open or minimize Optional Checklist Steps">
-          <label>Optional Checklist Steps</label>
+        <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setOptionalChecklistOpen((open) => !open))} title="Double-click to open or minimize Related Tasks to Complete">
+          <label>Related Tasks to Complete</label>
           <button
             type="button"
             className="optional-assignment-toggle"
             onClick={(event) => toggleFromCollapseButton(event, () => setOptionalChecklistOpen((open) => !open))}
             onDoubleClick={stopControlDoubleClick}
             aria-expanded={optionalChecklistOpen}
-            aria-label={`${optionalChecklistOpen ? "Minimize" : "Open"} Optional Checklist Steps`}
+            aria-label={`${optionalChecklistOpen ? "Minimize" : "Open"} Related Tasks to Complete`}
           >
             {optionalChecklistOpen ? "−" : "+"}
           </button>
@@ -6643,13 +6687,13 @@ function App() {
             className="btn btn-secondary subtask-add-button"
             onClick={handleAddDraftSubtask}
           >
-            Add Step
+            Add related task
           </button>
         </div>
 
         <div className="subtask-deadline-fields">
           <select
-            aria-label="Checklist due month"
+            aria-label="Related task due month"
             value={newSubtaskDueMonth}
             onChange={(e) => setNewSubtaskDueMonth(e.target.value)}
           >
@@ -6659,7 +6703,7 @@ function App() {
             ))}
           </select>
           <select
-            aria-label="Checklist due day"
+            aria-label="Related task due day"
             value={newSubtaskDueDay}
             onChange={(e) => setNewSubtaskDueDay(e.target.value)}
           >
@@ -6669,14 +6713,14 @@ function App() {
             ))}
           </select>
           <input
-            aria-label="Checklist due time"
+            aria-label="Related task due time"
             type="text"
             placeholder="Time, e.g. 4:30"
             value={newSubtaskDueHour}
             onChange={(e) => setNewSubtaskDueHour(e.target.value)}
           />
           <select
-            aria-label="Checklist AM or PM"
+            aria-label="Related task AM or PM"
             value={newSubtaskDueAmPm}
             onChange={(e) => setNewSubtaskDueAmPm(e.target.value)}
           >
@@ -6685,9 +6729,10 @@ function App() {
         </div>
 
         {draftSubtasks.length > 0 && (
-          <ul className="subtask-draft-list">
+          <ol className={`subtask-draft-list${isMobileUi ? " creation-related-task-list" : ""}`}>
             {draftSubtasks.map((subtask) => (
               <li key={subtask.id} className="subtask-draft-item">
+                {isMobileUi && <input type="checkbox" checked={false} readOnly tabIndex="-1" aria-hidden="true" />}
                 <span>{subtask.text}</span>
                 <button
                   type="button"
@@ -6698,7 +6743,7 @@ function App() {
                 </button>
               </li>
             ))}
-          </ul>
+          </ol>
         )}
           </div>
         )}
@@ -7984,7 +8029,7 @@ function App() {
 
             {currentTab === "mobile-tools" && (
               <>
-                {renderMobilePageTitle("More", "Study tools", "The same GlowDocket features, arranged for a phone.")}
+                {renderMobilePageTitle("", "Study tools", "The same GlowDocket features, arranged for a phone.")}
                 <section className="mobile-app-card"><div className="mobile-app-section-heading"><div><span>Plan ahead</span><h3>Reminders</h3></div></div>{renderRemindersWidget()}</section>
                 <section className="mobile-app-card"><div className="mobile-app-section-heading"><div><span>By subject</span><h3>{schoolLevelCopy.courseLabel} overview</h3></div></div>{renderCourseOverviewWidget()}</section>
               </>
@@ -9828,7 +9873,7 @@ function App() {
                       <label className="settings-toggle"><span>Estimated Minutes</span><input type="checkbox" checked={userSettings.showEstimatedMinutes} onChange={(e) => handleAddFieldSettingChange("showEstimatedMinutes", e.target.checked)} /></label>
                       <label className="settings-toggle"><span>Files</span><input type="checkbox" checked={userSettings.showAssignmentFiles !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentFiles", e.target.checked)} /></label>
                       <label className="settings-toggle"><span>Links</span><input type="checkbox" checked={userSettings.showAssignmentLinks !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentLinks", e.target.checked)} /></label>
-                      <label className="settings-toggle"><span>Checklist Steps</span><input type="checkbox" checked={userSettings.showAssignmentChecklistSteps !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentChecklistSteps", e.target.checked)} /></label>
+                      <label className="settings-toggle"><span>Related Tasks to Complete</span><input type="checkbox" checked={userSettings.showAssignmentChecklistSteps !== false} onChange={(e) => handleAddFieldSettingChange("showAssignmentChecklistSteps", e.target.checked)} /></label>
                     </SettingsCard>
                     <SettingsCard title="Assignment Card Display" description="Choose how much information appears on assignment cards across desktop and mobile." className="settings-section-wide assignment-card-display-settings">
                       <div className="assignment-card-presets" role="group" aria-label="Assignment card display presets">
@@ -9841,7 +9886,7 @@ function App() {
                         <label className="settings-toggle settings-toggle-copy"><span><strong>Course badges</strong><small>Show the course color and name beside each assignment title.</small></span><input type="checkbox" checked={userSettings.showTaskCourseBadge !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCourseBadge", event.target.checked)} /></label>
                         <label className="settings-toggle settings-toggle-copy"><span><strong>Assignment details</strong><small>Show due date, priority, estimate, and repeat information.</small></span><input type="checkbox" checked={userSettings.showTaskDetailLine !== false} onChange={(event) => handleAddFieldSettingChange("showTaskDetailLine", event.target.checked)} /></label>
                         <label className="settings-toggle settings-toggle-copy"><span><strong>Deadline countdowns</strong><small>Show the remaining days or hours beneath assignment details.</small></span><input type="checkbox" checked={userSettings.showTaskCountdown !== false} onChange={(event) => handleAddFieldSettingChange("showTaskCountdown", event.target.checked)} /></label>
-                        <label className="settings-toggle settings-toggle-copy"><span><strong>Checklist progress</strong><small>Show completed checklist steps directly on assignment cards.</small></span><input type="checkbox" checked={userSettings.showTaskChecklistProgress !== false} onChange={(event) => handleAddFieldSettingChange("showTaskChecklistProgress", event.target.checked)} /></label>
+                        <label className="settings-toggle settings-toggle-copy"><span><strong>Related-task progress</strong><small>Show completed related tasks directly on assignment cards.</small></span><input type="checkbox" checked={userSettings.showTaskChecklistProgress !== false} onChange={(event) => handleAddFieldSettingChange("showTaskChecklistProgress", event.target.checked)} /></label>
                         <label className="settings-toggle settings-toggle-copy"><span><strong>Reminder indicators</strong><small>Show reminder health icons beside assignments with notifications.</small></span><input type="checkbox" checked={userSettings.showTaskReminderIndicator !== false} onChange={(event) => handleAddFieldSettingChange("showTaskReminderIndicator", event.target.checked)} /></label>
                       </div>
                     </SettingsCard>
@@ -9878,7 +9923,7 @@ function App() {
                       </form>
                     </SettingsCard>
                     <SettingsCard title="Workflow & Safety" description="Control automatic behavior and extra safeguards." className="settings-horizontal-options settings-section-wide">
-                      <label className="settings-toggle settings-toggle-copy"><span><strong>Complete finished checklists</strong><small>Complete an assignment when every checklist item is checked.</small></span><input type="checkbox" checked={userSettings.autoCompleteChecklist !== false} onChange={(e) => handleAddFieldSettingChange("autoCompleteChecklist", e.target.checked)} /></label>
+                      <label className="settings-toggle settings-toggle-copy"><span><strong>Complete finished assignments</strong><small>Complete an assignment when every related task is checked.</small></span><input type="checkbox" checked={userSettings.autoCompleteChecklist !== false} onChange={(e) => handleAddFieldSettingChange("autoCompleteChecklist", e.target.checked)} /></label>
                       <label className="settings-toggle settings-toggle-copy"><span><strong>Confirm before Trash</strong><small>Ask before moving an assignment into recoverable Trash.</small></span><input type="checkbox" checked={userSettings.confirmBeforeTrash !== false} onChange={(e) => handleAddFieldSettingChange("confirmBeforeTrash", e.target.checked)} /></label>
                     </SettingsCard>
                   </>
@@ -10267,7 +10312,7 @@ function App() {
                     </select>
                   </div>
 
-                  <div className="edit-field">
+                  {isMobileUi ? renderMobileDueDateField(editingTask.dueMonth, editingTask.dueDay, (month, day) => { handleEditFieldChange("dueMonth", month); handleEditFieldChange("dueDay", day); }, "edit-assignment-due-date") : <><div className="edit-field">
                     <label htmlFor="edit-assignment-due-month">Due Month</label>
                     <select
                       id="edit-assignment-due-month"
@@ -10309,7 +10354,7 @@ function App() {
                         ),
                       )}
                     </select>
-                  </div>
+                  </div></>}
 
                   <div className="edit-field">
                     <label htmlFor="edit-assignment-due-time">Due Time</label>
@@ -10537,15 +10582,15 @@ function App() {
               </div>
 
               <div className="edit-field edit-field-full edit-subtask-section">
-                <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setEditOptionalSections((sections) => ({ ...sections, checklist: !sections.checklist })))} title="Double-click to open or minimize Checklist Steps">
-                  <label>Checklist Steps ({getSafeSubtasks(editingTask).length})</label>
+                <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setEditOptionalSections((sections) => ({ ...sections, checklist: !sections.checklist })))} title="Double-click to open or minimize Related Tasks to Complete">
+                  <label>Related Tasks to Complete ({getSafeSubtasks(editingTask).length})</label>
                   <button
                     type="button"
                     className="optional-assignment-toggle"
                     onClick={(event) => toggleFromCollapseButton(event, () => setEditOptionalSections((sections) => ({ ...sections, checklist: !sections.checklist })))}
                     onDoubleClick={stopControlDoubleClick}
                     aria-expanded={editOptionalSections.checklist}
-                    aria-label={`${editOptionalSections.checklist ? "Minimize" : "Open"} Checklist Steps`}
+                    aria-label={`${editOptionalSections.checklist ? "Minimize" : "Open"} Related Tasks to Complete`}
                   >
                     {editOptionalSections.checklist ? "−" : "+"}
                   </button>
@@ -10576,7 +10621,7 @@ function App() {
                     className="btn btn-secondary subtask-add-button"
                     onClick={handleAddEditSubtask}
                   >
-                    Add Step
+                    Add related task
                   </button>
                 </div>
 
@@ -10670,7 +10715,7 @@ function App() {
                   </ul>
                 ) : (
                   <p className="subtask-form-hint">
-                    No checklist steps yet.
+                    No related tasks added.
                   </p>
                 )}
                 </div>}
