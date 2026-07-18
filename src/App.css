@@ -1769,6 +1769,7 @@ button:disabled {
 @media (max-width: 640px) {
   .custom-category-row { align-items: stretch; flex-direction: column; }
 }
+
 .cycle-day-list,
 .cycle-day-add-row {
   display: flex;
@@ -6305,3 +6306,41 @@ html[data-theme="dark"] .sync-conflict-dialog {
 .cloud-sync-status.is-cloud-loading::before { display: inline-block; width: .72em; height: .72em; margin-right: 6px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; content: ""; animation: sync-status-spin .8s linear infinite; }
 @keyframes sync-status-spin { to { transform: rotate(360deg); } }
 @media (max-width: 767px) { .persistent-status-banner { top: calc(68px + env(safe-area-inset-top)); grid-template-columns: 1fr auto; } .persistent-status-banner strong, .persistent-status-banner span { grid-column: 1; } .persistent-status-banner button { grid-column: 2; grid-row: 1 / span 2; } }
+
+/* Final mobile panel and task-navigation contract. */
+@media (max-width: 767px) {
+  .mobile-app-ui .settings-content.mobile-settings-panel-open {
+    position: fixed;
+    inset: 0;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    padding: env(safe-area-inset-top, 0px) max(14px, env(safe-area-inset-right, 0px)) calc(34px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+    overflow-x: clip;
+    overflow-y: scroll;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+    scroll-padding-block: calc(86px + env(safe-area-inset-top, 0px)) calc(40px + env(safe-area-inset-bottom, 0px));
+    -webkit-overflow-scrolling: touch;
+  }
+  .mobile-app-ui .settings-content.mobile-settings-panel-open .settings-grid {
+    display: grid;
+    min-height: max-content;
+    height: auto;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    overflow: visible;
+    align-content: start;
+  }
+  .mobile-app-ui .settings-content.mobile-settings-panel-open :is(.settings-section, .settings-section-wide) {
+    min-height: 0;
+    height: auto;
+    overflow: visible;
+  }
+  .mobile-app-ui .settings-content.mobile-settings-panel-open .mobile-settings-panel-header { top: calc(-1 * env(safe-area-inset-top, 0px)); }
+  .mobile-app-main:has(> .mobile-app-segmented) { gap: 5px; }
+  .mobile-app-main:has(> .mobile-app-segmented) > .mobile-app-page-heading { padding-bottom: 0; }
+  .mobile-app-main:has(> .mobile-app-segmented) > .mobile-app-page-heading > span { margin-top: 3px; font-size: 0.78rem; line-height: 1.2; }
+  .mobile-app-main:has(> .mobile-app-segmented) > .mobile-app-segmented { gap: 3px; margin-top: 0; padding: 3px; border-radius: 13px; }
+  .mobile-app-main:has(> .mobile-app-segmented) > .mobile-app-segmented button { min-height: 38px; padding: 4px; border-radius: 10px; font-size: 0.73rem; }
+  .mobile-app-main:has(> .mobile-app-segmented) > .mobile-app-segmented button span { min-width: 18px; min-height: 18px; font-size: 0.65rem; }
+}
