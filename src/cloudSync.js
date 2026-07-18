@@ -76,6 +76,7 @@ export function chooseHydrationState(local, localMeta, cloud) {
   if (!cloud) return { state: local, conflict: false };
   if (!hasMeaningfulState(local)) return { state: cloud.state, conflict: false };
   if (sameState(local, cloud.state)) return { state: local, conflict: false };
+  if (!localMeta?.pending) return { state: cloud.state, conflict: false };
   return {
     state: local,
     conflict: true,

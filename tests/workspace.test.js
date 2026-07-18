@@ -77,6 +77,26 @@ test("placing a duplicate replaces the same widget type on the target tab", () =
   assert.equal(next.desktop.dashboard.filter((item) => item.type === "quick-match").length, 1);
 });
 
+test("a widget added to a tab is placed below every visible widget already there", () => {
+  const layout = createDefaultWorkspaceLayout();
+  layout.collapsed = {};
+  const widget = layout.desktop.dashboard.find((item) => item.type === "quick-match");
+  const visibleTodoWidgets = layout.desktop.todo.filter((item) => !item.hidden);
+  const existingBottom = Math.max(...visibleTodoWidgets.map((item) => item.y + item.height));
+  const next = placeWidget(layout, "desktop", "todo", widget, { copy: true });
+  const added = next.desktop.todo.find((item) => item.type === "quick-match");
+  assert.equal(added.x, 0);
+  assert.equal(added.y, existingBottom + 18);
+  assert.deepEqual(findWidgetOverlaps(next.desktop.todo), []);
+});
+
+test("dropping a widget back on its current tab keeps its position", () => {
+  const layout = createDefaultWorkspaceLayout();
+  const widget = layout.desktop.dashboard.find((item) => item.type === "quick-match");
+  const next = placeWidget(layout, "desktop", "dashboard", widget);
+  assert.deepEqual(next.desktop.dashboard.find((item) => item.id === widget.id), widget);
+});
+
 test("a protected widget can be hidden only when another visible copy exists", () => {
   const layout = createDefaultWorkspaceLayout();
   assert.equal(canHideWidget(layout, "desktop", "checklists"), true);

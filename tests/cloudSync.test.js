@@ -99,15 +99,22 @@ test("meaningful-state detection protects customized desktop and mobile layouts"
   assert.equal(hasMeaningfulState(state({ workspaceLayout: mobileLayout })), true);
 });
 
-test("hydration never replaces a meaningful local layout with a different cloud layout", () => {
+test("hydration uses cloud data without prompting when the device has no pending changes", () => {
   const localLayout = { desktop: { dashboard: [{ id: "recommended-1", type: "recommended", x: 140, y: 80, width: 420, height: 300 }] }, mobile: {}, collapsed: {}, locked: { desktop: false, mobile: false }, userCustomized: true };
   const cloudLayout = { desktop: { dashboard: [{ id: "recommended-1", type: "recommended", x: 0, y: 0, width: 320, height: 260 }] }, mobile: {}, collapsed: {}, locked: { desktop: true, mobile: false } };
   const local = state({ workspaceLayout: localLayout });
   const cloud = { state: state({ workspaceLayout: cloudLayout }), revision: 12 };
   const choice = chooseHydrationState(local, { revision: 12, pending: false }, cloud);
+  assert.equal(choice.conflict, false);
+  assert.strictEqual(choice.state, cloud.state);
+});
+
+test("hydration still prompts before replacing pending device changes", () => {
+  const local = state({ tasks: [{ id: "device-task", title: "Device draft" }] });
+  const cloud = { state: state({ tasks: [{ id: "cloud-task", title: "Cloud draft" }] }), revision: 12 };
+  const choice = chooseHydrationState(local, { revision: 11, pending: true }, cloud);
   assert.equal(choice.conflict, true);
   assert.strictEqual(choice.state, local);
-  assert.deepEqual(choice.state.workspaceLayout, localLayout);
 });
 
 test("new empty devices hydrate from meaningful cloud layouts without uploading defaults", () => {

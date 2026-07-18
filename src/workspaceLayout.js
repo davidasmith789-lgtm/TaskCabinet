@@ -606,14 +606,24 @@ export function placeWidget(layout, mode, targetTab, widget, { copy = false } = 
   const sourceTab = Object.keys(next[mode]).find((tab) =>
     next[mode][tab].some((item) => item.id === widget.id),
   );
+  if (!copy && sourceTab === targetTab) return next;
   if (!copy && sourceTab) {
     next[mode][sourceTab] = next[mode][sourceTab].filter((item) => item.id !== widget.id);
   }
   next[mode][targetTab] = next[mode][targetTab].filter((item) => item.type !== widget.type);
+  const visibleDestinationWidgets = next[mode][targetTab].filter((item) => !item.hidden);
+  const destinationBottom = visibleDestinationWidgets.reduce(
+    (bottom, item) => Math.max(bottom, finiteNumber(item.y, 0) + getEffectiveWidgetHeight(item, next.collapsed)),
+    0,
+  );
+  const nextY = visibleDestinationWidgets.length > 0 ? destinationBottom + getGap(mode) : 0;
   next[mode][targetTab].push({
     ...widget,
     id: copy ? `${widget.type}-${crypto.randomUUID()}` : widget.id,
     hidden: false,
+    x: 0,
+    xRatio: 0,
+    y: nextY,
   });
   return next;
 }
