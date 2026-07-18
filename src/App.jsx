@@ -6227,7 +6227,7 @@ function App() {
               {syllabusExtractedText && <button type="button" className="syllabus-full-text-button" onClick={() => { setBulkImportText(syllabusExtractedText); setBulkImportPreview([]); setBulkImportMessage("Showing all extracted syllabus text. Remove policy and schedule lines that are not assignments, then choose Review Assignments."); setSyllabusImportStatus("needs-review"); }}>Use full extracted text</button>}
             </div>
             <div className="bulk-import-divider"><span>or paste assignment lines</span></div>
-            <div className="bulk-import-instructions"><strong>Paste-ready format</strong><p>Put one assignment on each line. A course heading ending in a colon applies to the lines below it. You may include a due date, priority, estimated minutes, and notes in the line. Missing details stay editable in review; nothing is saved until you approve it.</p><code>{"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\nEnglish:\n- Essay draft due July 15, medium priority"}</code></div>
+            {isMobileUi && <div className="bulk-import-instructions"><strong>Paste-ready format</strong><p>Put one assignment on each line. A course heading ending in a colon applies to the lines below it. You may include a due date, priority, estimated minutes, and notes in the line. Missing details stay editable in review; nothing is saved until you approve it.</p><code>{"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\nEnglish:\n- Essay draft due July 15, medium priority"}</code></div>}
             <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\nEnglish:\n- Essay draft due July 15"} rows={7} />
             <div className="bulk-import-actions"><button type="button" className="btn btn-primary" onClick={handleParseBulkImport} disabled={!bulkImportText.trim()}>Review Assignments</button><small>Bullets and numbered lines are accepted. Without line breaks, separate assignments with semicolons.</small></div>
             {bulkImportMessage && <p className="bulk-import-message" role="status">{bulkImportMessage}</p>}
@@ -8768,7 +8768,7 @@ function App() {
                           <li
                             key={task.id}
                             className={`task-card calendar-task-card${expandedTaskId === task.id ? " expanded" : ""}`}
-                            onClick={() => toggleTaskExpansion(task.id)}
+                            onClick={() => setExpandedTaskId((currentId) => currentId === task.id ? null : task.id)}
                           >
                             <div>
                               <div className="task-title-row">
@@ -8785,7 +8785,7 @@ function App() {
                                 className="hint-text"
                                 style={{ marginTop: "8px", fontSize: "13px" }}
                               >
-                                {isMobileUi ? "Tap to view or edit notes" : "Click to view or edit notes"}
+                                {isMobileUi ? "Tap to view assignment details and notes" : "Click to view assignment details and notes"}
                               </p>
                               <div className="task-actions">
                                 <button
