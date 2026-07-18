@@ -6394,6 +6394,8 @@ function App() {
           </div>
         </section>
       )}
+      <div className="assignment-primary-fields">
+      <div className="assignment-form-row">
       <label htmlFor={`${formId}-assignment-name`}>{schoolLevelCopy.nameLabel}:</label>
       <input
         id={`${formId}-assignment-name`}
@@ -6402,9 +6404,11 @@ function App() {
         value={taskName}
         onChange={(e) => setTaskName(e.target.value)}
       />
+      </div>
 
+      <div className="assignment-form-row">
       <label>Category:</label>
-      <select value={category} onChange={(e) => setCategory(e.target.value)}>
+      <div className="assignment-form-control-stack"><select value={category} onChange={(e) => setCategory(e.target.value)}>
         {categoryChoices.map((item) => (
           <option key={item} value={item}>{item}</option>
         ))}
@@ -6413,14 +6417,11 @@ function App() {
         <input type="text" value={customCategoryName} onChange={(event) => setCustomCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); handleAddCustomCategory(); } }} placeholder="Add a custom category" aria-label="Custom category name" />
         <button type="button" className="btn btn-secondary" onClick={handleAddCustomCategory} disabled={!customCategoryName.trim()}>Add category</button>
       </div>
+      </div>
+      </div>
 
-      {category === "School" && <><div
+      {category === "School" && <div className="assignment-form-row assignment-course-row"><div
         className="assignment-course-heading"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
       >
         <label>{schoolLevelCopy.courseLabel}:</label>
         <button
@@ -6458,12 +6459,12 @@ function App() {
             </option>
           ))}
         </select>
-      )}</>}
+      )}</div>}
 
       {renderDueDateField(dueMonth, dueDay, (month, day) => { setDueMonth(month); setDueDay(day); }, `${formId}-assignment-due-date`)}
 
-      <label>Due Time:</label>
-      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      <div className="assignment-form-row"><label>Due Time:</label>
+      <div className="assignment-time-controls">
         <input
           type="text"
           inputMode="numeric"
@@ -6474,16 +6475,15 @@ function App() {
             const normalized = normalizeDueTime(dueHour);
             if (normalized) setDueHour(normalized);
           }}
-          style={{ width: "130px" }}
         />
         <select value={dueAmPm} onChange={(e) => setDueAmPm(e.target.value)}>
           <option value="AM">AM</option>
           <option value="PM">PM</option>
         </select>
-      </div>
+      </div></div>
 
       {userSettings.showEstimatedMinutes && (
-        <>
+        <div className="assignment-form-row">
           <label>Estimated Minutes:</label>
           <input
             type="number"
@@ -6491,11 +6491,11 @@ function App() {
             value={estTime}
             onChange={(e) => setEstTime(e.target.value)}
           />
-        </>
+        </div>
       )}
 
       {userSettings.showPriority && (
-        <>
+        <div className="assignment-form-row">
           <label>Priority:</label>
           <select
             value={priority}
@@ -6505,11 +6505,11 @@ function App() {
             <option value="MED">Medium</option>
             <option value="HIGH">High</option>
           </select>
-        </>
+        </div>
       )}
 
       {userSettings.showRepeat && (
-        <>
+        <div className="assignment-form-row">
           <label>Repeat:</label>
           <select
             value={repeatFrequency}
@@ -6521,9 +6521,11 @@ function App() {
             <option value="WEEKLY">Weekly</option>
             <option value="MONTHLY">Monthly</option>
           </select>
-        </>
+        </div>
       )}
+      </div>
 
+      <div className="assignment-optional-sections">
       {userSettings.showAssignmentLinks !== false && <div className="subtask-form-section assignment-links-form optional-assignment-section">
         <div className="optional-assignment-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setOptionalLinksOpen((open) => !open))} title="Double-click to open or minimize Optional Assignment Links">
           <label>Optional Assignment Links</label>
@@ -6727,18 +6729,12 @@ function App() {
           </div>
         )}
       </div>}
+      </div>
 
       <button
         type="submit"
-        className="btn btn-primary"
+        className="btn btn-primary assignment-submit-button"
         disabled={isFormInvalid}
-        style={{
-          padding: "10px",
-          borderRadius: "4px",
-          marginTop: "10px",
-          cursor: isFormInvalid ? "not-allowed" : "pointer",
-          opacity: isFormInvalid ? 0.6 : 1,
-        }}
       >
         {schoolLevelCopy.addLabel}
       </button>
