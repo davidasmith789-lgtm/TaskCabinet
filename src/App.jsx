@@ -15,6 +15,7 @@ import {
   setWidgetCollapsedState,
 } from "./workspaceLayout.js";
 import { preparePastedAssignmentLines } from "./bulkImportUtils.js";
+import { getReminderActionLabel, getWorkflowLabel, MOBILE_TASK_LEVELS, nextMobileTaskLevel, passwordsMatch, splitActiveAndOverdue } from "./mobileUxUtils.js";
 import { formatAssignmentCountdown, getAssignmentCountdownTone } from "./assignmentCountdown.js";
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "./calendarWeekUtils.js";
 import { canUndoVoiceCreation, lockVoiceUndo } from "./voiceTaskUtils.js";
@@ -1762,6 +1763,7 @@ function App() {
   const [quickMatchSubmittedMinutes, setQuickMatchSubmittedMinutes] = useState(null);
   const [quickMatchPresetDraft, setQuickMatchPresetDraft] = useState("");
   const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [mobileTaskLevels, setMobileTaskLevels] = useState({});
   const [focusTaskId, setFocusTaskId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [calendarAddOpen, setCalendarAddOpen] = useState(false);
@@ -1818,6 +1820,9 @@ function App() {
   const [bulkImportPreview, setBulkImportPreview] = useState([]);
   const [bulkImportMessage, setBulkImportMessage] = useState("");
   const [bulkImportIssuesOnly, setBulkImportIssuesOnly] = useState(false);
+  const [guidedEntryOpen, setGuidedEntryOpen] = useState(false);
+  const [guidedEntryStep, setGuidedEntryStep] = useState(0);
+  const [guidedNotes, setGuidedNotes] = useState("");
   const [syllabusCourse, setSyllabusCourse] = useState("");
   const [syllabusFileName, setSyllabusFileName] = useState("");
   const [syllabusImportStatus, setSyllabusImportStatus] = useState("idle");
@@ -3130,7 +3135,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isMobileUi || (!mobileMoreOpen && !mobileSettingsOpen && !mobileSummaryCategory && !selectedChecklistId && currentTab !== "mobile-add")) return undefined;
+    if (!isMobileUi || (!mobileMoreOpen && !mobileSummaryCategory && !selectedChecklistId && currentTab !== "mobile-add")) return undefined;
     const scrollY = window.scrollY;
     const previousBodyStyles = {
       overflow: document.body.style.overflow,
@@ -3149,7 +3154,7 @@ function App() {
       Object.assign(document.body.style, previousBodyStyles);
       window.scrollTo(0, scrollY);
     };
-  }, [currentTab, isMobileUi, mobileMoreOpen, mobileSettingsOpen, mobileSummaryCategory, selectedChecklistId]);
+  }, [currentTab, isMobileUi, mobileMoreOpen, mobileSummaryCategory, selectedChecklistId]);
 
   useEffect(() => {
     if (!tutorialOpen) return undefined;
@@ -3418,7 +3423,7 @@ function App() {
       repeat: repeatFrequency,
       isCompleted: false,
       status: "todo",
-      notes: "",
+      notes: guidedNotes.trim(),
       subtasks: draftSubtasks,
       links: draftLinks,
       attachments,
@@ -3467,6 +3472,9 @@ function App() {
     setOptionalLinksOpen(false);
     setOptionalFilesOpen(false);
     setOptionalChecklistOpen(false);
+    setGuidedEntryOpen(false);
+    setGuidedEntryStep(0);
+    setGuidedNotes("");
 
     if (currentTab === "calendar") {
       setCalendarAddOpen(false);
@@ -4014,6 +4022,10 @@ function App() {
 
   // A single ID tracks the task whose inline notes panel is currently open.
   const toggleTaskExpansion = (id) => {
+    if (isMobileUi) {
+      setMobileTaskLevels((levels) => ({ ...levels, [id]: nextMobileTaskLevel(levels[id]) }));
+      return;
+    }
     setExpandedTaskId((prev) => (prev === id ? null : id));
   };
 
@@ -4670,10 +4682,6 @@ function App() {
       setAuthError(CLOUD_SYNC_CONFIGURED ? "Enter both an email and password." : "Enter both a username and password.");
       return;
     }
-    if (authMode === "signup" && authPassword.length < 8) {
-      setAuthError("Passwords must contain at least 8 characters.");
-      return;
-    }
     if (authMode === "signup" && authPassword !== authPasswordConfirm) {
       setAuthError("The password confirmation does not match.");
       return;
@@ -4895,8 +4903,7 @@ function App() {
     event.preventDefault();
     setAuthError("");
     setAuthNotice("");
-    if (recoveryPassword.length < 8) { setAuthError("Choose a password with at least 8 characters."); return; }
-    if (recoveryPassword !== recoveryPasswordConfirm) { setAuthError("Those passwords do not match yet."); return; }
+    if (!passwordsMatch(recoveryPassword, recoveryPasswordConfirm)) { setAuthError(recoveryPassword ? "Those passwords do not match yet." : "Enter and confirm your new password."); return; }
     setAuthBusy(true);
     try {
       const { error } = await (await getSupabaseBrowserClient()).auth.updateUser({ password: recoveryPassword });
@@ -4941,8 +4948,7 @@ function App() {
     const nextName = accountDisplayNameDraft.trim();
     if (!nextName) { setAccountUpdateStatus({ type: "error", message: "Enter a display name." }); return; }
     if (!email) { setAccountUpdateStatus({ type: "error", message: "Enter an email address." }); return; }
-    if (accountPasswordDraft.length < 8) { setAccountUpdateStatus({ type: "error", message: "Choose a password with at least 8 characters." }); return; }
-    if (accountPasswordDraft !== accountPasswordConfirm) { setAccountUpdateStatus({ type: "error", message: "The password confirmation does not match." }); return; }
+    if (!passwordsMatch(accountPasswordDraft, accountPasswordConfirm)) { setAccountUpdateStatus({ type: "error", message: accountPasswordDraft ? "The password confirmation does not match." : "Enter and confirm a password." }); return; }
     setAccountUpdateBusy("upgrade");
     setAccountUpdateStatus({ type: "", message: "" });
     try {
@@ -4991,8 +4997,7 @@ function App() {
 
   const handleAccountPasswordUpdate = async (event) => {
     event.preventDefault();
-    if (accountPasswordDraft.length < 8) { setAccountUpdateStatus({ type: "error", message: "Your new password must contain at least 8 characters." }); return; }
-    if (accountPasswordDraft !== accountPasswordConfirm) { setAccountUpdateStatus({ type: "error", message: "The new password confirmation does not match." }); return; }
+    if (!passwordsMatch(accountPasswordDraft, accountPasswordConfirm)) { setAccountUpdateStatus({ type: "error", message: accountPasswordDraft ? "The new password confirmation does not match." : "Enter and confirm your new password." }); return; }
     setAccountUpdateBusy("password");
     setAccountUpdateStatus({ type: "", message: "" });
     try {
@@ -6206,7 +6211,7 @@ function App() {
     <form onSubmit={handleAddTask} className="card-form assignment-entry-form">
       <section className="bulk-import-panel" aria-label="Paste assignment list">
         <div className="bulk-import-heading">
-          <div>{isMobileUi && <span className="mobile-add-option-number">Option 2</span>}<strong>{isMobileUi ? "Import Syllabus or Assignments" : "Paste Assignment List"}</strong><p>{isMobileUi ? "Optional: upload a syllabus or paste several assignments." : "Create several assignments from one line each, with a review before saving."}</p></div>
+          <div>{isMobileUi && <span className="mobile-add-option-number">Option 1</span>}<strong>{isMobileUi ? "Import Assignments" : "Paste Assignment List"}</strong><p>{isMobileUi ? "Paste one assignment per line or upload a syllabus, then review every detected item before saving." : "Create several assignments from one line each, with a review before saving."}</p></div>
           <button type="button" className="btn btn-secondary" onClick={() => setBulkImportOpen((open) => !open)}>{bulkImportOpen ? "Close" : isMobileUi ? "Open Optional Import" : "Open Importer"}</button>
         </div>
         {bulkImportOpen && (
@@ -6222,8 +6227,9 @@ function App() {
               {syllabusExtractedText && <button type="button" className="syllabus-full-text-button" onClick={() => { setBulkImportText(syllabusExtractedText); setBulkImportPreview([]); setBulkImportMessage("Showing all extracted syllabus text. Remove policy and schedule lines that are not assignments, then choose Review Assignments."); setSyllabusImportStatus("needs-review"); }}>Use full extracted text</button>}
             </div>
             <div className="bulk-import-divider"><span>or paste assignment lines</span></div>
-            <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\n\nEnglish: Essay draft due July 15"} rows={7} />
-            <div className="bulk-import-actions"><button type="button" className="btn btn-primary" onClick={handleParseBulkImport} disabled={!bulkImportText.trim()}>Review Assignments</button><small>One assignment per line. Course headings ending in a colon apply to the lines below them.</small></div>
+            <div className="bulk-import-instructions"><strong>Paste-ready format</strong><p>Put one assignment on each line. A course heading ending in a colon applies to the lines below it. You may include a due date, priority, estimated minutes, and notes in the line. Missing details stay editable in review; nothing is saved until you approve it.</p><code>{"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\nEnglish:\n- Essay draft due July 15, medium priority"}</code></div>
+            <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\nEnglish:\n- Essay draft due July 15"} rows={7} />
+            <div className="bulk-import-actions"><button type="button" className="btn btn-primary" onClick={handleParseBulkImport} disabled={!bulkImportText.trim()}>Review Assignments</button><small>Bullets and numbered lines are accepted. Without line breaks, separate assignments with semicolons.</small></div>
             {bulkImportMessage && <p className="bulk-import-message" role="status">{bulkImportMessage}</p>}
             {bulkImportPreview.length > 0 && (
               <div className="bulk-import-review">
@@ -6265,7 +6271,7 @@ function App() {
         data-recording-seconds={voiceElapsed}
       >
           <div>
-            {isMobileUi && <span className="mobile-add-option-number">Option 1</span>}
+            {isMobileUi && <span className="mobile-add-option-number">Option 3</span>}
             <strong>Voice Add</strong>
             <p>In the works! Voice assignment creation is temporarily unavailable.</p>
           </div>
@@ -6284,8 +6290,26 @@ function App() {
 
       {voiceError && <div className="voice-inline-error" role="alert">{voiceError}</div>}
 
-      <div className="manual-assignment-fields">
-      {isMobileUi && <div className="mobile-add-option-heading"><span>Option 3</span><h3>Manually Add Assignment</h3><p>Enter the assignment details yourself.</p></div>}
+      <div className={`manual-assignment-fields${guidedEntryOpen ? " guided-active" : ""}`}>
+      {isMobileUi && <div className="mobile-add-option-heading"><span>Option 2</span><h3>Add Assignment</h3><p>Enter the assignment details yourself or use the guided mode.</p><button type="button" className="btn btn-secondary" onClick={() => { setGuidedEntryStep(0); setGuidedEntryOpen(true); }}>Guided entry</button></div>}
+      {isMobileUi && guidedEntryOpen && (
+        <section className="guided-assignment-entry" aria-labelledby="guided-entry-title">
+          <div className="guided-entry-progress"><span>Step {guidedEntryStep + 1} of 7</span><progress max="7" value={guidedEntryStep + 1}>{guidedEntryStep + 1}</progress></div>
+          <h3 id="guided-entry-title">{["What is the assignment called?", "Which course is it for?", "When is it due?", "What is its priority?", "Would you like to add notes?", "Would you like to add a checklist?", "Review your assignment"][guidedEntryStep]}</h3>
+          {guidedEntryStep === 0 && <label>Assignment name<input autoFocus value={taskName} onChange={(event) => setTaskName(event.target.value)} /></label>}
+          {guidedEntryStep === 1 && <label>Course<select value={selectedCourse} onChange={(event) => setSelectedCourse(event.target.value)}><option value="">Select a course</option>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>}
+          {guidedEntryStep === 2 && <div className="guided-entry-date"><label>Month<select value={dueMonth} onChange={(event) => setDueMonth(event.target.value)}><option value="">Month</option>{monthNames.map((month, index) => <option key={month} value={String(index + 1).padStart(2, "0")}>{month}</option>)}</select></label><label>Day<select value={dueDay} onChange={(event) => setDueDay(event.target.value)}><option value="">Day</option>{Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={String(day).padStart(2, "0")}>{day}</option>)}</select></label><label>Time<input value={dueHour} inputMode="numeric" onChange={(event) => setDueHour(event.target.value)} /></label><label>AM/PM<select value={dueAmPm} onChange={(event) => setDueAmPm(event.target.value)}><option>AM</option><option>PM</option></select></label></div>}
+          {guidedEntryStep === 3 && <label>Priority<select value={priority} onChange={(event) => setPriority(event.target.value)}><option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option></select></label>}
+          {guidedEntryStep === 4 && <label>Notes<textarea value={guidedNotes} onChange={(event) => setGuidedNotes(event.target.value)} rows="5" placeholder="Optional notes" /></label>}
+          {guidedEntryStep === 5 && <><div className="guided-checklist-add"><input value={newSubtaskText} onChange={(event) => setNewSubtaskText(event.target.value)} placeholder="Checklist item" /><button type="button" className="btn btn-secondary" onClick={handleAddDraftSubtask} disabled={!newSubtaskText.trim()}>Add</button></div>{draftSubtasks.length > 0 && <ul>{draftSubtasks.map((item) => <li key={item.id}>{item.text}</li>)}</ul>}</>}
+          {guidedEntryStep === 6 && <dl className="guided-entry-review"><div><dt>Name</dt><dd>{taskName || "Missing"}</dd></div><div><dt>Course</dt><dd>{selectedCourse || "Other"}</dd></div><div><dt>Due</dt><dd>{dueMonth && dueDay ? `${dueMonth}/${dueDay} at ${dueHour} ${dueAmPm}` : "Missing"}</dd></div><div><dt>Priority</dt><dd>{{ LOW: "Low", MED: "Medium", HIGH: "High" }[priority]}</dd></div><div><dt>Notes</dt><dd>{guidedNotes || "None"}</dd></div><div><dt>Checklist</dt><dd>{draftSubtasks.length} item{draftSubtasks.length === 1 ? "" : "s"}</dd></div></dl>}
+          <div className="guided-entry-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => { if (guidedEntryStep > 0) setGuidedEntryStep((step) => step - 1); else if (!taskName && !selectedCourse && !guidedNotes && draftSubtasks.length === 0 || window.confirm("Exit guided entry without saving?")) setGuidedEntryOpen(false); }}>{guidedEntryStep > 0 ? "Back" : "Exit"}</button>
+            {guidedEntryStep > 3 && guidedEntryStep < 6 && <button type="button" className="btn btn-secondary" onClick={() => setGuidedEntryStep((step) => step + 1)}>Skip</button>}
+            {guidedEntryStep < 6 ? <button type="button" className="btn btn-primary" disabled={(guidedEntryStep === 0 && !taskName.trim()) || (guidedEntryStep === 1 && !selectedCourse) || (guidedEntryStep === 2 && (!dueMonth || !dueDay))} onClick={() => setGuidedEntryStep((step) => step + 1)}>Continue</button> : <button type="submit" className="btn btn-primary" disabled={!taskName.trim() || !dueMonth || !dueDay}>Save Assignment</button>}
+          </div>
+        </section>
+      )}
       <label htmlFor={`${formId}-assignment-name`}>{schoolLevelCopy.nameLabel}:</label>
       <input
         id={`${formId}-assignment-name`}
@@ -6666,7 +6690,8 @@ function App() {
       !task.isDeleted &&
       getTaskStatus(task) !== "completed",
   );
-  const activeTasksCount = activeDashboardTasks.length;
+  const mobileDueGroups = splitActiveAndOverdue(activeDashboardTasks, getTaskDueBucket);
+  const activeTasksCount = isMobileUi ? mobileDueGroups.active.length : activeDashboardTasks.length;
 
   const quickMatchInputNumber = Number(quickMatchMinutes);
   const quickMatchInputIsValid =
@@ -6830,7 +6855,7 @@ function App() {
                         <small>{match.hasEstimate ? `${match.estimate} min` : "No estimate"} | {match.dueLabel}</small>
                       </button>
                       {getTaskStatus(match.task) === "todo" && (
-                        <button type="button" className="quick-match-backup-start" onClick={() => handleQuickMatchStart(match.task.id)}>Start</button>
+                        <button type="button" className="quick-match-backup-start" onClick={() => handleQuickMatchStart(match.task.id)}>In Progress</button>
                       )}
                     </li>
                   ))}
@@ -7073,7 +7098,7 @@ function App() {
             </button>
             <div className="recommended-plan-actions">
               <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(item.task.id)}>{getFocusActionLabel(item.task)}</button>
-              {getTaskStatus(item.task) === "todo" && <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(item.task.id)}>Start</button>}
+              {getTaskStatus(item.task) === "todo" && <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(item.task.id)}>In Progress</button>}
             </div>
           </li>
         ))}
@@ -7125,7 +7150,7 @@ function App() {
             {renderAssignmentCountdown(overviewNextTask, "course-overview-countdown")}
             <div className="course-overview-actions">
               <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(overviewNextTask.id)}>{getFocusActionLabel(overviewNextTask)}</button>
-              {getTaskStatus(overviewNextTask) === "todo" && <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(overviewNextTask.id)}>Start</button>}
+              {getTaskStatus(overviewNextTask) === "todo" && <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(overviewNextTask.id)}>In Progress</button>}
             </div>
           </article>
         ) : (
@@ -7151,7 +7176,7 @@ function App() {
                 <span><strong>{task.title}</strong><small>{getTaskCourseOrCategory(task)}</small></span>
                 <span className={overdue ? "is-overdue" : ""}><strong>{formatAssignmentCountdown(deadline, checklistNow)}</strong><small>{deadline.toLocaleDateString(undefined, { month: "short", day: "numeric" })} | {deadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</small></span>
               </button>
-              {getTaskStatus(task) === "todo" && <button type="button" className="reminder-widget-start" onClick={() => handleQuickMatchStart(task.id)}>Start</button>}
+              {getTaskStatus(task) === "todo" && <button type="button" className="reminder-widget-start" onClick={() => handleQuickMatchStart(task.id)}>In Progress</button>}
             </li>
           ))}
         </ul>
@@ -7189,7 +7214,7 @@ function App() {
           className="btn btn-secondary status-action-button"
           onClick={(event) => stopCardClick(event, () => handleStartTask(task.id))}
         >
-          Start
+          In Progress
         </button>
 
         <button
@@ -7290,6 +7315,7 @@ function App() {
     rawStatus: externalPushStatus,
   });
   const reminderStatusCopy = getReminderStatusCopy(reminderUserStatus);
+  const reminderActionLabel = getReminderActionLabel(reminderUserStatus, Boolean(userSettings.externalPushEnabled));
   const renderTaskReminderIndicator = (task) => {
     const indicator = getAssignmentReminderIndicator({ remindersEnabled: Boolean(userSettings.externalPushEnabled), hasDeadline: Boolean(getExternalReminderForTask(task)) && getTaskStatus(task) !== "completed" && !task.isDeleted && !task.isArchived, taskState: assignmentReminderStates[task.id] || (reminderUserStatus === "active" ? "healthy" : "pending"), userStatus: reminderUserStatus });
     return indicator ? <span className={`task-reminder-indicator is-${indicator.tone}`} aria-label={indicator.label} title={indicator.label}>🔔</span> : null;
@@ -7298,12 +7324,22 @@ function App() {
     const allSource = status === "todo" ? sortedTodoTasks : status === "inProgress" ? sortedInProgressTasks : completedTasks;
     const source = onlyBucket ? allSource.filter((task) => getTaskDueBucket(task) === onlyBucket) : allSource;
     const grouped = status === "todo" ? groupedTasks : status === "inProgress" ? groupedInProgressTasks : null;
-    const renderCard = (task) => (
+    const renderCard = (task) => {
+      const mobileLevel = mobileTaskLevels[task.id] || MOBILE_TASK_LEVELS.compact;
+      const mobileSummaryOpen = !isMobileUi || mobileLevel >= MOBILE_TASK_LEVELS.summary;
+      const mobileDetailsOpen = !isMobileUi ? expandedTaskId === task.id : mobileLevel >= MOBILE_TASK_LEVELS.details;
+      const overdue = getTaskDueBucket(task).startsWith("Overdue");
+      return (
   <li
     key={task.id}
     id={`${status}-task-${task.id}`}
-    className={`task-card${status === "inProgress" ? " in-progress-task-card" : ""}${task.priority === "HIGH" ? " task-card-high" : ""}${getTaskDueBucket(task).startsWith("Overdue") ? " is-overdue" : ""}${expandedTaskId === task.id ? " expanded" : ""}`}
+    className={`task-card${isMobileUi ? ` mobile-task-card mobile-task-level-${mobileLevel}` : ""}${status === "inProgress" ? " in-progress-task-card" : ""}${task.priority === "HIGH" && !isMobileUi ? " task-card-high" : ""}${overdue ? " is-overdue" : ""}${mobileSummaryOpen ? " expanded" : ""}`}
     onClick={() => toggleTaskExpansion(task.id)}
+    onKeyDown={(event) => { if (isMobileUi && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); toggleTaskExpansion(task.id); } }}
+    role={isMobileUi ? "button" : undefined}
+    tabIndex={isMobileUi ? 0 : undefined}
+    aria-expanded={isMobileUi ? mobileSummaryOpen : expandedTaskId === task.id}
+    aria-label={isMobileUi ? `${task.title}, ${getWorkflowLabel(status)}. Detail level ${mobileLevel} of 3.` : undefined}
   >
     <div>
       <div className="task-title-row">
@@ -7321,21 +7357,18 @@ function App() {
           </span>
         ) : null}
 
-        {status === "inProgress" ? (
-          <span className="in-progress-status-pill">In Progress</span>
-        ) : null}
+        {isMobileUi ? <span className="mobile-workflow-pill">{getWorkflowLabel(status)}</span> : status === "inProgress" ? <span className="in-progress-status-pill">In Progress</span> : null}
         {renderTaskReminderIndicator(task)}
       </div>
 
-      <div className="task-details">{formatTaskDetails(task)}</div>
-
-      {renderAssignmentCountdown(task)}
-      {renderSubtaskProgressLine(task)}
+      {mobileSummaryOpen && <div className="task-details">{formatTaskDetails(task)}</div>}
+      {overdue || mobileSummaryOpen ? renderAssignmentCountdown(task) : null}
+      {mobileSummaryOpen && renderSubtaskProgressLine(task)}
     </div>
 
-    {renderTaskActionButtons(task, status)}
+    {mobileSummaryOpen && renderTaskActionButtons(task, status)}
 
-    {expandedTaskId === task.id && (
+    {mobileDetailsOpen && (
       <div
         className="task-notes-panel"
         onClick={(event) => event.stopPropagation()}
@@ -7344,7 +7377,8 @@ function App() {
       </div>
     )}
   </li>
-);
+      );
+    };
     return (
       <div className="task-master-widget">
         {!onlyBucket && !isMobileUi && status === "completed" ? <div className="desktop-task-master-toolbar">{renderFilterToggle()}<button type="button" className="btn btn-secondary" onClick={handleArchiveAll} disabled={unarchivedCompletedCount === 0}>Archive All</button></div> : !onlyBucket ? renderFilterToggle() : null}
@@ -7494,11 +7528,11 @@ function App() {
             <button type="submit" className="btn btn-primary" disabled={authBusy}>{authBusy ? "Sending…" : "Send Recovery Email"}</button>
             <button type="button" className="auth-text-button" onClick={() => showWelcomeAuth("signin")}>Back to sign in</button>
           </form> : authMode === "recovery" ? <form key="recovery" className="card-form auth-form auth-mode-content" onSubmit={handleRecoveryPassword}>
-            <p className="auth-form-intro">Use at least 8 characters. Your assignments and local profile will stay right where they are.</p>
+            <p className="auth-form-intro">Choose a new password. GlowDocket will show any policy required by the account provider.</p>
             <label htmlFor="recovery-password">New password</label>
-            <div className="password-input-row"><input id="recovery-password" type={showRecoveryPassword ? "text" : "password"} minLength={8} autoComplete="new-password" value={recoveryPassword} onChange={(event) => setRecoveryPassword(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" onClick={() => setShowRecoveryPassword((shown) => !shown)} aria-pressed={showRecoveryPassword} aria-label={showRecoveryPassword ? "Hide new password" : "Show new password"}><PasswordEyeIcon hidden={!showRecoveryPassword} /></button></div>
+            <div className="password-input-row"><input id="recovery-password" type={showRecoveryPassword ? "text" : "password"} autoComplete="new-password" value={recoveryPassword} onChange={(event) => setRecoveryPassword(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" onClick={() => setShowRecoveryPassword((shown) => !shown)} aria-pressed={showRecoveryPassword} aria-label={showRecoveryPassword ? "Hide new password" : "Show new password"}><PasswordEyeIcon hidden={!showRecoveryPassword} /></button></div>
             <label htmlFor="recovery-password-confirm">Confirm new password</label>
-            <div className="password-input-row"><input id="recovery-password-confirm" type={showRecoveryPasswordConfirm ? "text" : "password"} minLength={8} autoComplete="new-password" value={recoveryPasswordConfirm} onChange={(event) => setRecoveryPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" onClick={() => setShowRecoveryPasswordConfirm((shown) => !shown)} aria-pressed={showRecoveryPasswordConfirm} aria-label={showRecoveryPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"}><PasswordEyeIcon hidden={!showRecoveryPasswordConfirm} /></button></div>
+            <div className="password-input-row"><input id="recovery-password-confirm" type={showRecoveryPasswordConfirm ? "text" : "password"} autoComplete="new-password" value={recoveryPasswordConfirm} onChange={(event) => setRecoveryPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" onClick={() => setShowRecoveryPasswordConfirm((shown) => !shown)} aria-pressed={showRecoveryPasswordConfirm} aria-label={showRecoveryPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"}><PasswordEyeIcon hidden={!showRecoveryPasswordConfirm} /></button></div>
             {authError && <p className="auth-error" role="alert">{authError}</p>}
             {authNotice && <p className="auth-notice" role="status" aria-live="polite">{authNotice}</p>}
             <button type="submit" className="btn btn-primary" disabled={authBusy}>{authBusy ? "Updating…" : "Save New Password"}</button>
@@ -7624,9 +7658,9 @@ function App() {
   };
   const renderMobilePageTitle = (eyebrow, title, copy) => <MobilePageTitle eyebrow={eyebrow} title={title} copy={copy} />;
   const mobileTodayTasks = activeDashboardTasks.filter((task) => getTaskDueBucket(task).startsWith("Due Today"));
-  const mobileOverdueTasks = activeDashboardTasks.filter((task) => getTaskDueBucket(task).startsWith("Overdue"));
+  const mobileOverdueTasks = mobileDueGroups.overdue;
   const mobileSummaryTasks = mobileSummaryCategory === "active"
-    ? activeDashboardTasks
+    ? mobileDueGroups.active
     : mobileSummaryCategory === "today"
       ? mobileTodayTasks
       : mobileSummaryCategory === "overdue"
@@ -7649,7 +7683,10 @@ function App() {
     <ul className="task-list mobile-summary-task-list">
       {mobileSummaryTasks.map((task) => {
         const status = getTaskStatus(task);
-        return <li key={task.id} className={`task-card${getTaskDueBucket(task).startsWith("Overdue") ? " is-overdue" : ""}`}><div><div className="task-title-row"><strong className="task-title-text">{task.title}</strong><span className="task-course-pill" style={{ backgroundColor: getCourseColor(getTaskCourseOrCategory(task)), color: getTextColorForCourse(getTaskCourseOrCategory(task)) }}>{getTaskCourseOrCategory(task)}</span></div><div className="task-details">{formatTaskDetails(task)}</div>{renderAssignmentCountdown(task)}{renderSubtaskProgressLine(task)}</div>{renderTaskActionButtons(task, status)}</li>;
+        const level = mobileTaskLevels[task.id] || MOBILE_TASK_LEVELS.compact;
+        const summaryOpen = level >= MOBILE_TASK_LEVELS.summary;
+        const detailsOpen = level >= MOBILE_TASK_LEVELS.details;
+        return <li key={task.id} className={`task-card mobile-task-card mobile-task-level-${level}${getTaskDueBucket(task).startsWith("Overdue") ? " is-overdue" : ""}`} role="button" tabIndex="0" aria-expanded={summaryOpen} onClick={() => toggleTaskExpansion(task.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleTaskExpansion(task.id); } }}><div><div className="task-title-row"><strong className="task-title-text">{task.title}</strong><span className="task-course-pill" style={{ backgroundColor: getCourseColor(getTaskCourseOrCategory(task)), color: getTextColorForCourse(getTaskCourseOrCategory(task)) }}>{getTaskCourseOrCategory(task)}</span><span className="mobile-workflow-pill">{getWorkflowLabel(status)}</span></div>{summaryOpen && <div className="task-details">{formatTaskDetails(task)}</div>}{getTaskDueBucket(task).startsWith("Overdue") || summaryOpen ? renderAssignmentCountdown(task) : null}{summaryOpen && renderSubtaskProgressLine(task)}</div>{summaryOpen && renderTaskActionButtons(task, status)}{detailsOpen && <div className="task-notes-panel" onClick={(event) => event.stopPropagation()}>{renderExpandedTaskDetails(task, `mobile-summary-notes-${task.id}`)}</div>}</li>;
       })}
     </ul>
   );
@@ -7816,11 +7853,11 @@ function App() {
                   <button type="button" disabled={mobileOverdueTasks.length === 0} className={mobileOverdueTasks.length > 0 ? "has-danger" : ""} onClick={() => openMobileSummary("overdue")}><strong>{mobileOverdueTasks.length}</strong><span>Overdue</span></button>
                 </section>
                 <section className="mobile-app-card mobile-app-plan-card">
-                  <div className="mobile-app-section-heading"><div><span>Best next steps</span><h3>{schoolLevelCopy.planTitle}</h3></div><button type="button" onClick={() => openMobileTab("todo")}>View tasks</button></div>
+                  <div className="mobile-app-section-heading"><div><h3>Best Next Steps</h3></div><button type="button" onClick={() => openMobileTab("todo")}>View tasks</button></div>
                   {renderRecommendedWidget()}
                 </section>
                 <section className="mobile-app-card mobile-app-quick-card">
-                  <div className="mobile-app-section-heading"><div><span>Short on time?</span><h3>Find a quick task</h3></div></div>
+                  <div className="mobile-app-section-heading"><div><h3>Find a quick task</h3></div></div>
                   {renderQuickMatchCard()}
                 </section>
                 <section className="mobile-app-card">
@@ -8022,7 +8059,7 @@ function App() {
                           <button type="button" className="btn btn-primary" onClick={() => handleFocusStart(task.id)}>Focus</button>
                           <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(task.id)}>{getFocusActionLabel(task)}</button>
                           {taskStatus === "todo" && (
-                            <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(task.id)}>Start</button>
+                            <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(task.id)}>In Progress</button>
                           )}
                         </div>
                       </li>
@@ -9095,7 +9132,7 @@ function App() {
                           </select>
                         </label>
                       </div>
-                      <label className="settings-toggle settings-toggle-copy">
+                      <label className="settings-toggle settings-toggle-copy mobile-hidden-header-description">
                         <span><strong>Header description</strong><small>Show the school-level message below GlowDocket.</small></span>
                         <input
                           type="checkbox"
@@ -9511,12 +9548,12 @@ function App() {
                         <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountEmailDraft.trim()}>{accountUpdateBusy === "email" ? "Sending confirmation…" : "Change Email"}</button>
                       </form>
                     </SettingsCard>
-                    <SettingsCard title="Password" description="Choose a new password with at least 8 characters. GlowDocket never displays your current password." className="settings-section-wide">
+                    <SettingsCard title="Password" description="Choose a new password. GlowDocket never displays your current password and will show any provider policy error." className="settings-section-wide">
                       <form className="account-settings-form account-password-form" onSubmit={handleAccountPasswordUpdate}>
                         <label htmlFor="account-new-password">New password</label>
-                        <div className="password-input-row"><input id="account-new-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide new password" : "Show new password"} onClick={() => setShowAccountPassword((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPassword} /></button></div>
+                        <div className="password-input-row"><input id="account-new-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide new password" : "Show new password"} onClick={() => setShowAccountPassword((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPassword} /></button></div>
                         <label htmlFor="account-confirm-password">Confirm new password</label>
-                        <div className="password-input-row"><input id="account-confirm-password" type={showAccountPasswordConfirm ? "text" : "password"} value={accountPasswordConfirm} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPasswordConfirm} aria-label={showAccountPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"} onClick={() => setShowAccountPasswordConfirm((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPasswordConfirm} /></button></div>
+                        <div className="password-input-row"><input id="account-confirm-password" type={showAccountPasswordConfirm ? "text" : "password"} value={accountPasswordConfirm} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPasswordConfirm} aria-label={showAccountPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"} onClick={() => setShowAccountPasswordConfirm((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPasswordConfirm} /></button></div>
                         <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountPasswordDraft || !accountPasswordConfirm}>{accountUpdateBusy === "password" ? "Updating…" : "Update Password"}</button>
                       </form>
                     </SettingsCard>
@@ -9539,9 +9576,9 @@ function App() {
                       <label htmlFor="upgrade-email">Email</label>
                       <input id="upgrade-email" type="email" value={accountEmailDraft} autoComplete="email" onChange={(event) => setAccountEmailDraft(event.target.value)} />
                       <label htmlFor="upgrade-password">New account password</label>
-                      <div className="password-input-row"><input id="upgrade-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide account passwords" : "Show account passwords"} onClick={() => setShowAccountPassword((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPassword} /></button></div>
+                      <div className="password-input-row"><input id="upgrade-password" type={showAccountPassword ? "text" : "password"} value={accountPasswordDraft} autoComplete="new-password" onChange={(event) => setAccountPasswordDraft(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPassword} aria-label={showAccountPassword ? "Hide account passwords" : "Show account passwords"} onClick={() => setShowAccountPassword((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPassword} /></button></div>
                       <label htmlFor="upgrade-password-confirm">Confirm new account password</label>
-                      <div className="password-input-row"><input id="upgrade-password-confirm" type={showAccountPasswordConfirm ? "text" : "password"} value={accountPasswordConfirm} minLength={8} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPasswordConfirm} aria-label={showAccountPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"} onClick={() => setShowAccountPasswordConfirm((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPasswordConfirm} /></button></div>
+                      <div className="password-input-row"><input id="upgrade-password-confirm" type={showAccountPasswordConfirm ? "text" : "password"} value={accountPasswordConfirm} autoComplete="new-password" onChange={(event) => setAccountPasswordConfirm(event.target.value)} /><button type="button" className="password-visibility-button is-icon-only" aria-pressed={showAccountPasswordConfirm} aria-label={showAccountPasswordConfirm ? "Hide password confirmation" : "Show password confirmation"} onClick={() => setShowAccountPasswordConfirm((shown) => !shown)}><PasswordEyeIcon hidden={!showAccountPasswordConfirm} /></button></div>
                       <button type="submit" className="btn btn-primary" disabled={Boolean(accountUpdateBusy) || !accountEmailDraft.trim() || !accountPasswordDraft || !accountPasswordConfirm}>{accountUpdateBusy === "upgrade" ? "Creating secure account…" : "Add Email & Enable Sync"}</button>
                     </form>
                     {accountUpdateStatus.message && <div className={`account-update-message is-${accountUpdateStatus.type}`} role="status">{accountUpdateStatus.message}</div>}
@@ -9582,7 +9619,7 @@ function App() {
                         <small>{reminderStatusCopy.detail}</small>
                       </div>
                       <div className="external-push-detail-grid"><span><strong>Push reminders</strong><small>{reminderUserStatus === "off" ? "Off" : reminderUserStatus === "connecting" ? "Connecting" : reminderUserStatus === "active" ? "Active" : "Needs attention"}</small></span><span><strong>Browser permission</strong><small>{browserNotificationPermission === "default" ? "Not requested" : browserNotificationPermission === "granted" ? "Allowed" : browserNotificationPermission === "denied" ? "Blocked" : "Unsupported"}</small></span><span><strong>Reminder timing</strong><small>{formatReminderLeadTime(userSettings.reminderMinutes || 60)} before</small></span></div>
-                      {reminderUserStatus === "blocked" ? <div className="reminder-permission-guidance"><strong>Allow notifications in your browser settings</strong><p>GlowDocket cannot reopen a blocked permission prompt. Open this site’s browser permissions, change Notifications to Allow, then return here and repair the sync.</p></div> : <button type="button" className={`btn ${userSettings.externalPushEnabled ? "btn-danger" : "btn-primary"}`} disabled={!EXTERNAL_PUSH_CLIENT_ENABLED || Boolean(externalPushAction)} onClick={() => handleExternalPushSettingChange(!userSettings.externalPushEnabled)}>{externalPushAction === "enabling" ? "Connecting…" : externalPushAction === "disabling" ? "Turning off…" : userSettings.externalPushEnabled ? "Disable Push Reminders" : "Enable Push Reminders"}</button>}
+                      {reminderUserStatus === "blocked" ? <div className="reminder-permission-guidance"><strong>Blocked in Browser Settings</strong><p>GlowDocket cannot reopen a blocked permission prompt. Open this site’s browser permissions, change Notifications to Allow, then return here and retry.</p></div> : <button type="button" className={`btn ${userSettings.externalPushEnabled && reminderUserStatus === "active" ? "btn-danger" : "btn-primary"}`} disabled={!EXTERNAL_PUSH_CLIENT_ENABLED || reminderUserStatus === "unsupported" || Boolean(externalPushAction)} onClick={() => handleExternalPushSettingChange(reminderUserStatus === "active" ? false : true)}>{externalPushAction === "enabling" ? "Connecting…" : externalPushAction === "disabling" ? "Turning off…" : reminderActionLabel}</button>}
                       <label className="settings-select-row">
                         <span>Remind me</span>
                         <select value={userSettings.reminderMinutes || 60} onChange={(e) => handleAddFieldSettingChange("reminderMinutes", Number(e.target.value))}>
