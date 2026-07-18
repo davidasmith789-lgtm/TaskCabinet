@@ -1889,6 +1889,7 @@ function App() {
   const [isMobileUi, setIsMobileUi] = useState(() => window.matchMedia("(max-width: 767px)").matches);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
+  const mobileSettingsScrollRef = useRef(null);
   const [mobileSummaryCategory, setMobileSummaryCategory] = useState("");
   const [mobileReturnTab, setMobileReturnTab] = useState("dashboard");
   const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(Math.max(0, window.innerWidth - 48)));
@@ -3123,6 +3124,17 @@ function App() {
     });
     return () => window.cancelAnimationFrame(frameId);
   }, [currentTab, isMobileUi]);
+
+  useLayoutEffect(() => {
+    if (!isMobileUi || !mobileSettingsOpen) return undefined;
+    const scrollBody = mobileSettingsScrollRef.current;
+    if (!scrollBody) return undefined;
+    scrollBody.scrollTop = 0;
+    const frameId = window.requestAnimationFrame(() => {
+      scrollBody.scrollTo({ top: 0, behavior: "auto" });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isMobileUi, mobileSettingsOpen, settingsSection, storageView]);
 
   useEffect(() => {
     const handleMobileHistory = () => {
@@ -8997,7 +9009,7 @@ function App() {
                       <button type="button" onClick={closeMobileSettings} aria-label="Back to settings categories">←</button>
                     </header>
                   )}
-                  <div className="mobile-settings-scroll-body">
+                  <div ref={mobileSettingsScrollRef} className="mobile-settings-scroll-body">
                   <div key={`${settingsSection}-${storageView || "main"}`} className={`settings-grid${storageView ? " settings-grid-hidden" : ""}${settingsSection === "personalization" ? " settings-grid-personalization" : ""}`}>
                 <section className="settings-section personalization-top-section appearance-settings-section" hidden={settingsSection !== "personalization"}>
                   {!isMobileUi && <div className="settings-onboarding-card">
