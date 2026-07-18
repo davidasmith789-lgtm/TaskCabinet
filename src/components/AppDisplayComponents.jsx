@@ -1,4 +1,11 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
+
+const SettingsAccordionContext = createContext(null);
+const toSettingsCardId = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+export function SettingsAccordionProvider({ value, children }) {
+  return <SettingsAccordionContext.Provider value={value}>{children}</SettingsAccordionContext.Provider>;
+}
 
 const stopControlDoubleClick = (event) => event.stopPropagation();
 
@@ -14,23 +21,20 @@ function toggleFromHeaderDoubleClick(event, toggle) {
   toggle();
 }
 
-export function SettingsCard({ title, description, className = "", children, mobileAlwaysOpen = false }) {
+export function SettingsCard({ title, description, className = "", children }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isMobileUi, setIsMobileUi] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches);
-  useEffect(() => {
-    if (!mobileAlwaysOpen || typeof window === "undefined") return undefined;
-    const query = window.matchMedia("(max-width: 767px)");
-    const update = () => setIsMobileUi(query.matches);
-    update();
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, [mobileAlwaysOpen]);
-  const expanded = isOpen || (mobileAlwaysOpen && isMobileUi);
+  const accordion = useContext(SettingsAccordionContext);
+  const cardId = toSettingsCardId(title);
+  const expanded = accordion?.isMobile ? accordion.isExpanded(cardId) : isOpen;
+  const toggle = () => {
+    if (accordion?.isMobile) accordion.toggle(cardId);
+    else setIsOpen((open) => !open);
+  };
   return (
-    <section className={`settings-section ${className}${mobileAlwaysOpen ? " mobile-always-open-settings-card" : ""}`.trim()}>
-      <div className="settings-collapse-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setIsOpen((open) => !open))} title="Use the button to expand or minimize">
+    <section className={`settings-section ${className}`.trim()}>
+      <div className="settings-collapse-header double-click-collapse-header" onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, toggle)} title="Use the button to expand or minimize">
         <h4>{title}</h4>
-        <button type="button" className="settings-collapse-button" onClick={(event) => toggleFromCollapseButton(event, () => setIsOpen((open) => !open))} onDoubleClick={stopControlDoubleClick} aria-expanded={expanded} aria-label={`${expanded ? "Shrink" : "Enlarge"} ${title}`} title={`${expanded ? "Shrink" : "Enlarge"} ${title}`}>{expanded ? "−" : "+"}</button>
+        <button type="button" className="settings-collapse-button" onClick={(event) => toggleFromCollapseButton(event, toggle)} onDoubleClick={stopControlDoubleClick} aria-expanded={expanded} aria-label={`${expanded ? "Shrink" : "Enlarge"} ${title}`} title={`${expanded ? "Shrink" : "Enlarge"} ${title}`}>{expanded ? "−" : "+"}</button>
       </div>
       {expanded && <div className="settings-collapsible-content">{description && <p className="hint-text settings-card-description">{description}</p>}{children}</div>}
     </section>

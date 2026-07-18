@@ -48,7 +48,7 @@ import GlowDocketLogo from "./GlowDocketLogo.jsx";
 import { PrivacyDataDialog, PrivacyDataPanel } from "./PrivacyDataPanel.jsx";
 import { APP_BUILD_METADATA, createReportMetadata } from "./buildMetadata.js";
 import { FEEDBACK_CATEGORIES, FEEDBACK_MAX_MESSAGE_LENGTH, feedbackScreenshotPath, validateFeedbackScreenshot } from "./feedbackUtils.js";
-import { AssignmentCountdown, MobilePageTitle, PasswordEyeIcon, PersonalizationTip, SettingsCard, SubtaskProgressLine } from "./components/AppDisplayComponents.jsx";
+import { AssignmentCountdown, MobilePageTitle, PasswordEyeIcon, PersonalizationTip, SettingsAccordionProvider, SettingsCard, SubtaskProgressLine } from "./components/AppDisplayComponents.jsx";
 import { AssignmentFilterControls, AssignmentFilterToggle } from "./components/AssignmentFilters.jsx";
 import DeferredCalendar from "./components/DeferredCalendar.jsx";
 import FocusSession from "./components/FocusSession.jsx";
@@ -104,6 +104,7 @@ const DEFAULT_USER_SETTINGS = {
   showCalendarTaskDots: true,
   checklistTimesEnabled: false,
   settingsSectionOrder: ["personalization", "assignments", "checklists", "calendar", "reminders", "cycle", "accessibility", "privacy", "storage"],
+  mobileSettingsExpandedCards: {},
   cycleDayNames: ["A Day", "B Day"],
   cycleAnchorDate: "",
   courseCycleDays: {},
@@ -116,6 +117,18 @@ const DEFAULT_USER_SETTINGS = {
 
 const ACCOUNTS_STORAGE_KEY = "taskacadia_accounts";
 const AUTH_USER_STORAGE_KEY = "taskacadia_authenticated_user";
+const MOBILE_SETTINGS_FIRST_CARD = {
+  personalization: "appearance",
+  account: "preferred-name",
+  assignments: "add-assignment-fields",
+  checklists: "checklist-deadlines",
+  reminders: "install-glowdocket",
+  calendar: "calendar-display",
+  cycle: "school-day-cycle",
+  storage: "browser-storage",
+  privacy: "privacy-data",
+  accessibility: "automated-accessibility-check",
+};
 const LOGIN_COLORS_STORAGE_KEY = "taskacadia_login_colors";
 const TUTORIAL_SLIDES = [
   { title: "Welcome to GlowDocket", copy: "Your assignments, plans, and progress stay together in one calm workspace.", visual: "welcome" },
@@ -1891,6 +1904,7 @@ function App() {
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
   const mobileSettingsScrollRef = useRef(null);
+  const mobileSettingsScrollPositionsRef = useRef({});
   const [mobileSummaryCategory, setMobileSummaryCategory] = useState("");
   const [mobileReturnTab, setMobileReturnTab] = useState("dashboard");
   const [workspaceMode, setWorkspaceMode] = useState(() => getWorkspaceModeForWidth(Math.max(0, window.innerWidth - 48)));
@@ -3130,9 +3144,10 @@ function App() {
     if (!isMobileUi || !mobileSettingsOpen) return undefined;
     const scrollBody = mobileSettingsScrollRef.current;
     if (!scrollBody) return undefined;
-    scrollBody.scrollTop = 0;
+    const targetTop = mobileSettingsScrollPositionsRef.current[settingsSection] || 0;
+    scrollBody.scrollTop = targetTop;
     const frameId = window.requestAnimationFrame(() => {
-      scrollBody.scrollTo({ top: 0, behavior: "auto" });
+      scrollBody.scrollTo({ top: targetTop, behavior: "auto" });
     });
     return () => window.cancelAnimationFrame(frameId);
   }, [isMobileUi, mobileSettingsOpen, settingsSection, storageView]);
@@ -7640,7 +7655,62 @@ function App() {
       (helpCategory === "All" || category === helpCategory)
       && (!normalizedHelpSearch || `${title} ${copy} ${category}`.toLowerCase().includes(normalizedHelpSearch))
     ));
+  const savedMobileAccordion = userSettings.mobileSettingsExpandedCards
+    && typeof userSettings.mobileSettingsExpandedCards === "object"
+    && !Array.isArray(userSettings.mobileSettingsExpandedCards)
+    ? userSettings.mobileSettingsExpandedCards
+    : {};
+  const getDefaultMobileCardId = (sectionId) => {
+    if (sectionId === "account" && !currentUser && CLOUD_SYNC_CONFIGURED) return "add-email-enable-cross-device-sync";
+    return MOBILE_SETTINGS_FIRST_CARD[sectionId] || "";
+  };
+  const getMobileExpandedCards = (sectionId) => {
+    const saved = savedMobileAccordion[sectionId];
+    if (Array.isArray(saved) && saved.every((cardId) => typeof cardId === "string")) return saved;
+    const firstCardId = getDefaultMobileCardId(sectionId);
+    return firstCardId ? [firstCardId] : [];
+  };
+  const isMobileSettingsCardExpanded = (cardId, sectionId = settingsSection) => (
+    getMobileExpandedCards(sectionId).includes(cardId)
+  );
+  const setMobileSettingsCardExpanded = (cardId, expanded, sectionId = settingsSection) => {
+    const currentCards = getMobileExpandedCards(sectionId);
+    const nextCards = expanded
+      ? [...new Set([...currentCards, cardId])]
+      : currentCards.filter((currentCardId) => currentCardId !== cardId);
+    handleAddFieldSettingChange("mobileSettingsExpandedCards", {
+      ...savedMobileAccordion,
+      [sectionId]: nextCards,
+    });
+  };
+  const toggleMobileSettingsCard = (cardId, sectionId = settingsSection) => {
+    setMobileSettingsCardExpanded(cardId, !isMobileSettingsCardExpanded(cardId, sectionId), sectionId);
+  };
+  const settingsAccordionValue = {
+    isMobile: isMobileUi,
+    isExpanded: isMobileSettingsCardExpanded,
+    toggle: toggleMobileSettingsCard,
+  };
+  const appearanceExpanded = isMobileUi ? isMobileSettingsCardExpanded("appearance", "personalization") : appearanceSettingsOpen;
+  const personalizationTipsExpanded = isMobileUi ? isMobileSettingsCardExpanded("personalization-tips", "personalization") : personalizationTipsOpen;
+  const colorStudioExpanded = isMobileUi ? isMobileSettingsCardExpanded("full-color-studio", "personalization") : colorStudioOpen;
+  const toggleAppearanceSettings = () => isMobileUi
+    ? toggleMobileSettingsCard("appearance", "personalization")
+    : setAppearanceSettingsOpen((open) => !open);
+  const togglePersonalizationTips = () => isMobileUi
+    ? toggleMobileSettingsCard("personalization-tips", "personalization")
+    : setPersonalizationTipsOpen((open) => !open);
+  const toggleColorStudio = () => isMobileUi
+    ? toggleMobileSettingsCard("full-color-studio", "personalization")
+    : setColorStudioOpen((open) => !open);
+  const openColorStudio = () => {
+    if (isMobileUi) setMobileSettingsCardExpanded("full-color-studio", true, "personalization");
+    else setColorStudioOpen(true);
+  };
   const openMobileSettingsSection = (sectionId) => {
+    if (isMobileUi && sectionId !== settingsSection) {
+      mobileSettingsScrollPositionsRef.current[sectionId] = 0;
+    }
     setStorageView(null);
     setSettingsSection(sectionId);
     if (!isMobileUi) return;
@@ -9010,7 +9080,14 @@ function App() {
                       <button type="button" onClick={closeMobileSettings} aria-label="Back to settings categories">←</button>
                     </header>
                   )}
-                  <div ref={mobileSettingsScrollRef} className="mobile-settings-scroll-body">
+                  <div
+                    ref={mobileSettingsScrollRef}
+                    className="mobile-settings-scroll-body"
+                    onScroll={(event) => {
+                      mobileSettingsScrollPositionsRef.current[settingsSection] = event.currentTarget.scrollTop;
+                    }}
+                  >
+                  <SettingsAccordionProvider value={settingsAccordionValue}>
                   <div key={`${settingsSection}-${storageView || "main"}`} className={`settings-grid${storageView ? " settings-grid-hidden" : ""}${settingsSection === "personalization" ? " settings-grid-personalization" : ""}`}>
                 <section className="settings-section personalization-top-section appearance-settings-section" hidden={settingsSection !== "personalization"}>
                   {!isMobileUi && <div className="settings-onboarding-card">
@@ -9019,23 +9096,23 @@ function App() {
                   </div>}
                   <div
                     className="settings-collapse-header double-click-collapse-header"
-                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setAppearanceSettingsOpen((isOpen) => !isOpen))}
+                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, toggleAppearanceSettings)}
                     title="Double-click to expand or minimize"
                   >
                     <h4>Appearance</h4>
                     <button
                       type="button"
                       className="settings-collapse-button"
-                      onClick={(event) => toggleFromCollapseButton(event, () => setAppearanceSettingsOpen((isOpen) => !isOpen))}
-                      aria-expanded={appearanceSettingsOpen}
+                      onClick={(event) => toggleFromCollapseButton(event, toggleAppearanceSettings)}
+                      aria-expanded={appearanceExpanded}
                       aria-controls="appearance-settings-content"
-                      aria-label={`${appearanceSettingsOpen ? "Shrink" : "Enlarge"} Appearance`}
-                      title={`${appearanceSettingsOpen ? "Shrink" : "Enlarge"} Appearance`}
+                      aria-label={`${appearanceExpanded ? "Shrink" : "Enlarge"} Appearance`}
+                      title={`${appearanceExpanded ? "Shrink" : "Enlarge"} Appearance`}
                     >
-                      {appearanceSettingsOpen ? "−" : "+"}
+                      {appearanceExpanded ? "−" : "+"}
                     </button>
                   </div>
-                  {appearanceSettingsOpen && (
+                  {appearanceExpanded && (
                     <div id="appearance-settings-content" className="settings-collapsible-content">
                       <p className="hint-text">Choose a color theme or save your own from Full Color Studio.</p>
                       <label className="settings-select-row">
@@ -9169,23 +9246,23 @@ function App() {
                 <section className="settings-section personalization-top-section personalization-tips" hidden={settingsSection !== "personalization"}>
                   <div
                     className="settings-collapse-header double-click-collapse-header"
-                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setPersonalizationTipsOpen((isOpen) => !isOpen))}
+                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, togglePersonalizationTips)}
                     title="Double-click to expand or minimize"
                   >
                     <h4>Personalization Tips</h4>
                     <button
                       type="button"
                       className="settings-collapse-button"
-                      onClick={(event) => toggleFromCollapseButton(event, () => setPersonalizationTipsOpen((isOpen) => !isOpen))}
-                      aria-expanded={personalizationTipsOpen}
+                      onClick={(event) => toggleFromCollapseButton(event, togglePersonalizationTips)}
+                      aria-expanded={personalizationTipsExpanded}
                       aria-controls="personalization-tips-content"
-                      aria-label={`${personalizationTipsOpen ? "Shrink" : "Enlarge"} Personalization Tips`}
-                      title={`${personalizationTipsOpen ? "Shrink" : "Enlarge"} Personalization Tips`}
+                      aria-label={`${personalizationTipsExpanded ? "Shrink" : "Enlarge"} Personalization Tips`}
+                      title={`${personalizationTipsExpanded ? "Shrink" : "Enlarge"} Personalization Tips`}
                     >
-                      {personalizationTipsOpen ? "−" : "+"}
+                      {personalizationTipsExpanded ? "−" : "+"}
                     </button>
                   </div>
-                  {personalizationTipsOpen && (
+                  {personalizationTipsExpanded && (
                     <div id="personalization-tips-content" className="settings-collapsible-content personalization-tips-content">
                       <p className="hint-text">Browse by topic or search for a specific setting, feature, or workflow.</p>
                       <input type="search" value={helpSearch} onChange={(event) => setHelpSearch(event.target.value)} placeholder="Search reminders, assignments, layouts, colors…" aria-label="Search GlowDocket tips" />
@@ -9217,24 +9294,24 @@ function App() {
                 <section className="settings-section color-studio-section" hidden={settingsSection !== "personalization"}>
                   <div
                     className="color-studio-header double-click-collapse-header"
-                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, () => setColorStudioOpen((isOpen) => !isOpen))}
+                    onDoubleClick={(event) => toggleFromHeaderDoubleClick(event, toggleColorStudio)}
                     title="Double-click to expand or minimize"
                   >
                     <h4>Full Color Studio</h4>
                     <button
                       type="button"
                       className="settings-collapse-button"
-                      onClick={(event) => toggleFromCollapseButton(event, () => setColorStudioOpen((isOpen) => !isOpen))}
-                      aria-expanded={colorStudioOpen}
+                      onClick={(event) => toggleFromCollapseButton(event, toggleColorStudio)}
+                      aria-expanded={colorStudioExpanded}
                       aria-controls="color-studio-content"
-                      aria-label={`${colorStudioOpen ? "Shrink" : "Enlarge"} Full Color Studio`}
-                      title={`${colorStudioOpen ? "Shrink" : "Enlarge"} Full Color Studio`}
+                      aria-label={`${colorStudioExpanded ? "Shrink" : "Enlarge"} Full Color Studio`}
+                      title={`${colorStudioExpanded ? "Shrink" : "Enlarge"} Full Color Studio`}
                     >
-                      {colorStudioOpen ? "−" : "+"}
+                      {colorStudioExpanded ? "−" : "+"}
                     </button>
                   </div>
 
-                  {colorStudioOpen && (
+                  {colorStudioExpanded && (
                     <div id="color-studio-content" className="settings-collapsible-content">
                       <div className="color-studio-intro">
                       <p className="hint-text">
@@ -9610,14 +9687,14 @@ function App() {
                     </SettingsCard>
                     <SettingsCard title="Checklist Appearance" description="Use the curated palette, choose a custom color on any list, or edit every swatch in Full Color Studio.">
                       <div className="checklist-settings-preview">{[1, 2, 3, 4, 5].map((index) => { const color = userSettings.customColors?.[`checklistPalette${index}`] || THEME_COLOR_DEFAULTS[theme][`checklistPalette${index}`]; return <span key={color} style={{ backgroundColor: color }} />; })}</div>
-                      <button type="button" className="btn btn-secondary" onClick={() => { setSettingsSection("personalization"); setColorStudioOpen(true); setColorGroupsOpen((groups) => ({ ...groups, Checklists: true })); }}>Open Checklist Color Studio</button>
+                      <button type="button" className="btn btn-secondary" onClick={() => { setSettingsSection("personalization"); openColorStudio(); setColorGroupsOpen((groups) => ({ ...groups, Checklists: true })); }}>Open Checklist Color Studio</button>
                     </SettingsCard>
                   </>
                 )}
 
                 {settingsSection === "reminders" && (
                   <>
-                    <SettingsCard title="Install GlowDocket" description="Install the planner on this device for an app-like window and offline access." mobileAlwaysOpen>
+                    <SettingsCard title="Install GlowDocket" description="Install the planner on this device for an app-like window and offline access.">
                       {isStandalone ? (
                         <span className="settings-status-pill">Installed</span>
                       ) : installPrompt ? (
@@ -9670,7 +9747,7 @@ function App() {
                 )}
 
                 {settingsSection === "calendar" && (
-                  <SettingsCard title="Calendar Display" description="Choose how dates and school information appear in both calendar tools." className="settings-section-wide" mobileAlwaysOpen>
+                  <SettingsCard title="Calendar Display" description="Choose how dates and school information appear in both calendar tools." className="settings-section-wide">
                     <div className="settings-option-grid">
                       <label className="settings-select-row settings-option-card">
                         <span>Week starts on</span>
@@ -9694,7 +9771,7 @@ function App() {
                 )}
 
                 {settingsSection === "cycle" && (
-                  <SettingsCard title="School-Day Cycle" description="The anchor date uses the first label. Weekends are skipped automatically." className="school-cycle-settings" mobileAlwaysOpen>
+                  <SettingsCard title="School-Day Cycle" description="The anchor date uses the first label. Weekends are skipped automatically." className="school-cycle-settings">
                     <label className="settings-select-row">
                       <span>Anchor date</span>
                       <input
@@ -9836,14 +9913,14 @@ function App() {
                 )}
 
                 {settingsSection === "privacy" && (
-                  <SettingsCard title="Privacy & Data" description="Understand where GlowDocket keeps information and which features are specific to this device." className="settings-section-wide privacy-settings-card" mobileAlwaysOpen>
+                  <SettingsCard title="Privacy & Data" description="Understand where GlowDocket keeps information and which features are specific to this device." className="settings-section-wide privacy-settings-card">
                     <PrivacyDataPanel />
                   </SettingsCard>
                 )}
 
                 {settingsSection === "accessibility" && (
                   <>
-                    <SettingsCard title="Automated Accessibility Check" description="Scan the current GlowDocket screen for common machine-detectable accessibility problems." className="settings-section-wide accessibility-verification-card" mobileAlwaysOpen>
+                    <SettingsCard title="Automated Accessibility Check" description="Scan the current GlowDocket screen for common machine-detectable accessibility problems." className="settings-section-wide accessibility-verification-card">
                       <div className="accessibility-audit-heading">
                         <div><strong>Checks accessible names, form labels, image text alternatives, dialog names, duplicate IDs, and keyboard access for custom buttons.</strong><p className="hint-text">Automated checks cannot prove that the full experience is accessible. Complete the manual checks below too.</p></div>
                         <button type="button" className="btn btn-primary" onClick={handleRunAccessibilityAudit}>Run Accessibility Check</button>
@@ -9857,7 +9934,7 @@ function App() {
                         </div>
                       )}
                     </SettingsCard>
-                    <SettingsCard title="Manual Accessibility Verification" description="Complete these checks on the device and browser you are reviewing." className="settings-section-wide accessibility-verification-card" mobileAlwaysOpen>
+                    <SettingsCard title="Manual Accessibility Verification" description="Complete these checks on the device and browser you are reviewing." className="settings-section-wide accessibility-verification-card">
                       <div className="accessibility-manual-progress"><strong>{manualAccessibilityChecks.length} of {MANUAL_ACCESSIBILITY_CHECKS.length} checked</strong><progress max={MANUAL_ACCESSIBILITY_CHECKS.length} value={manualAccessibilityChecks.length}>{manualAccessibilityChecks.length}</progress></div>
                       <div className="accessibility-checklist">
                         {MANUAL_ACCESSIBILITY_CHECKS.map((check) => (
@@ -10056,6 +10133,7 @@ function App() {
                       )}
                     </section>
                   )}
+                  </SettingsAccordionProvider>
                   </div>
                 </div>
               </div>
