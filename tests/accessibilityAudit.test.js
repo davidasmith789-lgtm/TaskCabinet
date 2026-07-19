@@ -60,3 +60,17 @@ test("automated and manual verification remain available in Settings", async () 
   assert.match(app, /taskcabinet_accessibility_checklist_/);
   assert.match(styles, /\.accessibility-checklist/);
 });
+
+test("responsive shells provide skip links and system accessibility fallbacks", async () => {
+  const [app, styles] = await Promise.all([
+    readFile(new URL("../src/App.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/App.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /className="skip-link" href="#welcome-main-content"/);
+  assert.match(app, /href=\{isMobileUi \? "#mobile-main-content" : "#workspace-main-content"\}/);
+  assert.match(app, /id="workspace-main-content"[^>]*tabIndex="-1"/);
+  assert.match(styles, /\.skip-link:focus \{ transform: translateY\(0\); \}/);
+  assert.match(styles, /@media \(pointer: coarse\) and \(min-width: 768px\)/);
+  assert.match(styles, /@media \(prefers-contrast: more\)/);
+  assert.match(styles, /@media \(forced-colors: active\)/);
+});

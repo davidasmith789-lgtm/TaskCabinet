@@ -1051,10 +1051,12 @@ const WORKSPACE_TABS = [
   ["settings", "Settings"],
 ];
 
-const WORKSPACE_COMPACT_BREAKPOINT = 1100;
+const WORKSPACE_MOBILE_BREAKPOINT = 720;
+const WORKSPACE_DESKTOP_BREAKPOINT = 1400;
 const getWorkspaceModeForWidth = (width, userAgent = typeof navigator === "undefined" ? "" : navigator.userAgent) => {
   if (/CrOS/i.test(userAgent)) return "chromebook";
-  return Number(width) < WORKSPACE_COMPACT_BREAKPOINT ? "mobile" : "desktop";
+  if (Number(width) < WORKSPACE_MOBILE_BREAKPOINT) return "mobile";
+  return Number(width) < WORKSPACE_DESKTOP_BREAKPOINT ? "chromebook" : "desktop";
 };
 
 /**
@@ -7724,7 +7726,8 @@ function App() {
           <span className="welcome-laser welcome-laser-one" /><span className="welcome-laser welcome-laser-two" />
           <div className="welcome-particles">{Array.from({ length: 18 }, (_, index) => <i key={index} />)}</div>
         </div>
-        <main className="welcome-page">
+        <a className="skip-link" href="#welcome-main-content">Skip to main content</a>
+        <main id="welcome-main-content" className="welcome-page" tabIndex="-1">
           <header className="hero-card welcome-top-header">
             <div>
               <p className="eyebrow">{schoolLevelCopy.eyebrow}</p>
@@ -8006,6 +8009,7 @@ function App() {
   return (
     <div className={`App ${theme} school-level-${userSettings.schoolLevel || "high"} text-size-${userSettings.textSize || "medium"} font-${userSettings.fontFamily || "sans"} density-${userSettings.interfaceDensity || "comfortable"} task-actions-${userSettings.taskActionLayout || "wrap"}${userSettings.showTaskCourseBadge === false ? " hide-task-course-badges" : ""}${userSettings.showTaskDetailLine === false ? " hide-task-detail-lines" : ""}${userSettings.showTaskCountdown === false ? " hide-task-countdowns" : ""}${userSettings.showTaskChecklistProgress === false ? " hide-task-checklist-progress" : ""}${userSettings.showTaskReminderIndicator === false ? " hide-task-reminder-indicators" : ""}${userSettings.reduceMotion ? " reduce-motion" : ""}${isStandalone ? " is-standalone" : ""}${isMobileUi && currentUser ? " mobile-app-ui" : ""}${isMobileUi && (mobileMoreOpen || mobileSettingsOpen || mobileSummaryCategory || selectedChecklistId) ? " mobile-overlay-open" : ""}`}>
       <div className="app-shell">
+        <a className="skip-link" href={isMobileUi ? "#mobile-main-content" : "#workspace-main-content"}>Skip to main content</a>
         {isMobileUi && currentUser && (
           <header className="mobile-app-header">
             <button type="button" className="mobile-app-brand" onClick={() => openMobileTab("dashboard")} aria-label="Open mobile home">
@@ -8156,7 +8160,7 @@ function App() {
         )}
 
         {isMobileUi && currentUser && mobileUsesOwnScreen && (
-          <main className={`mobile-app-main${currentTab === "mobile-add" ? " mobile-add-fullscreen" : ""}${mobileTaskTabActive ? " mobile-task-page" : ""}`}>
+          <main id="mobile-main-content" className={`mobile-app-main${currentTab === "mobile-add" ? " mobile-add-fullscreen" : ""}${mobileTaskTabActive ? " mobile-task-page" : ""}`} tabIndex="-1">
             {currentTab === "dashboard" && (
               <>
                 {renderMobilePageTitle("Today", `Ready when you are, ${displayName || "student"}.`, dueTodayCount > 0 ? `${dueTodayCount} assignment${dueTodayCount === 1 ? "" : "s"} due today.` : "Nothing is due today.")}
@@ -8226,7 +8230,7 @@ function App() {
         )}
 
         <div className={`workspace-layout workspace-mode-${workspaceMode}${currentTab === "calendar" ? " workspace-calendar-only" : " workspace-customizable"}${workspaceCanvasWidth > 0 ? " is-measured" : " is-measuring"}${mobileUsesOwnScreen ? " mobile-app-desktop-content-hidden" : ""}`}>
-          <main className="workspace-main" ref={workspaceMainRef}>
+          <main id="workspace-main-content" className="workspace-main" ref={workspaceMainRef} tabIndex="-1">
 
         {currentTab === "dashboard" && renderWorkspaceForTab("dashboard")}
         {!isMobileUi && currentTab !== "dashboard" && currentTab !== "calendar" && renderWorkspaceExtrasForTab(currentTab)}

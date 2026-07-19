@@ -247,6 +247,18 @@ test("Chromebook widgets use an independent compact workspace", () => {
   assert.deepEqual(findWidgetOverlaps(layout.chromebook.dashboard), []);
 });
 
+test("Chromebook defaults use an expanded deliberate grid without changing mobile", () => {
+  const layout = createDefaultWorkspaceLayout();
+  assert.deepEqual(findWidgetOverlaps(layout.chromebook.dashboard), []);
+  assert.deepEqual(findWidgetOverlaps(layout.chromebook.todo), []);
+  assert.deepEqual(findWidgetOverlaps(layout.chromebook.inProgress), []);
+  assert.deepEqual(findWidgetOverlaps(layout.chromebook.completed), []);
+  assert.equal(layout.chromebook.dashboard.find((item) => item.type === "recommended").x, 0);
+  assert.equal(layout.chromebook.dashboard.find((item) => item.type === "quick-match").x, 558);
+  assert.equal(layout.chromebook.inProgress.find((item) => item.type === "in-progress-master").width, 720);
+  assert.ok(layout.mobile.dashboard.every((item) => item.width <= 420));
+});
+
 test("older workspace layouts gain Chromebook defaults without changing saved desktop geometry", () => {
   const saved = createDefaultWorkspaceLayout();
   delete saved.chromebook;
@@ -264,6 +276,14 @@ test("ChromeOS mode detection and pointer-captured resizing stay wired", async (
   assert.match(app, /return "chromebook"/);
   assert.match(app, /setPointerCapture/);
   assert.match(app, /releasePointerCapture/);
+});
+
+test("phones, tablets, compact laptops, and wide desktops use independent workspaces", async () => {
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /WORKSPACE_MOBILE_BREAKPOINT = 720/);
+  assert.match(app, /WORKSPACE_DESKTOP_BREAKPOINT = 1400/);
+  assert.match(app, /if \(Number\(width\) < WORKSPACE_MOBILE_BREAKPOINT\) return "mobile"/);
+  assert.match(app, /Number\(width\) < WORKSPACE_DESKTOP_BREAKPOINT \? "chromebook" : "desktop"/);
 });
 
 test("desktop dashboard defaults use the full landscape canvas", () => {

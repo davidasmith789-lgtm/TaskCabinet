@@ -112,8 +112,25 @@ const CHROMEBOOK_DEFAULT_HEIGHTS = {
   "add-assignment": 560, "todo-master": 560, "in-progress-master": 560, "completed-master": 560,
 };
 
+const CHROMEBOOK_DEFAULT_POSITIONS = {
+  dashboard: {
+    recommended: { x: 0, y: 0, width: 540 }, "quick-match": { x: 558, y: 0, width: 540 },
+    "mini-calendar": { x: 0, y: 438, width: 540 }, checklists: { x: 558, y: 418, width: 540 },
+    "stat-active": { x: 0, y: 866, width: 230 }, "stat-today": { x: 248, y: 866, width: 230 },
+    "stat-overdue": { x: 496, y: 866, width: 230 }, "stat-workload": { x: 744, y: 866, width: 230 },
+    reminders: { x: 0, y: 1009, width: 540 }, "course-overview": { x: 558, y: 1009, width: 540 },
+    "add-assignment": { x: 0, y: 1417, width: 540 },
+  },
+  todo: {
+    "todo-master": { x: 0, y: 0, width: 540 }, "course-colors": { x: 558, y: 0, width: 540 },
+    "add-assignment": { x: 0, y: 578, width: 540 }, reminders: { x: 558, y: 408, width: 540 },
+  },
+  inProgress: { "in-progress-master": { x: 0, y: 0, width: 720 }, checklists: { x: 738, y: 0, width: 404 } },
+  completed: { "completed-master": { x: 0, y: 0, width: 720 }, checklists: { x: 738, y: 0, width: 404 } },
+};
+
 /** Create compact new-layout geometry without rewriting a saved mobile layout. */
-const getModeDefaultItem = (item, mode) => {
+const getModeDefaultItem = (item, mode, tab) => {
   if (mode === "mobile") return {
       ...item,
       width: Math.min(Number(item.width) || 360, 420),
@@ -123,11 +140,12 @@ const getModeDefaultItem = (item, mode) => {
     };
   if (mode === "chromebook") return {
     ...item,
-    width: item.type?.startsWith("stat-") ? 230 : Math.min(Number(item.width) || 480, 540),
+    ...(CHROMEBOOK_DEFAULT_POSITIONS[tab]?.[item.type] || {}),
+    width: CHROMEBOOK_DEFAULT_POSITIONS[tab]?.[item.type]?.width || (item.type?.startsWith("stat-") ? 230 : Math.min(Number(item.width) || 480, 540)),
     height: item.type?.includes("-bucket-") ? 390 : CHROMEBOOK_DEFAULT_HEIGHTS[item.type] || Math.min(Number(item.height) || 360, 440),
-    x: undefined,
-    xRatio: undefined,
-    y: undefined,
+    desktopX: undefined,
+    desktopY: undefined,
+    xRatio: CHROMEBOOK_DEFAULT_POSITIONS[tab]?.[item.type] ? CHROMEBOOK_DEFAULT_POSITIONS[tab][item.type].x / 1160 : undefined,
   };
   return item;
 };
@@ -495,7 +513,7 @@ export function createDefaultWorkspaceLayout() {
   const makeMode = (mode) => Object.fromEntries(
     Object.entries(DEFAULT_DESKTOP_LAYOUT).map(([tab, items]) => [
       tab,
-      addMissingPositions(items.map((item, index) => makeInstance(getModeDefaultItem(item, mode), index, tab)), mode),
+      addMissingPositions(items.map((item, index) => makeInstance(getModeDefaultItem(item, mode, tab), index, tab)), mode),
     ]),
   );
 

@@ -5708,6 +5708,33 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
   box-shadow: var(--focus-ring);
 }
 
+.skip-link { position: fixed; z-index: 10000; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); padding: 11px 15px; border: 2px solid currentColor; border-radius: 10px; color: var(--button-primary-color, #fff); background: var(--primary-color); font-weight: 900; transform: translateY(calc(-100% - 24px)); transition: transform 140ms ease; }
+.skip-link:focus { transform: translateY(0); }
+:where(#welcome-main-content, #mobile-main-content, #workspace-main-content):focus { outline: none; }
+
+@media (min-width: 768px) and (max-width: 1280px) {
+  .workspace-main { min-width: 0; padding-inline: clamp(12px, 2vw, 24px); }
+  .workspace-widget, .workspace-widget-body, .settings-grid, .settings-section, .card-form { min-width: 0; }
+  :where(.hero-card, .section-heading, .checklist-gallery-toolbar, .settings-section-heading) { flex-wrap: wrap; }
+  :where(.task-details, .hint-text, .workspace-widget-body, .settings-section, .auth-card) { overflow-wrap: anywhere; }
+}
+
+@media (pointer: coarse) and (min-width: 768px) {
+  :where(button, .btn, .tab-button, summary, input, select) { min-height: 44px; }
+  :where(.widget-drag-grip, .widget-collapse-button, .widget-menu summary) { width: 44px; min-width: 44px; height: 44px; }
+}
+
+@media (prefers-contrast: more) {
+  :where(.card, .auth-card, .workspace-widget, input, select, textarea, button) { border-color: currentColor; }
+  :where(button, input, select, textarea, summary, [role="button"]):focus-visible { outline-width: 3px; box-shadow: none; }
+}
+
+@media (forced-colors: active) {
+  :where(button, input, select, textarea, summary, [role="button"]):focus-visible { outline: 3px solid Highlight; outline-offset: 3px; }
+  :where(.workspace-widget, .task-card, .auth-card) { border: 1px solid CanvasText; }
+  .skip-link { color: HighlightText; background: Highlight; forced-color-adjust: none; }
+}
+
 /* First-use tutorial and action-oriented empty states */
 .tutorial-backdrop {
   position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center;
