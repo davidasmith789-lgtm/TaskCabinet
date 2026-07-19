@@ -5719,6 +5719,14 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
   :where(.task-details, .hint-text, .workspace-widget-body, .settings-section, .auth-card) { overflow-wrap: anywhere; }
 }
 
+.app-shell,
+.workspace-layout,
+.workspace-main,
+.workspace-widget-canvas,
+:where(.card, .panel-card, .settings-page, .settings-content, .calendar-panel, .auth-card) { max-width: 100%; min-width: 0; }
+:where(img, video, canvas, iframe, svg) { max-width: 100%; }
+:where(input, select, textarea) { max-width: 100%; }
+
 @media (pointer: coarse) and (min-width: 768px) {
   :where(button, .btn, .tab-button, summary, input, select) { min-height: 44px; }
   :where(.widget-drag-grip, .widget-collapse-button, .widget-menu summary) { width: 44px; min-width: 44px; height: 44px; }

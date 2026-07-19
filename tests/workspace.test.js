@@ -286,6 +286,26 @@ test("phones, tablets, compact laptops, and wide desktops use independent worksp
   assert.match(app, /Number\(width\) < WORKSPACE_DESKTOP_BREAKPOINT \? "chromebook" : "desktop"/);
 });
 
+test("rendered widgets reflow to the measured screen without overwriting saved geometry", async () => {
+  const app = await readFile(new URL("../src/App.jsx", import.meta.url), "utf8");
+  assert.match(app, /const responsiveWorkspaceLayout = workspaceCanvasWidth > 0/);
+  assert.match(app, /normalizeWorkspaceLayout\(structuredClone\(workspaceLayout\), \{/);
+  assert.match(app, /canvasWidth: workspaceCanvasWidth/);
+  assert.match(app, /reflowForCanvas: true/);
+  assert.match(app, /responsiveWorkspaceLayout\[workspaceMode\]\?\.\[tab\]/);
+});
+
+test("narrow compact canvases keep every default widget inside the right edge", () => {
+  const saved = createDefaultWorkspaceLayout();
+  const normalized = normalizeWorkspaceLayout(saved, { mode: "chromebook", canvasWidth: 720, reflowForCanvas: true });
+  for (const items of Object.values(normalized.chromebook)) {
+    for (const item of items.filter((widget) => !widget.hidden)) {
+      assert.ok(item.x >= 0);
+      assert.ok(item.x + item.width <= 720);
+    }
+  }
+});
+
 test("desktop dashboard defaults use the full landscape canvas", () => {
   const layout = createDefaultWorkspaceLayout();
   const rightEdge = Math.max(...layout.desktop.dashboard.filter((item) => !item.hidden).map((item) => item.x + item.width));

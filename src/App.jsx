@@ -7703,14 +7703,22 @@ function App() {
   );
 
   const getWorkspaceCanvasHeight = (items) => Math.max(420, ...items.map((item) => (Number(item.y) || 0) + (workspaceLayout.collapsed[item.type] ? Math.max(COLLAPSED_WIDGET_HEIGHT, Number(item.collapsedHeight) || COLLAPSED_WIDGET_HEIGHT) : Number(item.height) || 320) + 30));
+  const responsiveWorkspaceLayout = workspaceCanvasWidth > 0
+    ? normalizeWorkspaceLayout(structuredClone(workspaceLayout), {
+        mode: workspaceMode,
+        canvasWidth: workspaceCanvasWidth,
+        reflowForCanvas: true,
+        collapsed: workspaceLayout.collapsed,
+      })
+    : workspaceLayout;
   const renderWorkspaceForTab = (tab) => {
-    const items = (workspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden);
+    const items = (responsiveWorkspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden);
     return <WorkspaceCanvas height={getWorkspaceCanvasHeight(items)}>
       {items.map(renderWorkspaceInstance)}
     </WorkspaceCanvas>
   };
   const renderWorkspaceExtrasForTab = (tab) => {
-    const extras = (workspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden);
+    const extras = (responsiveWorkspaceLayout[workspaceMode]?.[tab] || []).filter((item) => !item.hidden);
     return extras.length > 0 ? <WorkspaceCanvas height={getWorkspaceCanvasHeight(extras)}>{extras.map(renderWorkspaceInstance)}</WorkspaceCanvas> : null;
   };
 

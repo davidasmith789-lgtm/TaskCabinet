@@ -73,4 +73,5 @@ test("responsive shells provide skip links and system accessibility fallbacks", 
   assert.match(styles, /@media \(pointer: coarse\) and \(min-width: 768px\)/);
   assert.match(styles, /@media \(prefers-contrast: more\)/);
   assert.match(styles, /@media \(forced-colors: active\)/);
+  assert.match(styles, /\.workspace-widget-canvas,[\s\S]*max-width: 100%; min-width: 0;/);
 });
