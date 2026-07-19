@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { DEFAULT_GAMIFICATION, GAMIFICATION_ACHIEVEMENTS, GAMIFICATION_CONFETTI, GAMIFICATION_TITLES, getNewAchievementIds, normalizeGamification, summarizeWeeklyMomentum } from "../src/gamificationUtils.js";
+import { DEFAULT_GAMIFICATION, GAMIFICATION_ACHIEVEMENTS, GAMIFICATION_CONFETTI, GAMIFICATION_TITLES, getNewAchievementIds, grantAllGamificationRewards, isGamificationTestAccount, normalizeGamification, summarizeWeeklyMomentum } from "../src/gamificationUtils.js";
 
 const completedTask = (id, completedAt, extra = {}) => ({ id, title: id, isCompleted: true, completedAt, ...extra });
 
@@ -39,6 +39,17 @@ test("expanded reward collection includes elaborate badges, titles, and celebrat
   const tasks = Array.from({ length: 25 }, (_, index) => completedTask(`task-${index}`, `2026-07-${String(1 + (index % 24)).padStart(2, "0")}T12:00:00`, { course: "Biology" }));
   const unlocked = getNewAchievementIds(tasks, DEFAULT_GAMIFICATION, { completedEarly: true, estimatedMinutes: 20 }, { now: new Date(2026, 6, 24) });
   for (const id of ["ten-completions", "twenty-five-completions", "ahead-of-schedule", "quick-win", "course-five"]) assert.ok(unlocked.includes(id));
+});
+
+test("the exact tester account receives every reward without granting lookalike emails", () => {
+  assert.equal(isGamificationTestAccount(" PURPLXR@gmail.com "), true);
+  assert.equal(isGamificationTestAccount("purplxr+test@gmail.com"), false);
+  assert.equal(isGamificationTestAccount("other@gmail.com"), false);
+  const granted = grantAllGamificationRewards(DEFAULT_GAMIFICATION);
+  assert.deepEqual(new Set(granted.earnedAchievementIds), new Set(GAMIFICATION_ACHIEVEMENTS.map((item) => item.id)));
+  assert.equal(granted.selectedConfetti, "prism");
+  assert.equal(granted.selectedTitle, "assignment-ace");
+  assert.equal(grantAllGamificationRewards({ ...granted, selectedConfetti: "rainbow" }).selectedConfetti, "rainbow");
 });
 
 test("completion paths timestamp work, undo clears it, and celebration covers the viewport", async () => {

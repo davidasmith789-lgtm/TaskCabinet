@@ -55,7 +55,7 @@ import DeferredCalendar from "./components/DeferredCalendar.jsx";
 import FocusSession from "./components/FocusSession.jsx";
 import { getFocusTimeUpdate } from "./focusSessionUtils.js";
 import { getUniqueAssignmentMetadata } from "./assignmentMetadataUtils.js";
-import { DEFAULT_GAMIFICATION, GAMIFICATION_ACHIEVEMENTS, GAMIFICATION_CONFETTI, GAMIFICATION_TITLES, getGamificationTitle, getNewAchievementIds, normalizeGamification, summarizeWeeklyMomentum } from "./gamificationUtils.js";
+import { DEFAULT_GAMIFICATION, GAMIFICATION_ACHIEVEMENTS, GAMIFICATION_CONFETTI, GAMIFICATION_TITLES, getGamificationTitle, getNewAchievementIds, grantAllGamificationRewards, isGamificationTestAccount, normalizeGamification, summarizeWeeklyMomentum } from "./gamificationUtils.js";
 
 /*
  * GLOWDOCKET APPLICATION MAP
@@ -1773,6 +1773,18 @@ function App() {
       return DEFAULT_USER_SETTINGS;
     }
   });
+
+  useEffect(() => {
+    if (!currentUser || accountMode !== "cloud" || !isGamificationTestAccount(accountEmail)) return;
+    setUserSettings((previous) => {
+      const granted = grantAllGamificationRewards(previous.gamification);
+      if (JSON.stringify(granted) === JSON.stringify(normalizeGamification(previous.gamification))) return previous;
+      const updated = { ...previous, gamification: granted };
+      try { localStorage.setItem(settingsStorageKey, JSON.stringify(updated)); }
+      catch (error) { console.error("Failed to save gamification tester rewards:", error); }
+      return updated;
+    });
+  }, [accountEmail, accountMode, currentUser, settingsStorageKey, userSettings.gamification]);
 
   const [isCustomCourse, setIsCustomCourse] = useState(false);
   const [customCourseName, setCustomCourseName] = useState("");

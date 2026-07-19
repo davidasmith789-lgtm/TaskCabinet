@@ -49,6 +49,12 @@ export const GAMIFICATION_CONFETTI = Object.freeze([
   { id: "prism", label: "Prismatic Party", requirement: "twenty-five-completions" },
 ]);
 
+export const GAMIFICATION_TEST_ACCOUNT = "purplxr@gmail.com";
+
+export function isGamificationTestAccount(email) {
+  return String(email || "").trim().toLocaleLowerCase() === GAMIFICATION_TEST_ACCOUNT;
+}
+
 const validIds = (values, allowed) => [...new Set((Array.isArray(values) ? values : []).filter((id) => allowed.has(id)))];
 
 export function normalizeGamification(value = {}) {
@@ -60,6 +66,18 @@ export function normalizeGamification(value = {}) {
   const selectedTitle = GAMIFICATION_TITLES.some((item) => item.id === source.selectedTitle && (!item.requirement || earned.has(item.requirement))) ? source.selectedTitle : DEFAULT_GAMIFICATION.selectedTitle;
   const selectedConfetti = GAMIFICATION_CONFETTI.some((item) => item.id === source.selectedConfetti && (!item.requirement || earned.has(item.requirement))) ? source.selectedConfetti : DEFAULT_GAMIFICATION.selectedConfetti;
   return { version: 1, weeklyGoal, earnedAchievementIds, selectedConfetti, selectedTitle, showHeaderSummary: source.showHeaderSummary !== false };
+}
+
+export function grantAllGamificationRewards(value = {}) {
+  const current = normalizeGamification(value);
+  const allAchievementIds = GAMIFICATION_ACHIEVEMENTS.map((achievement) => achievement.id);
+  const alreadyGranted = allAchievementIds.every((id) => current.earnedAchievementIds.includes(id));
+  return normalizeGamification({
+    ...current,
+    earnedAchievementIds: allAchievementIds,
+    selectedConfetti: alreadyGranted ? current.selectedConfetti : "prism",
+    selectedTitle: alreadyGranted ? current.selectedTitle : "assignment-ace",
+  });
 }
 
 export function getWeekRange(now = new Date(), weekStartsOn = "sunday") {
