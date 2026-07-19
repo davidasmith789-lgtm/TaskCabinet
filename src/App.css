@@ -6329,6 +6329,30 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
   animation: completion-toast 2100ms var(--motion-ease-out) both;
 }
 
+.completion-confetti {
+  position: absolute;
+  inset: -90px -18px 0;
+  overflow: hidden;
+  border-radius: 22px;
+  pointer-events: none;
+}
+
+.completion-confetti i {
+  position: absolute;
+  top: 0;
+  left: var(--confetti-x);
+  width: 8px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--confetti-color);
+  opacity: 0;
+  transform: translate3d(0, -10px, 0) rotate(0);
+  animation: completion-confetti-fall var(--confetti-duration) ease-out var(--confetti-delay) both;
+}
+
+.completion-confetti i:nth-child(3n) { width: 7px; height: 7px; border-radius: 50%; }
+.completion-confetti i:nth-child(4n) { width: 11px; height: 5px; }
+
 .completion-celebration > span {
   display: grid;
   width: 36px;
@@ -6768,6 +6792,18 @@ html[data-theme="dark"] .sync-conflict-dialog {
   .mobile-task-page > .mobile-app-segmented button { min-height: 30px; padding: 3px 5px 5px; border-bottom: 2px solid transparent; border-radius: 0; background: transparent !important; box-shadow: none !important; font-size: .7rem; }
   .mobile-task-page > .mobile-app-segmented button.active { border-bottom-color: var(--primary-color); color: var(--primary-color) !important; }
   .mobile-task-page > .mobile-app-segmented button span { display: inline; min-width: 0; min-height: 0; margin-left: 2px; padding: 0; background: transparent !important; font-size: .64rem; }
+}
+
+@keyframes completion-confetti-fall {
+  0% { opacity: 0; transform: translate3d(0, -8px, 0) rotate(0); }
+  12% { opacity: 1; }
+  100% { opacity: 0; transform: translate3d(var(--confetti-drift), 112px, 0) rotate(var(--confetti-rotation)); }
+}
+
+.reduce-motion .completion-confetti { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .completion-confetti { display: none; }
 }
 
 /* Final mobile panel and task-navigation contract. */

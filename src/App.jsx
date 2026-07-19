@@ -141,6 +141,15 @@ const TUTORIAL_SLIDES = [
   { title: "Match your day cycle", copy: "Have different classes on different days? Use Day Cycles to name each schedule day, choose an anchor date, and see the right cycle across your calendar.", visual: "cycle" },
 ];
 const TASK_CATEGORIES = ["School", "Work", "Personal"];
+const COMPLETION_CONFETTI = Array.from({ length: 20 }, (_, index) => ({
+  id: index,
+  x: `${6 + ((index * 37) % 88)}%`,
+  drift: `${((index * 29) % 90) - 45}px`,
+  delay: `${(index % 5) * 35}ms`,
+  duration: `${850 + (index % 4) * 120}ms`,
+  rotation: `${120 + ((index * 47) % 300)}deg`,
+  color: ["var(--primary-color)", "var(--secondary-color)", "var(--success-color)", "var(--warning-color)"][index % 4],
+}));
 const SCHOOL_LEVEL_COPY = {
   middle: {
     eyebrow: "Homework Command Center",
@@ -11093,8 +11102,11 @@ function App() {
           className="completion-celebration"
           role="status"
           aria-live="polite"
-          onAnimationEnd={() => setCompletionCelebration(null)}
+          onAnimationEnd={(event) => { if (event.target === event.currentTarget) setCompletionCelebration(null); }}
         >
+          <div className="completion-confetti" aria-hidden="true">
+            {COMPLETION_CONFETTI.map((piece) => <i key={piece.id} style={{ "--confetti-x": piece.x, "--confetti-drift": piece.drift, "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-rotation": piece.rotation, "--confetti-color": piece.color }} />)}
+          </div>
           <span aria-hidden="true">✓</span>
           <div><strong>Nice work!</strong><small>{completionCelebration.title} is complete.</small></div>
         </div>
