@@ -4576,6 +4576,27 @@ a,
 }
 .bulk-import-heading p { margin: 4px 0 0; color: var(--muted-text); font-size: 0.82rem; }
 .bulk-import-content { display: grid; gap: 11px; }
+.bulk-import-instructions {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--surface-alt));
+  color: var(--text-color);
+}
+.bulk-import-instructions p { margin: 0; color: var(--muted-text); font-size: 0.82rem; line-height: 1.45; }
+.bulk-import-instructions code {
+  padding: 10px;
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 24%, var(--border-color));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--card-bg));
+  color: var(--text-color);
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+  font-size: 0.76rem;
+}
 .syllabus-upload-panel {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(170px, 240px) auto;
