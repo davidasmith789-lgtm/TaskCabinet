@@ -69,3 +69,20 @@ test("mobile assignment actions finish with a stable two-column grid", async () 
   assert.match(styles, /mobile-task-card \.task-actions[\s\S]{0,260}grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /mobile-task-card \.task-action-pair[\s\S]{0,180}display: contents/);
 });
+
+test("mobile Add Assignment methods retain import, manual, then voice order", async () => {
+  const styles = await read("../src/App.css");
+  assert.match(styles, /assignment-entry-form > \.bulk-import-panel \{ order: 1; \}/);
+  assert.match(styles, /assignment-entry-form > \.manual-assignment-fields \{ order: 2; \}/);
+  assert.match(styles, /assignment-entry-form > \.voice-assignment-panel \{ order: 3; \}/);
+  assert.doesNotMatch(styles, /assignment-entry-form > \.voice-assignment-panel \{ order: -/);
+});
+
+test("mobile recommendation wording stays concise", async () => {
+  const app = await read("../src/App.jsx");
+  assert.match(app, /mobile-app-section-heading[^\n]*<h3>Best Next Steps<\/h3>/);
+  assert.doesNotMatch(app, /Short on time\?/i);
+  assert.match(app, /<h3>Best Next Steps<\/h3>/);
+  assert.match(app, /Finish History outline/);
+  assert.match(app, /Study Biology notes/);
+});

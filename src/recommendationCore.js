@@ -168,7 +168,6 @@ export function getQuickMatchReason(match) {
   if (!match.hasEstimate) return "Time is unknown, but this is the most urgent task to start.";
   if (!match.fits) return "This may not fit completely, but it is your best use of this time.";
   if (match.statusRank === 0) return "Fits your time and you already have momentum.";
-  if (match.dueLabel === "Overdue") return "Fits your time and is overdue.";
-  if (match.dueLabel === "Due Today") return "Fits your time and is due today.";
+  if (["Overdue", "Due Today"].includes(match.dueLabel)) return "Fits your time and needs attention now.";
   return "Fits your time and is one of your most urgent tasks.";
 }

@@ -1864,8 +1864,8 @@ button:disabled {
   .mobile-app-ui :where(input, select, textarea) { color: var(--text-color); background-color: var(--input-bg); border-color: var(--border-color); }
   .mobile-app-ui :where(input, textarea)::placeholder { color: var(--muted-text); opacity: 0.82; }
   .mobile-app-ui :where(.mobile-app-card, .mobile-app-sheet, .mobile-fullscreen-panel, .mobile-checklist-fullscreen, .settings-content, .task-card) { color: var(--text-color); }
-  .mobile-app-ui .assignment-entry-form > .voice-assignment-panel { order: -20; }
-  .mobile-app-ui .assignment-entry-form > .voice-inline-error { order: -19; }
+  .mobile-app-ui .assignment-entry-form > .voice-assignment-panel { order: 3; }
+  .mobile-app-ui .assignment-entry-form > .voice-inline-error { order: 4; }
 }
 
 .welcome-screen {
@@ -5799,6 +5799,7 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 .tutorial-progress span { width: 9px; height: 9px; border-radius: 999px; background: var(--border-color); transition: width .2s ease, background .2s ease; }
 .tutorial-progress span.active { width: 28px; background: var(--primary-color); }
 .tutorial-demo-link { display: block; margin: 0 auto 14px; border: 0; background: transparent; color: var(--link-color); font-weight: 800; text-decoration: underline; cursor: pointer; min-height: 44px; }
+.tutorial-gate-message { margin: 0 auto 14px; max-width: 600px; padding: 10px 12px; border: 1px solid var(--warning-color, #f59e0b); border-radius: 10px; color: var(--text-color); background: color-mix(in srgb, var(--warning-color, #f59e0b) 12%, var(--surface-color)); text-align: center; font-weight: 700; }
 .tutorial-actions { display: flex; justify-content: space-between; gap: 12px; }
 .tutorial-actions .btn { min-width: 112px; min-height: 46px; }
 .tutorial-dialog:has(.tutorial-practice) { width: min(1100px, 100%); height: min(760px, calc(100dvh - 32px)); max-height: none; }

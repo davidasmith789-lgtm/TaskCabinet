@@ -53,6 +53,7 @@ import { AssignmentFilterControls, AssignmentFilterToggle } from "./components/A
 import DeferredCalendar from "./components/DeferredCalendar.jsx";
 import FocusSession from "./components/FocusSession.jsx";
 import { getFocusTimeUpdate } from "./focusSessionUtils.js";
+import { getUniqueAssignmentMetadata } from "./assignmentMetadataUtils.js";
 
 /*
  * GLOWDOCKET APPLICATION MAP
@@ -1119,7 +1120,7 @@ const PERSONALIZATION_TIPS = [
   ["Overdue assignments", "Overdue work gets stronger red highlighting in assignments, reminders, recommendations, course summaries, and calendars. GlowDocket never changes the deadline for you."],
   ["Recommended Plan of Attack", "This plan weighs due dates, priority, estimated time, and progress. Open an item to work with the real assignment; the plan never creates a duplicate."],
   ["What Should I Do?", "Enter how much time you have and GlowDocket will look for work that fits. If nothing fits perfectly, it favors the most urgent useful choice."],
-  ["To Do and In Progress", "Use Start when you begin something so it moves to In Progress. Move it back to To Do if you started by accident; your notes and checklist steps stay with it."],
+  ["To Do and In Progress", "Choose In Progress when you begin something. Move it back to To Do if you started by accident; your notes and checklist steps stay with it."],
   ["Repeating assignments", "Completing a repeating assignment creates its next occurrence. Each occurrence keeps its own deadline and reminder instead of reusing the finished one."],
   ["Assignment related tasks", "Use optional related tasks to break a large assignment into smaller pieces. If automatic completion is on, completing the final related task completes the assignment."],
   ["Files stay on this browser", "Assignment files are stored in this browser, not uploaded with your reminder. Clearing site data can remove them, so keep another copy of anything important."],
@@ -1916,6 +1917,8 @@ function App() {
   const [tutorialPracticeHomeStep, setTutorialPracticeHomeStep] = useState(0);
   const [tutorialPracticeHiddenWidget, setTutorialPracticeHiddenWidget] = useState("");
   const [tutorialPracticeWidgetMenu, setTutorialPracticeWidgetMenu] = useState("");
+  const [tutorialExploredSteps, setTutorialExploredSteps] = useState([]);
+  const [tutorialGateMessage, setTutorialGateMessage] = useState("");
   const [tutorialWidgetLayout, setTutorialWidgetLayout] = useState({
     plan: { x: 25, y: 70, width: 330, height: 135 },
     calendar: { x: 430, y: 110, width: 285, height: 135 },
@@ -2286,7 +2289,7 @@ function App() {
         ? ` | 🔁 Repeats: ${formatRepeatLabel(task.repeat)}`
         : "";
 
-    return `${getTaskCourseOrCategory(task)} | 📅 Due: ${dateLabel} at ${timeLabel} | ⏱️ Est: ${task.estimatedMinutes || 0} mins | ⚠️ Priority: ${task.priority}${repeatLabel}`;
+    return `📅 Due: ${dateLabel} at ${timeLabel} | ⏱️ Est: ${task.estimatedMinutes || 0} mins | ⚠️ Priority: ${task.priority}${repeatLabel}`;
   };
 
   const handleAddCustomCategory = () => {
@@ -3280,11 +3283,29 @@ function App() {
     } catch { /* A damaged optional tutorial flag must never block the planner. */ }
   }, [currentUser]);
 
-  const finishTutorial = () => {
-    localStorage.setItem(getTutorialStorageKey(currentUser), JSON.stringify({ complete: true }));
-    setTutorialOpen(false);
+  const resetTutorialExperience = () => {
     setTutorialStep(0);
     setTutorialPracticeOpen(false);
+    setTutorialPracticeDone([]);
+    setTutorialPracticeNote("");
+    setTutorialPracticeDate(17);
+    setTutorialPracticeHomeStep(0);
+    setTutorialPracticeHiddenWidget("");
+    setTutorialPracticeWidgetMenu("");
+    setTutorialExploredSteps([]);
+    setTutorialGateMessage("");
+    setTutorialWidgetLayout({ plan: { x: 25, y: 70, width: 330, height: 135 }, calendar: { x: 430, y: 110, width: 285, height: 135 }, checklists: { x: 205, y: 235, width: 280, height: 120 } });
+  };
+
+  const finishTutorial = () => {
+    localStorage.setItem(getTutorialStorageKey(currentUser), JSON.stringify({ complete: true }));
+    resetTutorialExperience();
+    setTutorialOpen(false);
+  };
+
+  const replayTutorial = () => {
+    resetTutorialExperience();
+    setTutorialOpen(true);
   };
 
   const openTutorialPractice = () => {
@@ -3295,7 +3316,35 @@ function App() {
     setTutorialPracticeHiddenWidget("");
     setTutorialPracticeWidgetMenu("");
     setTutorialWidgetLayout({ plan: { x: 25, y: 70, width: 330, height: 135 }, calendar: { x: 430, y: 110, width: 285, height: 135 }, checklists: { x: 205, y: 235, width: 280, height: 120 } });
+    setTutorialGateMessage("");
     setTutorialPracticeOpen(true);
+  };
+
+  const closeTutorialPractice = () => {
+    if (tutorialStep !== tutorialPracticeHomeStep) {
+      setTutorialStep(tutorialPracticeHomeStep);
+      return;
+    }
+    setTutorialExploredSteps((steps) => steps.includes(tutorialPracticeHomeStep) ? steps : [...steps, tutorialPracticeHomeStep]);
+    setTutorialGateMessage("");
+    setTutorialPracticeOpen(false);
+  };
+
+  const advanceTutorial = () => {
+    if (tutorialStep > 0 && !tutorialExploredSteps.includes(tutorialStep)) {
+      setTutorialGateMessage("Explore this feature before continuing so you can try it safely without changing your real assignments.");
+      return;
+    }
+    setTutorialGateMessage("");
+    setTutorialStep((step) => step + 1);
+  };
+
+  const completeTutorial = () => {
+    if (tutorialStep > 0 && !tutorialExploredSteps.includes(tutorialStep)) {
+      setTutorialGateMessage("Explore this feature before finishing so you can try it safely without changing your real assignments.");
+      return;
+    }
+    finishTutorial();
   };
 
   const startTutorialWidgetInteraction = (event, id, edges = null) => {
@@ -6135,13 +6184,45 @@ function App() {
     }
   };
 
-  const renderAssignmentCountdown = (task, extraClassName = "") => {
+  const getAssignmentCountdownLabel = (task) => {
     if (getTaskStatus(task) === "completed") return null;
     const deadline = getDeadlineDate(task?.dueMonth, task?.dueDay, task?.dueHour, task?.dueAmPm);
-    const label = formatAssignmentCountdown(deadline, checklistNow);
+    return formatAssignmentCountdown(deadline, checklistNow) || null;
+  };
+
+  const renderAssignmentCountdown = (task, extraClassName = "") => {
+    const label = getAssignmentCountdownLabel(task);
     if (!label) return null;
+    const deadline = getDeadlineDate(task?.dueMonth, task?.dueDay, task?.dueHour, task?.dueAmPm);
     const tone = getAssignmentCountdownTone(deadline, checklistNow);
     return <AssignmentCountdown title={task.title} label={label} tone={tone} extraClassName={extraClassName} />;
+  };
+
+  const renderRecommendationMetadata = (item, { showCourse = false } = {}) => {
+    const task = item.task;
+    const estimate = getValidEstimate(task);
+    const status = getTaskStatus(task);
+    const countdownLabel = getAssignmentCountdownLabel(task) || "";
+    const metadata = getUniqueAssignmentMetadata({
+      dueLabel: item.dueLabel,
+      countdownLabel,
+      reasons: item.reasons,
+      priorityShown: true,
+      statusShown: status === "inProgress",
+      estimateShown: Number.isFinite(estimate),
+    });
+    const details = [
+      showCourse ? getTaskCourseOrCategory(task) : "",
+      metadata.dueLabel,
+      `${task.priority || "No"} priority`,
+      Number.isFinite(estimate) ? `${estimate} min` : "No time estimate",
+      status === "inProgress" ? "In Progress" : "",
+    ].filter(Boolean);
+    return <>
+      <div className="recommended-plan-details">{details.map((detail) => <span key={detail}>{detail}</span>)}</div>
+      {metadata.countdownLabel && <AssignmentCountdown title={task.title} label={metadata.countdownLabel} tone={getAssignmentCountdownTone(getDeadlineDate(task?.dueMonth, task?.dueDay, task?.dueHour, task?.dueAmPm), checklistNow)} extraClassName="recommended-countdown" />}
+      {metadata.reasons.length > 0 && <div className="recommended-plan-reasons">{metadata.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>}
+    </>;
   };
 
   /**
@@ -6967,7 +7048,7 @@ function App() {
             </div>
             <div className="quick-match-meta">
               <span>{quickMatchBest.hasEstimate ? `${quickMatchBest.estimate} min` : "No estimate"}</span>
-              <span>{quickMatchBest.dueLabel}</span>
+              {!getAssignmentCountdownLabel(quickMatchBest.task) && <span>{quickMatchBest.dueLabel}</span>}
               <span>{quickMatchBest.task.priority || "No"} priority</span>
             </div>
             {renderAssignmentCountdown(quickMatchBest.task, "quick-match-countdown")}
@@ -6975,7 +7056,7 @@ function App() {
             <div className="quick-match-actions">
               <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(quickMatchBest.task.id)}>{getFocusActionLabel(quickMatchBest.task)}</button>
               {getTaskStatus(quickMatchBest.task) === "todo" && (
-                <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(quickMatchBest.task.id)}>Start this</button>
+                <button type="button" className="btn btn-primary" onClick={() => handleQuickMatchStart(quickMatchBest.task.id)}>In Progress</button>
               )}
             </div>
             {quickMatchBackups.length > 0 && (
@@ -7225,9 +7306,7 @@ function App() {
               <span className="recommended-plan-rank">{index + 1}</span>
               <div className="recommended-plan-content">
                 <strong>{item.task.title}</strong>
-                <div className="recommended-plan-details"><span>{getTaskCourseOrCategory(item.task)}</span><span>{item.dueLabel}</span><span>{item.task.priority} priority</span></div>
-                <div className="recommended-plan-reasons">{item.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
-                {renderAssignmentCountdown(item.task, "recommended-countdown")}
+                {renderRecommendationMetadata(item, { showCourse: true })}
               </div>
             </button>
             <div className="recommended-plan-actions">
@@ -7280,7 +7359,7 @@ function App() {
           <article className="course-overview-next">
             <span>Next up</span>
             <strong>{overviewNextTask.title}</strong>
-            <small>{getTaskDueBucket(overviewNextTask)} | {overviewNextTask.priority || "No"} priority</small>
+            <small>{!getAssignmentCountdownLabel(overviewNextTask) ? `${getTaskDueBucket(overviewNextTask)} | ` : ""}{overviewNextTask.priority || "No"} priority</small>
             {renderAssignmentCountdown(overviewNextTask, "course-overview-countdown")}
             <div className="course-overview-actions">
               <button type="button" className="btn btn-secondary" onClick={() => handleRecommendedTaskClick(overviewNextTask.id)}>{getFocusActionLabel(overviewNextTask)}</button>
@@ -7639,8 +7718,8 @@ function App() {
             </div>
             <div className="welcome-preview" aria-label="A preview of GlowDocket's planner"><span className="welcome-preview-shine" aria-hidden="true" />
               <div className="welcome-preview-top"><span>Today</span><strong>3 things to tackle</strong></div>
-              <div className="welcome-preview-task"><i className="is-blue" /><span><strong>Finish history outline</strong><small>Recommended next</small></span><b>Today</b></div>
-              <div className="welcome-preview-task"><i className="is-purple" /><span><strong>Study biology notes</strong><small>45 minutes</small></span><b>Tomorrow</b></div>
+              <div className="welcome-preview-task"><i className="is-blue" /><span><strong>Finish History outline</strong><small>Recommended next</small></span><b>Today</b></div>
+              <div className="welcome-preview-task"><i className="is-purple" /><span><strong>Study Biology notes</strong><small>45 minutes</small></span><b>Tomorrow</b></div>
               <div className="welcome-preview-progress"><span style={{ width: "68%" }} /></div>
             </div>
           </section>
@@ -8193,7 +8272,6 @@ function App() {
                 <ol className="recommended-plan-list">
                   {recommendationItems.map((item, index) => {
                     const task = item.task;
-                    const estimatedMinutes = getValidEstimate(task);
                     const taskStatus = getTaskStatus(task);
 
                     return (
@@ -8225,29 +8303,7 @@ function App() {
                               </span>
                             </div>
 
-                            <div className="recommended-plan-details">
-                              <span>
-                                {getDueDateBucket(task.dueMonth, task.dueDay)}
-                              </span>
-                              <span>
-                                {task.priority || "No priority"} priority
-                              </span>
-                              <span>
-                                {Number.isFinite(estimatedMinutes)
-                                  ? `${estimatedMinutes} min`
-                                  : "No time estimate"}
-                              </span>
-                              {taskStatus === "inProgress" && (
-                                <span>In progress</span>
-                              )}
-                            </div>
-
-                            {renderAssignmentCountdown(task, "recommended-countdown")}
-                            <div className="recommended-plan-reasons">
-                              {item.reasons.map((reason) => (
-                                <span key={reason}>{reason}</span>
-                              ))}
-                            </div>
+                            {renderRecommendationMetadata(item)}
 
                             {renderSubtaskProgressLine(
                               task,
@@ -8515,7 +8571,7 @@ function App() {
                                     cursor: "pointer",
                                   }}
                                 >
-                                  Start
+                                  In Progress
                                 </button>
 
                                 <button
@@ -9204,7 +9260,7 @@ function App() {
                 <section className="settings-section personalization-top-section appearance-settings-section" hidden={settingsSection !== "personalization"}>
                   {!isMobileUi && <div className="settings-onboarding-card">
                     <div><p className="eyebrow">Getting started</p><h4>GlowDocket Tutorial</h4><p className="hint-text">Replay the visual introduction or manage optional sample assignments.</p></div>
-                    <div className="settings-onboarding-actions"><button type="button" className="btn btn-primary" onClick={() => { setTutorialStep(0); setTutorialOpen(true); }}>Replay Tutorial</button></div>
+                    <div className="settings-onboarding-actions"><button type="button" className="btn btn-primary" onClick={replayTutorial}>Replay Tutorial</button></div>
                   </div>}
                   <div
                     className="settings-collapse-header double-click-collapse-header"
@@ -10888,12 +10944,12 @@ function App() {
               <div className="tutorial-practice">
                 <header className="tutorial-practice-header">
                   <div><p className="eyebrow">Practice mode</p><h2 id="tutorial-title">{TUTORIAL_SLIDES[tutorialStep].title}</h2><p id="tutorial-copy">Try this feature safely. Nothing here is saved to your real GlowDocket.</p></div>
-                  <button type="button" className="btn btn-secondary" onClick={() => { if (tutorialStep !== tutorialPracticeHomeStep) setTutorialStep(tutorialPracticeHomeStep); else setTutorialPracticeOpen(false); }}>← {tutorialStep !== tutorialPracticeHomeStep ? "Back to First Practice Page" : "Back to Tutorial"}</button>
+                  <button type="button" className="btn btn-secondary" onClick={closeTutorialPractice}>← {tutorialStep !== tutorialPracticeHomeStep ? "Back to First Practice Page" : "Back to Tutorial"}</button>
                 </header>
                 <main className="tutorial-practice-stage">
                   {tutorialStep === 0 && <div className="practice-dashboard"><h3>Welcome back</h3><p>Everything you want to get done, organized.</p><div className="practice-stat-row"><button type="button" onClick={() => setTutorialPracticeDone((done) => done.includes("biology") ? done.filter((id) => id !== "biology") : [...done, "biology"])}><strong>{tutorialPracticeDone.includes("biology") ? "Done!" : "Biology review"}</strong><span>{tutorialPracticeDone.includes("biology") ? "Nice work" : "Due tomorrow · 30 min"}</span></button><button type="button" onClick={() => setTutorialStep(2)}><strong>Plan of Attack</strong><span>Open the recommendation practice</span></button></div></div>}
                   {tutorialStep === 1 && <div className="practice-form"><h3>Add a practice assignment</h3><label>Assignment name<input value={tutorialPracticeNote} onChange={(event) => setTutorialPracticeNote(event.target.value)} placeholder="Try typing an assignment" /></label><div><label>Course<select><option>Biology</option><option>Work</option><option>Personal</option></select></label><label>Priority<select><option>High</option><option>Medium</option><option>Low</option></select></label></div><button type="button" className="btn btn-primary" disabled={!tutorialPracticeNote.trim()} onClick={() => setTutorialPracticeDone(["created"])}>{tutorialPracticeDone.includes("created") ? "Practice assignment added!" : "Add Assignment"}</button></div>}
-                  {tutorialStep === 2 && <div className="practice-plan"><h3>Recommended Plan of Attack</h3><p>Choose an assignment to mark it complete.</p>{[["biology","Review cell structure","Due tomorrow · High priority"],["english","Literature response","Due Friday · 45 minutes"],["math","Practice problems","Due next week · 20 minutes"]].map(([id,title,detail], index) => <button type="button" className={tutorialPracticeDone.includes(id) ? "done" : ""} key={id} onClick={() => setTutorialPracticeDone((done) => done.includes(id) ? done.filter((item) => item !== id) : [...done,id])}><b>{index + 1}</b><span><strong>{title}</strong><small>{tutorialPracticeDone.includes(id) ? "Completed" : detail}</small></span></button>)}</div>}
+                  {tutorialStep === 2 && <div className="practice-plan"><h3>Best Next Steps</h3><p>Choose an assignment to mark it complete.</p>{[["biology","Review cell structure","Due tomorrow · High priority"],["english","Literature response","Due Friday · 45 minutes"],["math","Practice problems","Due next week · 20 minutes"]].map(([id,title,detail], index) => <button type="button" className={tutorialPracticeDone.includes(id) ? "done" : ""} key={id} onClick={() => setTutorialPracticeDone((done) => done.includes(id) ? done.filter((item) => item !== id) : [...done,id])}><b>{index + 1}</b><span><strong>{title}</strong><small>{tutorialPracticeDone.includes(id) ? "Completed" : detail}</small></span></button>)}</div>}
                   {tutorialStep === 3 && <div className="practice-calendar"><section><h3>July 2026</h3><div>{Array.from({ length: 28 }, (_, index) => index + 1).map((day) => <button type="button" className={tutorialPracticeDate === day ? "selected" : ""} key={day} onClick={() => setTutorialPracticeDate(day)}>{day}</button>)}</div><p>Selected: July {tutorialPracticeDate}</p></section><section><h3>Study checklist</h3>{["Review notes","Practice problems","Pack materials"].map((item) => <label key={item}><input type="checkbox" checked={tutorialPracticeDone.includes(item)} onChange={() => setTutorialPracticeDone((done) => done.includes(item) ? done.filter((value) => value !== item) : [...done,item])} />{item}</label>)}</section></div>}
                   {tutorialStep === 4 && <div className="practice-workspace"><p className="practice-widget-instruction">Open the <strong>Widgets</strong> tab in GlowDocket to add widgets. Drag a six-dot handle to move a widget, or drag any edge or corner to resize it.</p>{[["plan","Plan of Attack","Biology review"],["calendar","Mini Calendar","3 deadlines"],["checklists","Checklists","1 of 3 complete"]].filter(([id]) => tutorialPracticeHiddenWidget !== id).map(([id,title,detail]) => <div key={id} style={{ left: tutorialWidgetLayout[id].x, top: tutorialWidgetLayout[id].y, width: tutorialWidgetLayout[id].width, height: tutorialWidgetLayout[id].height }}><header><button type="button" className="practice-widget-drag" aria-label={`Move ${title}`} onPointerDown={(event) => startTutorialWidgetInteraction(event, id)}>⠿</button><strong>{title}</strong><button type="button" className="practice-widget-menu-button" aria-label={`${title} options`} onClick={() => setTutorialPracticeWidgetMenu((open) => open === id ? "" : id)}>•••</button></header>{tutorialPracticeWidgetMenu === id && <button type="button" className="practice-widget-hide" onClick={() => { setTutorialPracticeHiddenWidget(id); setTutorialPracticeWidgetMenu(""); }}>Hide widget</button>}<span>{detail}</span>{[["top",{top:true}],["right",{right:true}],["bottom",{bottom:true}],["left",{left:true}],["top-left",{top:true,left:true}],["top-right",{top:true,right:true}],["bottom-right",{bottom:true,right:true}],["bottom-left",{bottom:true,left:true}]].map(([edge, edges]) => <button type="button" key={edge} className={`practice-widget-resize is-${edge}`} aria-label={`Resize ${title} from ${edge}`} onPointerDown={(event) => startTutorialWidgetInteraction(event, id, edges)} />)}</div>)}</div>}
                   {tutorialStep === 5 && <div className="practice-calendar"><section><h3>Your Day Cycle</h3><p>Have different classes on different days? Name each schedule day and choose an anchor date.</p><div>{["A Day", "B Day", "C Day", "D Day"].map((day) => <button type="button" key={day}>{day}</button>)}</div><p>Weekends are skipped automatically.</p></section><section><h3>Today: A Day</h3><p>Biology · English · Study Hall</p><p>Cycle labels can appear directly on your calendar.</p></section></div>}
@@ -10905,7 +10961,7 @@ function App() {
               <div className="tutorial-illustration">
                 {tutorialStep === 0 && <><div className="tutorial-mini-sidebar"><b>TC</b><span>Home</span><span>To Do</span><span>Calendar</span><span>Settings</span></div><div className="tutorial-mini-dashboard"><div className="tutorial-mini-heading"><span><strong>Welcome back</strong><small>Everything you want to get done, organized.</small></span><em>3 due soon</em></div><div className="tutorial-mini-grid"><i><strong>Plan of Attack</strong><small>Biology review</small><small>Literature response</small></i><i><strong>Today</strong><b>3</b><small>active tasks</small></i><i><strong>Progress</strong><b>72%</b><small>this week</small></i></div></div></>}
                 {tutorialStep === 1 && <div className="tutorial-mini-form"><div className="tutorial-mini-form-heading"><strong>Add Assignment</strong><small>Required fields are marked</small></div><label>Assignment name<span>Biology chapter review</span></label><div><label>Course<span>Biology</span></label><label>Due date<span>Tomorrow · 11:00 PM</span></label></div><div><label>Priority<span>High</span></label><label>Estimated time<span>30 minutes</span></label></div><div className="tutorial-mini-options"><small>＋ Files</small><small>＋ Links</small><small>＋ Checklist steps</small></div><button type="button">Add Assignment</button></div>}
-                {tutorialStep === 2 && <div className="tutorial-mini-plan"><div><span><strong>Recommended Plan of Attack</strong><small>Best next steps based on your workload</small></span><em>3 tasks · 1h 35m</em></div><ol><li><b>1</b><span><strong>Review cell structure</strong><small>Biology · Due tomorrow · 30 min</small><em><i>High priority</i><i>Due soon</i></em></span></li><li><b>2</b><span><strong>Literature response</strong><small>English · Due Friday · 45 min</small><em><i>2/3 steps done</i></em></span></li></ol></div>}
+                {tutorialStep === 2 && <div className="tutorial-mini-plan"><div><span><strong>Best Next Steps</strong><small>Based on your workload</small></span><em>3 tasks · 1h 35m</em></div><ol><li><b>1</b><span><strong>Review cell structure</strong><small>Biology · Due tomorrow · 30 min</small><em><i>High priority</i><i>Due soon</i></em></span></li><li><b>2</b><span><strong>Literature response</strong><small>English · Due Friday · 45 min</small><em><i>2/3 steps done</i></em></span></li></ol></div>}
                 {tutorialStep === 3 && <><div className="tutorial-mini-calendar"><div className="tutorial-mini-calendar-heading"><span>‹</span><strong>July 2026</strong><span>›</span></div><div>{["S","M","T","W","T","F","S","6","7","8","9","10","11","12","13","14","15","16","17","18","19"].map((day, index) => <span className={`${index === 17 ? "selected" : ""}${[10,15,19].includes(index) ? " has-task" : ""}`} key={`${day}-${index}`}>{day}</span>)}</div><small className="tutorial-calendar-legend"><i />Biology</small></div><div className="tutorial-mini-checklist"><div><strong>Study checklist</strong><em>1 of 3</em></div><span className="done">✓ Review notes</span><span>○ Practice problems <small>Due today</small></span><span>○ Pack materials</span><i><b /></i></div></>}
                 {tutorialStep === 4 && <><div className="tutorial-mini-toolbar"><span>Open the Widgets tab to add widgets</span></div><div className="tutorial-mini-widget widget-one"><span>⠿ <i>•••</i></span><strong>Plan of Attack</strong><small>1. Biology review · Due tomorrow</small><small>2. Literature response · Friday</small></div><div className="tutorial-mini-widget widget-two"><span>⠿ <i>•••</i></span><strong>Mini Calendar</strong><small>July · 3 deadlines</small><b>◱</b></div><div className="tutorial-mini-widget widget-three"><span>⠿ <i>•••</i></span><strong>Checklists</strong><small>Study plan · 33%</small></div></>}
                 {tutorialStep === 5 && <><div className="tutorial-mini-calendar"><div className="tutorial-mini-calendar-heading"><span>‹</span><strong>Day Cycle</strong><span>›</span></div><div>{["M","T","W","T","F","A","B","C","D","A","B","C","D","A"].map((day, index) => <span className={index > 4 ? "has-task" : ""} key={`${day}-${index}`}>{day}</span>)}</div><small className="tutorial-calendar-legend"><i />Different classes, right on schedule</small></div><div className="tutorial-mini-checklist"><div><strong>Today: A Day</strong><em>July 14</em></div><span>Biology</span><span>English</span><span>Study Hall</span></div></>}
@@ -10920,11 +10976,12 @@ function App() {
               {TUTORIAL_SLIDES.map((slide, index) => <span key={slide.visual} className={index === tutorialStep ? "active" : ""} />)}
             </div>
             {tutorialStep > 0 && <button type="button" className="tutorial-demo-link" onClick={openTutorialPractice}>Explore this feature</button>}
+            {tutorialGateMessage && <p id="tutorial-exploration-help" className="tutorial-gate-message" role="status" aria-live="polite">{tutorialGateMessage}</p>}
             <div className="tutorial-actions">
-              <button type="button" className="btn btn-secondary" disabled={tutorialStep === 0} onClick={() => setTutorialStep((step) => step - 1)}>Back</button>
+              <button type="button" className="btn btn-secondary" disabled={tutorialStep === 0} onClick={() => { setTutorialGateMessage(""); setTutorialStep((step) => step - 1); }}>Back</button>
               {tutorialStep < TUTORIAL_SLIDES.length - 1
-                ? <button type="button" className="btn btn-primary" onClick={() => setTutorialStep((step) => step + 1)}>Next</button>
-                : <button type="button" className="btn btn-primary" onClick={finishTutorial}>Finish</button>}
+                ? <button type="button" className="btn btn-primary" aria-describedby={tutorialGateMessage ? "tutorial-exploration-help" : undefined} onClick={advanceTutorial}>Next</button>
+                : <button type="button" className="btn btn-primary" aria-describedby={tutorialGateMessage ? "tutorial-exploration-help" : undefined} onClick={completeTutorial}>Finish</button>}
             </div>
             </>)}
           </section>
