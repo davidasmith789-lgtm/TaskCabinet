@@ -10,9 +10,11 @@ test("assignment completion uses accessible dependency-free confetti with reduce
   ]);
 
   assert.match(app, /setCompletionCelebration/);
-  assert.match(app, /className="completion-confetti" aria-hidden="true"/);
+  assert.match(app, /className=\{`completion-confetti is-/);
   assert.match(app, /COMPLETION_CONFETTI\.map/);
+  assert.match(app, /length: 36/);
   assert.match(css, /@keyframes completion-confetti-fall/);
+  assert.match(css, /\.completion-celebration-toast/);
   assert.match(css, /\.reduce-motion \.completion-confetti \{ display: none; \}/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(packageJson, /confetti|canvas-confetti/);

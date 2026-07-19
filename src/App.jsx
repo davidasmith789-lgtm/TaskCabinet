@@ -55,6 +55,7 @@ import DeferredCalendar from "./components/DeferredCalendar.jsx";
 import FocusSession from "./components/FocusSession.jsx";
 import { getFocusTimeUpdate } from "./focusSessionUtils.js";
 import { getUniqueAssignmentMetadata } from "./assignmentMetadataUtils.js";
+import { DEFAULT_GAMIFICATION, GAMIFICATION_ACHIEVEMENTS, GAMIFICATION_CONFETTI, GAMIFICATION_TITLES, getGamificationTitle, getNewAchievementIds, normalizeGamification, summarizeWeeklyMomentum } from "./gamificationUtils.js";
 
 /*
  * GLOWDOCKET APPLICATION MAP
@@ -99,6 +100,7 @@ const DEFAULT_USER_SETTINGS = {
   taskActionLayout: "wrap",
   showHeaderSubtitle: true,
   reduceMotion: false,
+  gamification: DEFAULT_GAMIFICATION,
   calendarWeekStartsOn: "sunday",
   calendarViewMode: "month",
   showNeighboringMonth: true,
@@ -141,7 +143,7 @@ const TUTORIAL_SLIDES = [
   { title: "Match your day cycle", copy: "Have different classes on different days? Use Day Cycles to name each schedule day, choose an anchor date, and see the right cycle across your calendar.", visual: "cycle" },
 ];
 const TASK_CATEGORIES = ["School", "Work", "Personal"];
-const COMPLETION_CONFETTI = Array.from({ length: 20 }, (_, index) => ({
+const COMPLETION_CONFETTI = Array.from({ length: 36 }, (_, index) => ({
   id: index,
   x: `${6 + ((index * 37) % 88)}%`,
   drift: `${((index * 29) % 90) - 45}px`,
@@ -1042,6 +1044,7 @@ function getNextRepeatingTask(task) {
     dueDay: String(nextDate.getDate()).padStart(2, "0"),
     isCompleted: false,
     status: "todo",
+    completedAt: null,
     subtasks: getSafeSubtasks(task).map((subtask) => ({
       ...subtask,
       isDone: false,
@@ -1923,6 +1926,7 @@ function App() {
   const [courseColorsOpen, setCourseColorsOpen] = useState(true);
   const [completionCelebration, setCompletionCelebration] = useState(null);
   const completionCelebrationSequenceRef = useRef(0);
+  const [gamificationOpen, setGamificationOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState(() => recoveryRequestedOnLoad() ? "storage" : "personalization");
   const [accessibilityAudit, setAccessibilityAudit] = useState(null);
   const [manualAccessibilityChecks, setManualAccessibilityChecks] = useState([]);
@@ -4187,7 +4191,7 @@ function App() {
    * behavior identical. Repeating tasks still create their next occurrence, and
    * that new occurrence starts fresh in To Do with unchecked checklist steps.
    */
-  const completeTaskList = (taskList, id) => {
+  const completeTaskList = (taskList, id, completedAt = new Date().toISOString()) => {
     const taskToComplete = taskList.find((task) => task.id === id);
 
     if (!taskToComplete) return taskList;
@@ -4201,6 +4205,7 @@ function App() {
         ...task,
         isCompleted: true,
         status: "completed",
+        completedAt,
         subtasks: subtasks.map((subtask) => ({
           ...subtask,
           isDone: true,
@@ -4245,18 +4250,24 @@ function App() {
   };
 
   // Completing a repeating task also appends its next incomplete occurrence.
-  const handleComplete = (id) => {
+  const handleComplete = (id, context = {}) => {
     const completedTask = tasks.find((task) => task.id === id);
-    if (completedTask) {
-      completionCelebrationSequenceRef.current += 1;
-      setCompletionCelebration({ id: `${id}-${completionCelebrationSequenceRef.current}`, title: completedTask.title });
-    }
-    setTasks((prev) => {
-      const updated = completeTaskList(prev, id);
-
-      saveTasksForCurrentUser(updated);
-      return updated;
-    });
+    if (!completedTask || completedTask.isCompleted) return;
+    const completedAt = new Date().toISOString();
+    const taskListWithFocusTime = context.source === "focus" && Number(context.elapsedSeconds) > 0
+      ? tasks.map((task) => task.id === id ? { ...task, ...getFocusTimeUpdate(task, context.elapsedSeconds, context.reduceEstimate) } : task)
+      : tasks;
+    const updated = completeTaskList(taskListWithFocusTime, id, completedAt);
+    const deadline = getEffectiveDeadline(completedTask);
+    const source = context.source || "direct";
+    const gamification = normalizeGamification(userSettings.gamification);
+    const newAchievementIds = getNewAchievementIds(updated, gamification, { priority: completedTask.priority, wasOverdue: Boolean(deadline && deadline < new Date(completedAt)), source }, { now: new Date(completedAt), weekStartsOn: userSettings.calendarWeekStartsOn });
+    const nextGamification = { ...gamification, earnedAchievementIds: [...new Set([...gamification.earnedAchievementIds, ...newAchievementIds])] };
+    handleAddFieldSettingChange("gamification", nextGamification);
+    completionCelebrationSequenceRef.current += 1;
+    setCompletionCelebration({ id: `${id}-${completionCelebrationSequenceRef.current}`, title: completedTask.title, achievementIds: newAchievementIds, confetti: nextGamification.selectedConfetti, courseColor: getCourseColor(getTaskCourseOrCategory(completedTask)) });
+    setTasks(updated);
+    saveTasksForCurrentUser(updated);
     if (userSettings.externalPushEnabled && completedTask) { const reminder = getExternalReminderForTask(completedTask); if (reminder) runImmediateReminderMutation(completedTask.id, cancelExternalReminder(currentUser, reminder.occurrenceKey)); }
   };
 
@@ -4318,9 +4329,8 @@ function App() {
   const completeFocusTask = (elapsedSeconds, reduceEstimate) => {
     const id = focusTaskId;
     if (!id) return;
-    saveFocusSession(id, elapsedSeconds, reduceEstimate);
     setFocusTaskId(null);
-    handleComplete(id);
+    handleComplete(id, { source: "focus", elapsedSeconds, reduceEstimate });
   };
 
   const toggleFocusSubtask = (subtaskId, elapsedSeconds, reduceEstimate) => {
@@ -4349,14 +4359,8 @@ function App() {
       getSafeSubtasks(currentTask).length > 0 &&
       getSafeSubtasks(currentTask).map((subtask) => subtask.id === subtaskId ? { ...subtask, isDone: !subtask.isDone } : subtask).every((subtask) => subtask.isDone),
     );
-    if (willCompleteTask) {
-      completionCelebrationSequenceRef.current += 1;
-      setCompletionCelebration({ id: `${taskId}-${completionCelebrationSequenceRef.current}`, title: currentTask.title });
-    }
-    setTasks((prev) => {
-      let shouldCompleteTask = false;
-
-      const taskListWithToggledStep = prev.map((task) => {
+    let shouldCompleteTask = false;
+    const taskListWithToggledStep = tasks.map((task) => {
         if (task.id !== taskId) return task;
 
         const updatedSubtasks = getSafeSubtasks(task).map((subtask) =>
@@ -4374,22 +4378,30 @@ function App() {
           ...task,
           subtasks: updatedSubtasks,
         };
-      });
-
-      const updated = shouldCompleteTask
-        ? completeTaskList(taskListWithToggledStep, taskId)
-        : taskListWithToggledStep;
-
-      saveTasksForCurrentUser(updated);
-      return updated;
     });
+    if (willCompleteTask && shouldCompleteTask) {
+      const completedAt = new Date().toISOString();
+      const updated = completeTaskList(taskListWithToggledStep, taskId, completedAt);
+      const deadline = getEffectiveDeadline(currentTask);
+      const gamification = normalizeGamification(userSettings.gamification);
+      const newAchievementIds = getNewAchievementIds(updated, gamification, { priority: currentTask.priority, wasOverdue: Boolean(deadline && deadline < new Date(completedAt)), source: "related-tasks" }, { now: new Date(completedAt), weekStartsOn: userSettings.calendarWeekStartsOn });
+      const nextGamification = { ...gamification, earnedAchievementIds: [...new Set([...gamification.earnedAchievementIds, ...newAchievementIds])] };
+      handleAddFieldSettingChange("gamification", nextGamification);
+      completionCelebrationSequenceRef.current += 1;
+      setCompletionCelebration({ id: `${taskId}-${completionCelebrationSequenceRef.current}`, title: currentTask.title, achievementIds: newAchievementIds, confetti: nextGamification.selectedConfetti, courseColor: getCourseColor(getTaskCourseOrCategory(currentTask)) });
+      setTasks(updated);
+      saveTasksForCurrentUser(updated);
+    } else {
+      setTasks(taskListWithToggledStep);
+      saveTasksForCurrentUser(taskListWithToggledStep);
+    }
   };
 
   // Undo restores the assignment to In Progress; all other information is kept.
   const handleUndo = (id) => {
     setTasks((prev) => {
       const updated = prev.map((t) =>
-        t.id === id ? { ...t, isCompleted: false, status: "inProgress" } : t,
+        t.id === id ? { ...t, isCompleted: false, status: "inProgress", completedAt: null } : t,
       );
       saveTasksForCurrentUser(updated);
       return updated;
@@ -7925,6 +7937,11 @@ function App() {
       ? "On Android: open your browser menu and choose Install app or Add to Home screen. In Chrome, this is usually under the three-dot menu."
       : "On a computer: open your browser’s address-bar install icon or menu, then choose Install GlowDocket. Chrome and Edge usually show Install app.";
   const reminderLeadAlreadyPassedCount = tasks.filter((task) => { const deadline = getEffectiveDeadline(task); return deadline && deadline.getTime() > checklistNow.getTime() && deadline.getTime() - Number(userSettings.reminderMinutes || 60) * 60000 < checklistNow.getTime() && !task.isDeleted && !task.isCompleted; }).length;
+  const gamification = normalizeGamification(userSettings.gamification);
+  const weeklyMomentum = summarizeWeeklyMomentum(tasks, gamification, { now: checklistNow, weekStartsOn: userSettings.calendarWeekStartsOn });
+  const gamificationTitle = getGamificationTitle(gamification);
+  const earnedAchievements = new Set(gamification.earnedAchievementIds);
+  const updateGamification = (changes) => handleAddFieldSettingChange("gamification", normalizeGamification({ ...gamification, ...changes }));
   const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses"];
   const mobileUsesOwnScreen = isMobileUi && mobileOwnedTabs.includes(currentTab);
   const mobileTaskTabActive = ["todo", "inProgress", "completed"].includes(currentTab);
@@ -8064,6 +8081,7 @@ function App() {
               <GlowDocketLogo decorative />
               <div><strong>GlowDocket</strong></div>
             </button>
+            {gamification.showHeaderSummary && <button type="button" className="mobile-momentum-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal}. Open achievements.`}><strong>{weeklyMomentum.completed}/{weeklyMomentum.goal}</strong><small>Momentum</small></button>}
             <button type="button" className="mobile-app-profile-button" onClick={() => setMobileMoreOpen(true)} aria-label="Open account and more menu">
               {safeDisplayName.charAt(0).toUpperCase()}
             </button>
@@ -8081,8 +8099,9 @@ function App() {
             )}
           </div>
 
-          <div className="user-pill">
-            {currentUser ? `Signed in as ${displayName || "GlowDocket user"}` : "Guest Mode"}
+          <div className="hero-status-stack">
+            <div className="user-pill">{currentUser ? `Signed in as ${displayName || "GlowDocket user"}` : "Guest Mode"}</div>
+            {gamification.showHeaderSummary && <button type="button" className="momentum-header-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal} assignments, ${weeklyMomentum.productiveDays} productive days. Open achievements.`}><span><strong>{gamificationTitle.label}</strong><small>{weeklyMomentum.completed}/{weeklyMomentum.goal} this week · {weeklyMomentum.productiveDays} active day{weeklyMomentum.productiveDays === 1 ? "" : "s"}</small></span><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress></button>}
           </div>
         </header>
 
@@ -9493,6 +9512,11 @@ function App() {
                           onChange={(e) => handleAddFieldSettingChange("reduceMotion", e.target.checked)}
                         />
                       </label>
+                      <label className="settings-toggle settings-toggle-copy">
+                        <span><strong>Weekly momentum in header</strong><small>Show your weekly goal, productive days, and selected title in the main header.</small></span>
+                        <input type="checkbox" checked={gamification.showHeaderSummary} onChange={(event) => updateGamification({ showHeaderSummary: event.target.checked })} />
+                      </label>
+                      {!gamification.showHeaderSummary && <button type="button" className="btn btn-secondary" onClick={() => setGamificationOpen(true)}>Open Momentum & Achievements</button>}
                     </div>
                   )}
                 </section>
@@ -11082,6 +11106,16 @@ function App() {
           onToggleSubtask={toggleFocusSubtask}
         />
       )}
+      {gamificationOpen && (
+        <div className="gamification-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setGamificationOpen(false); }}>
+          <section className="gamification-dialog" role="dialog" aria-modal="true" aria-labelledby="gamification-title" onKeyDown={(event) => { if (event.key === "Escape") setGamificationOpen(false); }}>
+            <header><div><p className="eyebrow">Gentle Momentum</p><h2 id="gamification-title">Momentum & Achievements</h2><p>Build consistency at your pace. Missing a day never removes progress or rewards.</p></div><button autoFocus type="button" className="gamification-close" onClick={() => setGamificationOpen(false)} aria-label="Close Momentum and Achievements">×</button></header>
+            <div className="gamification-week-card"><div><strong>{weeklyMomentum.completed} of {weeklyMomentum.goal}</strong><span>assignments completed this week</span></div><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress><span>{weeklyMomentum.productiveDays} productive day{weeklyMomentum.productiveDays === 1 ? "" : "s"} this week</span><label>Weekly goal<input type="number" min="1" max="50" value={gamification.weeklyGoal} onChange={(event) => updateGamification({ weeklyGoal: event.target.value })} /></label></div>
+            <section><h3>Badges</h3><div className="achievement-grid">{GAMIFICATION_ACHIEVEMENTS.map((achievement) => { const earned = earnedAchievements.has(achievement.id); return <article key={achievement.id} className={earned ? "is-earned" : "is-locked"}><span aria-hidden="true">{earned ? "🏅" : "🔒"}</span><div><strong>{achievement.title}</strong><small>{achievement.description}</small><em>{earned ? "Earned" : "Locked"}</em></div></article>; })}</div></section>
+            <section className="gamification-rewards"><h3>Celebration style</h3><div>{GAMIFICATION_CONFETTI.map((option) => { const unlocked = !option.requirement || earnedAchievements.has(option.requirement); return <button type="button" key={option.id} className={gamification.selectedConfetti === option.id ? "is-selected" : ""} disabled={!unlocked} onClick={() => updateGamification({ selectedConfetti: option.id })}>{option.label}{!unlocked ? " 🔒" : ""}</button>; })}</div><h3>Profile title</h3><div>{GAMIFICATION_TITLES.map((option) => { const unlocked = !option.requirement || earnedAchievements.has(option.requirement); return <button type="button" key={option.id} className={gamification.selectedTitle === option.id ? "is-selected" : ""} disabled={!unlocked} onClick={() => updateGamification({ selectedTitle: option.id })}>{option.label}{!unlocked ? " 🔒" : ""}</button>; })}</div></section>
+          </section>
+        </div>
+      )}
       {syncConflict && syncConflictOpen && (
         <div className="sync-conflict-backdrop" role="presentation">
           <section className="sync-conflict-dialog" role="dialog" aria-modal="true" aria-labelledby="sync-conflict-title">
@@ -11104,11 +11138,10 @@ function App() {
           aria-live="polite"
           onAnimationEnd={(event) => { if (event.target === event.currentTarget) setCompletionCelebration(null); }}
         >
-          <div className="completion-confetti" aria-hidden="true">
+          <div className={`completion-confetti is-${completionCelebration.confetti || "standard"}`} style={{ "--course-confetti": completionCelebration.courseColor }} aria-hidden="true">
             {COMPLETION_CONFETTI.map((piece) => <i key={piece.id} style={{ "--confetti-x": piece.x, "--confetti-drift": piece.drift, "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-rotation": piece.rotation, "--confetti-color": piece.color }} />)}
           </div>
-          <span aria-hidden="true">✓</span>
-          <div><strong>Nice work!</strong><small>{completionCelebration.title} is complete.</small></div>
+          <div className="completion-celebration-toast"><span aria-hidden="true">✓</span><div><strong>{completionCelebration.achievementIds?.length ? "Achievement unlocked!" : "Nice work!"}</strong><small>{completionCelebration.title} is complete.{completionCelebration.achievementIds?.length ? ` ${completionCelebration.achievementIds.map((id) => GAMIFICATION_ACHIEVEMENTS.find((item) => item.id === id)?.title).filter(Boolean).join(", ")}.` : ""}</small></div></div>
         </div>
       )}
       {deletedAssignmentUndo && (
