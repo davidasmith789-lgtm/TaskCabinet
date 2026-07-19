@@ -12,7 +12,7 @@ test("assignment completion uses accessible dependency-free confetti with reduce
   assert.match(app, /setCompletionCelebration/);
   assert.match(app, /className=\{`completion-confetti is-/);
   assert.match(app, /COMPLETION_CONFETTI\.map/);
-  assert.match(app, /length: 36/);
+  assert.match(app, /length: 24/);
   assert.match(css, /@keyframes completion-confetti-fall/);
   for (const animationName of [
     "completion-stars-fall",
@@ -25,9 +25,9 @@ test("assignment completion uses accessible dependency-free confetti with reduce
     assert.match(css, new RegExp(`@keyframes ${animationName}`));
   }
   assert.match(app, /celebration-\$\{completionCelebration\.confetti/);
-  assert.match(app, /reduceMotion \? 3100 : 8800/);
+  assert.match(app, /reduceMotion \? 3100 : 7600/);
   assert.match(app, /window\.setTimeout\(\(\) => setCompletionCelebration\(null\)/);
-  assert.match(css, /will-change: transform, opacity/);
+  assert.match(css, /will-change: transform/);
   assert.match(css, /94% \{ opacity: 1; \}/);
   assert.match(css, /\.completion-celebration-toast/);
   assert.match(css, /\.reduce-motion \.completion-confetti \{ display: none; \}/);

@@ -74,5 +74,8 @@ test("completion paths timestamp work, undo clears it, and celebration covers th
   assert.doesNotMatch(app, /Gentle Momentum/);
   assert.match(css, /\.gamification-dialog h2[\s\S]*color: var\(--text-color\) !important/);
   assert.match(css, /selected-badge-aura/);
+  assert.match(css, /\.achievement-rays/);
+  assert.match(css, /\.achievement-core/);
+  assert.match(app, /data-badge=\{achievement\.id\}/);
   assert.match(css, /\.reduce-motion \.completion-confetti/);
 });

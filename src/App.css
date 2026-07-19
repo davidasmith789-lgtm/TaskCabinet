@@ -1139,10 +1139,25 @@ textarea {
 .achievement-card:hover::after, .achievement-card.is-selected::after { left: 125%; }
 .achievement-card:hover:not(:disabled) { transform: translateY(-4px) scale(1.012); }
 .achievement-card.is-selected { border-color: var(--badge-color); transform: translateY(-3px); box-shadow: inset 0 4px 0 var(--badge-color), 0 0 0 3px color-mix(in srgb, var(--badge-color) 32%, transparent), 0 14px 38px color-mix(in srgb, var(--badge-color) 28%, transparent), 0 0 45px color-mix(in srgb, var(--badge-color) 19%, transparent); animation: selected-badge-aura 2.8s ease-in-out infinite alternate; }
-.achievement-medallion { position: relative; display: grid; width: 76px; height: 76px; flex: 0 0 76px; place-items: center; border: 3px double color-mix(in srgb, var(--badge-color) 82%, white); border-radius: 50%; background: radial-gradient(circle at 35% 24%, white 0 5%, color-mix(in srgb, var(--badge-color) 45%, var(--card-bg)) 8% 44%, color-mix(in srgb, var(--badge-color) 85%, #111827) 72%); box-shadow: 0 8px 22px color-mix(in srgb, var(--badge-color) 32%, transparent), inset 0 0 0 5px color-mix(in srgb, white 15%, transparent), inset 0 -9px 14px color-mix(in srgb, black 25%, transparent); font-size: 2rem; }
-.achievement-medallion::before, .achievement-medallion::after { position: absolute; z-index: -1; bottom: -22px; width: 24px; height: 38px; background: linear-gradient(var(--badge-color), color-mix(in srgb, var(--badge-color) 56%, black)); clip-path: polygon(0 0,100% 0,82% 100%,50% 76%,18% 100%); content: ""; }
-.achievement-medallion::before { left: 10px; transform: rotate(11deg); }
-.achievement-medallion::after { right: 10px; transform: rotate(-11deg); }
+.achievement-medallion { --badge-accent: color-mix(in srgb, var(--badge-color) 60%, white); position: relative; isolation: isolate; display: grid; width: 104px; height: 104px; flex: 0 0 104px; place-items: center; filter: drop-shadow(0 10px 10px color-mix(in srgb, var(--badge-color) 28%, transparent)); }
+.achievement-medallion::before { position: absolute; z-index: -3; inset: 3px; border: 2px solid color-mix(in srgb, var(--badge-accent) 80%, white); background: conic-gradient(from 22.5deg, var(--badge-color), color-mix(in srgb, var(--badge-color) 45%, #111827), var(--badge-accent), color-mix(in srgb, var(--badge-color) 55%, #111827), var(--badge-color)); clip-path: polygon(50% 0,61% 11%,76% 6%,83% 21%,98% 27%,94% 43%,100% 57%,87% 68%,86% 85%,69% 87%,57% 100%,43% 92%,27% 98%,19% 82%,3% 76%,8% 59%,0 45%,14% 34%,14% 17%,31% 15%); content: ""; }
+.achievement-medallion::after { position: absolute; z-index: -4; bottom: -18px; width: 78px; height: 55px; background: linear-gradient(90deg, color-mix(in srgb, var(--badge-color) 58%, #111827), var(--badge-accent) 48%, color-mix(in srgb, var(--badge-color) 58%, #111827)); clip-path: polygon(0 0,42% 8%,50% 0,58% 8%,100% 0,84% 100%,51% 73%,17% 100%); content: ""; }
+.achievement-rays { position: absolute; z-index: -2; inset: 12px; border: 2px dotted color-mix(in srgb, white 62%, var(--badge-color)); border-radius: 50%; background: repeating-conic-gradient(from 0deg, color-mix(in srgb, white 35%, transparent) 0 4deg, transparent 4deg 18deg); }
+.achievement-core { position: relative; display: grid; width: 69px; height: 69px; place-items: center; border: 3px double color-mix(in srgb, white 75%, var(--badge-color)); border-radius: 50%; background: radial-gradient(circle at 34% 24%, white 0 4%, var(--badge-accent) 6% 15%, color-mix(in srgb, var(--badge-color) 78%, #111827) 48%, #111827 76%); box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--badge-color) 32%, transparent), inset 0 -10px 14px rgb(0 0 0 / 35%); }
+.achievement-icon { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid color-mix(in srgb, white 44%, transparent); border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--badge-color) 32%, transparent), transparent 70%); font-size: 2.15rem; line-height: 1; filter: drop-shadow(0 2px 1px rgb(0 0 0 / 45%)); text-shadow: 0 1px white, 0 3px 4px rgb(0 0 0 / 45%); transform: translateZ(0); }
+.achievement-ornament { position: absolute; z-index: 2; right: 2px; bottom: 4px; display: grid; width: 27px; height: 27px; place-items: center; border: 2px solid color-mix(in srgb, white 70%, var(--badge-color)); border-radius: 50%; background: #111827; color: var(--badge-accent); font-size: .82rem; box-shadow: 0 2px 5px rgb(0 0 0 / 45%); }
+.badge-five-completions .achievement-medallion::before, .badge-deep-work .achievement-medallion::before { clip-path: polygon(50% 0,61% 15%,79% 8%,84% 27%,100% 35%,90% 51%,98% 70%,78% 74%,68% 94%,50% 84%,32% 94%,22% 74%,2% 70%,10% 51%,0 35%,16% 27%,21% 8%,39% 15%); }
+.badge-ten-completions .achievement-core, .badge-five-productive-days .achievement-core { border-radius: 24%; transform: rotate(45deg); }
+.badge-ten-completions .achievement-icon, .badge-five-productive-days .achievement-icon { transform: rotate(-45deg); }
+.badge-twenty-five-completions .achievement-medallion { --badge-accent: #fff2a8; transform: scale(1.08); }
+.badge-twenty-five-completions .achievement-rays { animation: badge-rays-turn 12s linear infinite; }
+.badge-weekly-goal .achievement-core, .badge-focus-finish .achievement-core { background: radial-gradient(circle at center, color-mix(in srgb, var(--badge-color) 72%, white) 0 22%, #111827 24% 34%, color-mix(in srgb, var(--badge-color) 78%, #111827) 36% 62%, #111827 64%); }
+.badge-double-weekly-goal .achievement-medallion::before, .badge-high-priority .achievement-medallion::before { clip-path: polygon(50% 0,59% 28%,82% 9%,71% 38%,100% 35%,75% 54%,96% 72%,67% 68%,72% 100%,50% 76%,28% 100%,33% 68%,4% 72%,25% 54%,0 35%,29% 38%,18% 9%,41% 28%); }
+.badge-three-productive-days .achievement-rays, .badge-ahead-of-schedule .achievement-rays { border-style: dashed; }
+.badge-overdue-recovery .achievement-medallion::before { clip-path: polygon(50% 0,90% 13%,85% 68%,50% 100%,15% 68%,10% 13%); }
+.badge-quick-win .achievement-medallion::after, .badge-ahead-of-schedule .achievement-medallion::after { transform: skewX(-12deg); }
+.badge-course-five .achievement-medallion::before { clip-path: polygon(50% 0,94% 23%,87% 76%,50% 100%,13% 76%,6% 23%); }
+.badge-related-tasks .achievement-rays { background: repeating-conic-gradient(var(--badge-accent) 0 7deg, transparent 7deg 30deg); }
 .tone-gold { --badge-color: #f59e0b; --badge-soft: color-mix(in srgb, #f59e0b 8%, var(--surface-alt)); }
 .tone-violet { --badge-color: #8b5cf6; --badge-soft: color-mix(in srgb, #8b5cf6 8%, var(--surface-alt)); }
 .tone-blue { --badge-color: #3b82f6; --badge-soft: color-mix(in srgb, #3b82f6 8%, var(--surface-alt)); }
@@ -1177,6 +1192,7 @@ textarea {
 
 @keyframes cosmetics-sheen { 0%, 35% { background-position: 120% 0, 0 0; } 70%, 100% { background-position: -120% 0, 0 0; } }
 @keyframes selected-badge-aura { from { filter: saturate(1); } to { filter: saturate(1.22) brightness(1.06); } }
+@keyframes badge-rays-turn { to { transform: rotate(360deg); } }
 
 .mobile-due-date-field {
   display: grid;
@@ -6430,7 +6446,7 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
   backface-visibility: hidden;
   transform: translate3d(0, -110%, 0) rotate(0) scale(var(--confetti-scale));
   transform-origin: center;
-  will-change: transform, opacity;
+  will-change: transform;
   animation: completion-confetti-fall var(--confetti-duration) linear var(--confetti-delay) both;
 }
 
@@ -6450,12 +6466,12 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
 .completion-confetti.is-rainbow i:nth-child(6n) { background: #a855f7; }
 .completion-confetti.is-rainbow i { animation-name: completion-rainbow-sweep; animation-duration: calc(var(--confetti-duration) - 450ms); animation-timing-function: cubic-bezier(.25,.7,.35,1); }
 .completion-confetti.is-rainbow i:nth-child(3n) { animation-delay: calc(var(--confetti-delay) + 260ms); }
-.completion-confetti.is-sparkles i { width: 12px; height: 12px; background: #fde68a; clip-path: polygon(50% 0,60% 39%,100% 50%,60% 61%,50% 100%,40% 61%,0 50%,40% 39%); box-shadow: 0 0 12px #fef3c7; animation-name: completion-sparkle-float; animation-duration: calc(var(--confetti-duration) + 1700ms); animation-timing-function: ease-in-out; }
+.completion-confetti.is-sparkles i { width: 12px; height: 12px; background: #fde68a; clip-path: polygon(50% 0,60% 39%,100% 50%,60% 61%,50% 100%,40% 61%,0 50%,40% 39%); animation-name: completion-sparkle-float; animation-duration: calc(var(--confetti-duration) + 1700ms); animation-timing-function: ease-in-out; }
 .completion-confetti.is-sparkles i:nth-child(4n) { width: 6px; height: 6px; animation-delay: calc(var(--confetti-delay) + 650ms); }
 .completion-confetti.is-ribbons i { width: 5px; height: 24px; border-radius: 999px; animation-name: completion-ribbon-flutter; animation-duration: calc(var(--confetti-duration) + 750ms); animation-timing-function: ease-in-out; }
 .completion-confetti.is-ribbons i:nth-child(odd) { background: linear-gradient(#ec4899, #8b5cf6); }
 .completion-confetti.is-ribbons i:nth-child(even) { animation-name: completion-ribbon-flutter-reverse; }
-.completion-confetti.is-prism i { width: 12px; height: 12px; border-radius: 3px; background: conic-gradient(from 45deg, #f43f5e, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #f43f5e); box-shadow: 0 0 9px color-mix(in srgb, var(--primary-color) 45%, transparent); animation-name: completion-prism-helix; animation-duration: calc(var(--confetti-duration) + 250ms); animation-timing-function: cubic-bezier(.3,.55,.4,1); }
+.completion-confetti.is-prism i { width: 12px; height: 12px; border-radius: 3px; background: conic-gradient(from 45deg, #f43f5e, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #f43f5e); animation-name: completion-prism-helix; animation-duration: calc(var(--confetti-duration) + 250ms); animation-timing-function: cubic-bezier(.3,.55,.4,1); }
 .completion-confetti.is-prism i:nth-child(even) { animation-name: completion-prism-helix-reverse; animation-delay: calc(var(--confetti-delay) + 180ms); }
 
 .celebration-stars .completion-celebration-toast { border-color: #fbbf24; background: linear-gradient(135deg, color-mix(in srgb, #fbbf24 22%, var(--surface-color)), color-mix(in srgb, #fff7c2 8%, var(--surface-color))); box-shadow: 0 18px 48px color-mix(in srgb, #fbbf24 28%, transparent); }
@@ -7016,9 +7032,11 @@ html[data-theme="dark"] .sync-conflict-dialog {
 }
 
 .reduce-motion .completion-confetti { display: none; }
+.reduce-motion .badge-twenty-five-completions .achievement-rays { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .completion-confetti { display: none; }
+  .badge-twenty-five-completions .achievement-rays { animation: none; }
 }
 
 /* Final mobile panel and task-navigation contract. */

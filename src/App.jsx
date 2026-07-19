@@ -143,15 +143,15 @@ const TUTORIAL_SLIDES = [
   { title: "Match your day cycle", copy: "Have different classes on different days? Use Day Cycles to name each schedule day, choose an anchor date, and see the right cycle across your calendar.", visual: "cycle" },
 ];
 const TASK_CATEGORIES = ["School", "Work", "Personal"];
-const COMPLETION_CONFETTI = Array.from({ length: 36 }, (_, index) => ({
+const COMPLETION_CONFETTI = Array.from({ length: 24 }, (_, index) => ({
   id: index,
   x: `${6 + ((index * 37) % 88)}%`,
   drift: `${((index * 29) % 90) - 45}px`,
   sway: `${18 + ((index * 17) % 34)}px`,
   swayBack: `${-14 - ((index * 11) % 28)}px`,
   scale: `${0.78 + (index % 5) * 0.09}`,
-  delay: `${(index % 5) * 80}ms`,
-  duration: `${4200 + (index % 4) * 500}ms`,
+  delay: `${(index % 5) * 60}ms`,
+  duration: `${3400 + (index % 4) * 350}ms`,
   rotation: `${120 + ((index * 47) % 300)}deg`,
   color: ["var(--primary-color)", "var(--secondary-color)", "var(--success-color)", "var(--warning-color)"][index % 4],
 }));
@@ -1945,7 +1945,7 @@ function App() {
 
   useEffect(() => {
     if (!completionCelebration) return undefined;
-    const timeoutId = window.setTimeout(() => setCompletionCelebration(null), userSettings.reduceMotion ? 3100 : 8800);
+    const timeoutId = window.setTimeout(() => setCompletionCelebration(null), userSettings.reduceMotion ? 3100 : 7600);
     return () => window.clearTimeout(timeoutId);
   }, [completionCelebration, userSettings.reduceMotion]);
   const [settingsSection, setSettingsSection] = useState(() => recoveryRequestedOnLoad() ? "storage" : "personalization");
@@ -11133,7 +11133,7 @@ function App() {
           <section className="gamification-dialog" role="dialog" aria-modal="true" aria-labelledby="gamification-title" onKeyDown={(event) => { if (event.key === "Escape") setGamificationOpen(false); }}>
             <header><div><h2 id="gamification-title">Cosmetics</h2><p>Collect badges, choose your display piece, equip a title, and pick a celebration style.</p></div><button autoFocus type="button" className="gamification-close" onClick={() => setGamificationOpen(false)} aria-label="Close Cosmetics">×</button></header>
             <div className="gamification-week-card"><div><strong>{weeklyMomentum.completed} of {weeklyMomentum.goal}</strong><span>assignments completed this week</span></div><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress><span>{weeklyMomentum.productiveDays} productive day{weeklyMomentum.productiveDays === 1 ? "" : "s"} this week</span><label>Weekly goal<input type="number" min="1" max="50" value={gamification.weeklyGoal} onChange={(event) => updateGamification({ weeklyGoal: event.target.value })} /></label></div>
-            <section><h3>Badges</h3><p className="gamification-section-hint">Choose any earned badge to display in your momentum summary.</p><div className="achievement-grid">{GAMIFICATION_ACHIEVEMENTS.map((achievement) => { const earned = earnedAchievements.has(achievement.id); const selected = gamification.selectedBadge === achievement.id; return <button type="button" key={achievement.id} className={`achievement-card ${earned ? "is-earned" : "is-locked"}${selected ? " is-selected" : ""} tone-${achievement.tone}`} disabled={!earned} aria-pressed={earned ? selected : undefined} onClick={() => updateGamification({ selectedBadge: achievement.id })}><span className="achievement-medallion" aria-hidden="true">{earned ? achievement.icon : "🔒"}</span><span className="achievement-card-copy"><strong>{achievement.title}</strong><small>{achievement.description}</small><em>{earned ? selected ? "Displayed" : "Earned" : "Locked"}</em></span></button>; })}</div></section>
+            <section><h3>Badges</h3><p className="gamification-section-hint">Choose any earned badge to display in your momentum summary.</p><div className="achievement-grid">{GAMIFICATION_ACHIEVEMENTS.map((achievement) => { const earned = earnedAchievements.has(achievement.id); const selected = gamification.selectedBadge === achievement.id; return <button type="button" key={achievement.id} data-badge={achievement.id} className={`achievement-card badge-${achievement.id} ${earned ? "is-earned" : "is-locked"}${selected ? " is-selected" : ""} tone-${achievement.tone}`} disabled={!earned} aria-pressed={earned ? selected : undefined} onClick={() => updateGamification({ selectedBadge: achievement.id })}><span className="achievement-medallion" aria-hidden="true"><span className="achievement-rays" /><span className="achievement-core"><span className="achievement-icon">{earned ? achievement.icon : "🔒"}</span></span><span className="achievement-ornament">✦</span></span><span className="achievement-card-copy"><strong>{achievement.title}</strong><small>{achievement.description}</small><em>{earned ? selected ? "Displayed" : "Earned" : "Locked"}</em></span></button>; })}</div></section>
             <section className="gamification-rewards"><h3>Celebration style</h3><div>{GAMIFICATION_CONFETTI.map((option) => { const unlocked = !option.requirement || earnedAchievements.has(option.requirement); return <button type="button" key={option.id} className={gamification.selectedConfetti === option.id ? "is-selected" : ""} disabled={!unlocked} onClick={() => updateGamification({ selectedConfetti: option.id })}>{option.label}{!unlocked ? " 🔒" : ""}</button>; })}</div><h3>Profile title</h3><div>{GAMIFICATION_TITLES.map((option) => { const unlocked = !option.requirement || earnedAchievements.has(option.requirement); return <button type="button" key={option.id} className={gamification.selectedTitle === option.id ? "is-selected" : ""} disabled={!unlocked} onClick={() => updateGamification({ selectedTitle: option.id })}>{option.label}{!unlocked ? " 🔒" : ""}</button>; })}</div></section>
           </section>
         </div>
