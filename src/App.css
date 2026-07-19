@@ -4586,7 +4586,25 @@ a,
   color: var(--text-color);
 }
 .bulk-import-instructions p { margin: 0; color: var(--muted-text); font-size: 0.82rem; line-height: 1.45; }
+.bulk-import-instructions-heading {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.bulk-import-instructions-heading > strong { grid-column: 1; }
+.bulk-import-instructions-heading .syllabus-full-text-button { grid-column: 2; justify-self: center; }
+.bulk-import-examples {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.bulk-import-examples section { display: grid; min-width: 0; gap: 6px; }
+.bulk-import-examples section > strong { font-size: 0.76rem; }
 .bulk-import-instructions code {
+  display: block;
+  height: 100%;
+  box-sizing: border-box;
   padding: 10px;
   overflow-x: auto;
   border: 1px solid color-mix(in srgb, var(--primary-color) 24%, var(--border-color));
@@ -4688,6 +4706,7 @@ a,
   .bulk-import-review article > label:nth-child(3) { grid-column: span 2; }
   .syllabus-upload-panel { grid-template-columns: 1fr 1fr; }
   .syllabus-upload-panel > div { grid-column: 1 / -1; }
+  .bulk-import-examples { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -4698,6 +4717,8 @@ a,
   .bulk-import-review article > .bulk-import-select { grid-column: 1; grid-row: 1 / span 2; }
   .syllabus-upload-panel { grid-template-columns: 1fr; }
   .syllabus-upload-panel > div { grid-column: auto; }
+  .bulk-import-instructions-heading { grid-template-columns: minmax(0, 1fr) auto; }
+  .bulk-import-instructions-heading .syllabus-full-text-button { grid-column: 2; }
   .bulk-import-review { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
 }
 
