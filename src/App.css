@@ -6360,9 +6360,9 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
   position: fixed;
   z-index: 5200;
   inset: 0;
+  contain: strict;
   overflow: hidden;
   pointer-events: none;
-  animation: completion-lifecycle 6400ms linear both;
 }
 
 .completion-celebration-toast {
@@ -6387,6 +6387,8 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
   inset: 0;
   overflow: hidden;
   pointer-events: none;
+  contain: strict;
+  transform: translateZ(0);
 }
 
 .completion-confetti i {
@@ -6396,9 +6398,12 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
   width: 8px;
   height: 13px;
   border-radius: 2px;
-  background: var(--confetti-color);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--confetti-color) 72%, white), var(--confetti-color) 52%, color-mix(in srgb, var(--confetti-color) 78%, black));
   opacity: 1;
-  transform: translate3d(0, -100%, 0) rotate(0);
+  backface-visibility: hidden;
+  transform: translate3d(0, -110%, 0) rotate(0) scale(var(--confetti-scale));
+  transform-origin: center;
+  will-change: transform, opacity;
   animation: completion-confetti-fall var(--confetti-duration) linear var(--confetti-delay) both;
 }
 
@@ -6847,12 +6852,14 @@ html[data-theme="dark"] .sync-conflict-dialog {
 }
 
 @keyframes completion-confetti-fall {
-  0% { opacity: 1; transform: translate3d(0, -100%, 0) rotate(0); }
+  0% { opacity: 0; transform: translate3d(0, -110%, 0) rotate(0) scale(var(--confetti-scale)); }
+  3% { opacity: 1; }
+  24% { transform: translate3d(var(--confetti-sway), 24vh, 0) rotate(calc(var(--confetti-rotation) * .24)) scale(var(--confetti-scale)); }
+  49% { transform: translate3d(var(--confetti-sway-back), 49vh, 0) rotate(calc(var(--confetti-rotation) * .49)) scale(var(--confetti-scale)); }
+  74% { transform: translate3d(var(--confetti-sway), 74vh, 0) rotate(calc(var(--confetti-rotation) * .74)) scale(var(--confetti-scale)); }
   94% { opacity: 1; }
-  100% { opacity: 0; transform: translate3d(var(--confetti-drift), 100vh, 0) rotate(var(--confetti-rotation)); }
+  100% { opacity: 0; transform: translate3d(var(--confetti-drift), 100vh, 0) rotate(var(--confetti-rotation)) scale(var(--confetti-scale)); }
 }
-
-@keyframes completion-lifecycle { from, to { opacity: 1; } }
 
 .reduce-motion .completion-confetti { display: none; }
 

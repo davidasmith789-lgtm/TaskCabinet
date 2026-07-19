@@ -14,7 +14,8 @@ test("assignment completion uses accessible dependency-free confetti with reduce
   assert.match(app, /COMPLETION_CONFETTI\.map/);
   assert.match(app, /length: 36/);
   assert.match(css, /@keyframes completion-confetti-fall/);
-  assert.match(css, /completion-lifecycle 6400ms/);
+  assert.match(app, /window\.setTimeout\(\(\) => setCompletionCelebration\(null\)/);
+  assert.match(css, /will-change: transform, opacity/);
   assert.match(css, /94% \{ opacity: 1; \}/);
   assert.match(css, /\.completion-celebration-toast/);
   assert.match(css, /\.reduce-motion \.completion-confetti \{ display: none; \}/);

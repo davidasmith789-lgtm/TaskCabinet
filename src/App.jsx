@@ -147,6 +147,9 @@ const COMPLETION_CONFETTI = Array.from({ length: 36 }, (_, index) => ({
   id: index,
   x: `${6 + ((index * 37) % 88)}%`,
   drift: `${((index * 29) % 90) - 45}px`,
+  sway: `${18 + ((index * 17) % 34)}px`,
+  swayBack: `${-14 - ((index * 11) % 28)}px`,
+  scale: `${0.78 + (index % 5) * 0.09}`,
   delay: `${(index % 5) * 80}ms`,
   duration: `${4200 + (index % 4) * 500}ms`,
   rotation: `${120 + ((index * 47) % 300)}deg`,
@@ -1927,6 +1930,12 @@ function App() {
   const [completionCelebration, setCompletionCelebration] = useState(null);
   const completionCelebrationSequenceRef = useRef(0);
   const [gamificationOpen, setGamificationOpen] = useState(false);
+
+  useEffect(() => {
+    if (!completionCelebration) return undefined;
+    const timeoutId = window.setTimeout(() => setCompletionCelebration(null), userSettings.reduceMotion ? 3100 : 6500);
+    return () => window.clearTimeout(timeoutId);
+  }, [completionCelebration, userSettings.reduceMotion]);
   const [settingsSection, setSettingsSection] = useState(() => recoveryRequestedOnLoad() ? "storage" : "personalization");
   const [accessibilityAudit, setAccessibilityAudit] = useState(null);
   const [manualAccessibilityChecks, setManualAccessibilityChecks] = useState([]);
@@ -11137,10 +11146,9 @@ function App() {
           className="completion-celebration"
           role="status"
           aria-live="polite"
-          onAnimationEnd={(event) => { if (event.target === event.currentTarget) setCompletionCelebration(null); }}
         >
           <div className={`completion-confetti is-${completionCelebration.confetti || "standard"}`} style={{ "--course-confetti": completionCelebration.courseColor }} aria-hidden="true">
-            {COMPLETION_CONFETTI.map((piece) => <i key={piece.id} style={{ "--confetti-x": piece.x, "--confetti-drift": piece.drift, "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-rotation": piece.rotation, "--confetti-color": piece.color }} />)}
+            {COMPLETION_CONFETTI.map((piece) => <i key={piece.id} style={{ "--confetti-x": piece.x, "--confetti-drift": piece.drift, "--confetti-sway": piece.sway, "--confetti-sway-back": piece.swayBack, "--confetti-scale": piece.scale, "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-rotation": piece.rotation, "--confetti-color": piece.color }} />)}
           </div>
           <div className="completion-celebration-toast"><span aria-hidden="true">✓</span><div><strong>{completionCelebration.achievementIds?.length ? "Achievement unlocked!" : "Nice work!"}</strong><small>{completionCelebration.title} is complete.{completionCelebration.achievementIds?.length ? ` ${completionCelebration.achievementIds.map((id) => GAMIFICATION_ACHIEVEMENTS.find((item) => item.id === id)?.title).filter(Boolean).join(", ")}.` : ""}</small></div></div>
         </div>
