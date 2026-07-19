@@ -14,7 +14,8 @@ import {
   placeWidget,
   setWidgetCollapsedState,
 } from "./workspaceLayout.js";
-import { preparePastedAssignmentLines } from "./bulkImportUtils.js";
+import { findMatchingCourse, normalizeCourseName, parsePastedAssignmentRows } from "./bulkImportUtils.js";
+import { createAssignmentsCsv } from "./assignmentCsv.js";
 import { getReminderActionLabel, getWorkflowLabel, MOBILE_TASK_LEVELS, nextMobileTaskLevel, passwordsMatch, splitActiveAndOverdue } from "./mobileUxUtils.js";
 import { formatAssignmentCountdown, getAssignmentCountdownTone } from "./assignmentCountdown.js";
 import { getWeekDates, isSameCalendarDay, shiftCalendarWeek } from "./calendarWeekUtils.js";
@@ -38,7 +39,7 @@ import { cancelAllExternalReminders, cancelExternalReminder, reconcileExternalRe
 import { summarizeDeadlineConfidence } from "./deadlineConfidenceUtils.js";
 import { canSendReminderTest, clearReminderFailure, createReminderActionGuard, deriveReminderUserStatus, formatReminderLeadTime, friendlyReminderError, getAssignmentReminderIndicator, getReminderStatusCopy, shouldShowReminderSuggestion, shouldShowRepairReminderSync } from "./reminderUxUtils.js";
 import { CLOUD_SYNC_CONFIGURED, getSupabaseBrowserClient } from "./supabaseClient.js";
-import { applyCloudStateToLocal, chooseHydrationState, CLOUD_STATE_SCHEMA_VERSION, collectSyncableState, createPortableExport, ensureCloudSnapshot, getCloudStateFingerprint, hasMeaningfulState, loadCloudHistory, loadCloudSnapshot, loadLatestLocalBackup, loadLocalMeta, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, replaceCloudSnapshot, resolveProfileDisplayName, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
+import { applyCloudStateToLocal, chooseHydrationState, collectSyncableState, createPortableExport, ensureCloudSnapshot, getCloudStateFingerprint, hasMeaningfulState, loadCloudHistory, loadCloudSnapshot, loadLatestLocalBackup, loadLocalMeta, loadLocalSnapshot, parsePortableExport, readLegacySnapshot, readStoredSection, removeCloudAccountLocalData, replaceCloudSnapshot, resolveProfileDisplayName, saveLocalBackup, saveLocalSnapshot } from "./cloudSync.js";
 import { getTrashDaysRemaining, isTrashExpired } from "./trashUtils.js";
 import { friendlyAccountError, friendlyCloudSaveError } from "./userMessageUtils.js";
 import { evaluateAttachmentSelection, formatStorageBytes, getStorageQuotaStatus, MAX_ATTACHMENTS_PER_ASSIGNMENT } from "./storageQuotaUtils.js";
@@ -46,7 +47,7 @@ import { MANUAL_ACCESSIBILITY_CHECKS, runAccessibilityAudit } from "./accessibil
 import { RECOVERY_SESSION_KEY } from "./AppErrorBoundary.jsx";
 import GlowDocketLogo from "./GlowDocketLogo.jsx";
 import { PrivacyDataDialog, PrivacyDataPanel } from "./PrivacyDataPanel.jsx";
-import { APP_BUILD_METADATA, createReportMetadata } from "./buildMetadata.js";
+import { APP_BUILD_METADATA } from "./buildMetadata.js";
 import { FEEDBACK_CATEGORIES, FEEDBACK_MAX_MESSAGE_LENGTH, feedbackScreenshotPath, validateFeedbackScreenshot } from "./feedbackUtils.js";
 import { AssignmentCountdown, MobilePageTitle, MobileSettingsPortal, PasswordEyeIcon, PersonalizationTip, SettingsAccordionProvider, SettingsCard, SubtaskProgressLine } from "./components/AppDisplayComponents.jsx";
 import { AssignmentFilterControls, AssignmentFilterToggle } from "./components/AssignmentFilters.jsx";
@@ -1884,6 +1885,9 @@ function App() {
   const [bulkImportPreview, setBulkImportPreview] = useState([]);
   const [bulkImportMessage, setBulkImportMessage] = useState("");
   const [bulkImportIssuesOnly, setBulkImportIssuesOnly] = useState(false);
+  const [bulkImportSource, setBulkImportSource] = useState("Pasted assignment list");
+  const [bulkImportSaving, setBulkImportSaving] = useState(false);
+  const [bulkImportHelpOpen, setBulkImportHelpOpen] = useState(false);
   const [guidedEntryOpen, setGuidedEntryOpen] = useState(false);
   const [guidedEntryStep, setGuidedEntryStep] = useState(0);
   const [guidedNotes, setGuidedNotes] = useState("");
@@ -1891,6 +1895,7 @@ function App() {
   const [syllabusFileName, setSyllabusFileName] = useState("");
   const [syllabusImportStatus, setSyllabusImportStatus] = useState("idle");
   const [syllabusExtractedText, setSyllabusExtractedText] = useState("");
+  const syllabusAbortRef = useRef(null);
   const voiceRecognitionRef = useRef(null);
   const voiceTranscriptRef = useRef("");
   const voiceTimerRef = useRef(null);
@@ -3904,7 +3909,7 @@ function App() {
   const parseBulkImportText = (value, forcedCourse = "") => {
     setBulkImportMessage("");
     setBulkImportIssuesOnly(false);
-    const prepared = preparePastedAssignmentLines(value);
+    const prepared = parsePastedAssignmentRows(value, courses);
     const parsed = prepared.flatMap((entry, index) => {
       let text = entry.text;
       let courseHint = entry.courseHint;
@@ -3923,14 +3928,21 @@ function App() {
       });
       const assignment = result.assignments[0];
       if (!assignment) return [];
-      return [{ ...assignment, course: forcedCourse || courseHint || assignment.course, previewId: `${index}-${crypto.randomUUID()}`, selected: true }];
+      return [{
+        ...assignment,
+        ...Object.fromEntries(Object.entries(entry).filter(([key, fieldValue]) => !["text", "courseHint"].includes(key) && fieldValue !== null && fieldValue !== "")),
+        course: forcedCourse || courseHint || assignment.course,
+        assumptions: [...(assignment.assumptions || []), ...(entry.importWarnings || [])],
+        previewId: `${index}-${crypto.randomUUID()}`,
+        selected: true,
+      }];
     });
     setBulkImportPreview(parsed);
     setBulkImportMessage(parsed.length > 0 ? `Review ${parsed.length} assignment${parsed.length === 1 ? "" : "s"} before adding them.` : "No assignment lines could be understood. Put one assignment on each line.");
     return parsed;
   };
 
-  const handleParseBulkImport = () => parseBulkImportText(bulkImportText);
+  const handleParseBulkImport = () => { setBulkImportSource("Pasted assignment list"); parseBulkImportText(bulkImportText); };
 
   const handleSyllabusFile = async (event) => {
     const file = event.target.files?.[0];
@@ -3940,10 +3952,16 @@ function App() {
     setBulkImportPreview([]);
     setBulkImportMessage("");
     setSyllabusFileName(file.name);
+    setBulkImportSource(file.name);
     setSyllabusImportStatus("reading");
+    const controller = new AbortController();
+    syllabusAbortRef.current = controller;
     try {
       const { extractSyllabusText, findLikelySyllabusAssignments } = await import("./syllabusImport.js");
-      const extractedText = await extractSyllabusText(file);
+      const extractedText = await extractSyllabusText(file, {
+        signal: controller.signal,
+        onProgress: ({ message }) => setBulkImportMessage(message),
+      });
       setSyllabusExtractedText(extractedText);
       const likelyAssignments = findLikelySyllabusAssignments(extractedText);
       if (!likelyAssignments) {
@@ -3959,6 +3977,8 @@ function App() {
     } catch (error) {
       setBulkImportMessage(error.message || "The syllabus could not be read.");
       setSyllabusImportStatus("error");
+    } finally {
+      if (syllabusAbortRef.current === controller) syllabusAbortRef.current = null;
     }
   };
 
@@ -3981,23 +4001,26 @@ function App() {
   const getBulkImportWarnings = (item) => {
     const currentYear = new Date().getFullYear();
     const warnings = new Set(
-      (Array.isArray(item.assumptions) ? item.assumptions : [])
+      [...(Array.isArray(item.assumptions) ? item.assumptions : []), ...(Array.isArray(item.importWarnings) ? item.importWarnings : [])]
         .filter(Boolean)
         .map((warning) => String(warning)),
     );
     if (!item.dueMonth || !item.dueDay) warnings.add("Missing due date. Add month and day before importing if this should appear on the calendar.");
     if (Number(item.dueYear) && Number(item.dueYear) !== currentYear) warnings.add(`${item.dueYear} date will be skipped until GlowDocket supports full-year dates.`);
-    if (!item.course || item.course === "Other") warnings.add("Course is unclear. Choose a course if this belongs somewhere specific.");
+    if (!item.title?.trim()) warnings.add("Missing assignment name.");
+    if (!item.course || item.course === "Other") warnings.add("Missing course. Choose or create one before importing.");
     if (!item.estimatedMinutes) warnings.add("No estimate yet. Recommendations work better with minutes.");
     return [...warnings];
   };
 
   const handleBulkImportSubmit = () => {
+    if (bulkImportSaving) return;
     const selected = bulkImportPreview.filter((item) => item.selected && String(item.title || "").trim());
     if (selected.length === 0) {
       setBulkImportMessage("Select at least one assignment with a title.");
       return;
     }
+    setBulkImportSaving(true);
     try {
       const count = handleApplyVoiceAssignments({ assignments: selected, skipped: [] }, crypto.randomUUID(), "paste");
       setBulkImportPreview([]);
@@ -4009,7 +4032,21 @@ function App() {
       setBulkImportMessage(`${count} assignment${count === 1 ? "" : "s"} added to To Do.`);
     } catch (error) {
       setBulkImportMessage(error.message || "The assignments could not be added.");
+    } finally {
+      setBulkImportSaving(false);
     }
+  };
+
+  const handleBulkImportCourseCreate = (previewId) => {
+    const item = bulkImportPreview.find((candidate) => candidate.previewId === previewId);
+    const requested = window.prompt("New course name", item?.course === "Other" ? "" : item?.course || "");
+    if (requested === null) return;
+    const normalized = normalizeCourseName(requested);
+    const existing = findMatchingCourse(normalized, courses);
+    if (existing) { handleBulkPreviewChange(previewId, "course", existing); return; }
+    const result = createCourse(normalized);
+    if (!result.ok) { setBulkImportMessage(result.message); return; }
+    handleBulkPreviewChange(previewId, "course", result.course);
   };
 
   const handleVoiceStop = () => {
@@ -5348,20 +5385,8 @@ function App() {
   };
 
   const handleExportCsv = () => {
-    const exportedAt = new Date().toISOString();
-    const metadata = createReportMetadata(exportedAt, CLOUD_STATE_SCHEMA_VERSION);
-    const columns = ["title", "course", "dueYear", "dueMonth", "dueDay", "dueTime", "priority", "estimatedMinutes", "status", "notes", "isArchived", "isDeleted", "appVersion", "commitSha", "environment", "exportedAt", "dataSchemaVersion"];
-    const escape = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
-    const rows = tasks.map((task) => columns.map((column) => escape({
-      status: getTaskStatus(task),
-      appVersion: metadata.appVersion,
-      commitSha: metadata.commitSha,
-      environment: metadata.environment,
-      exportedAt: metadata.createdAt,
-      dataSchemaVersion: metadata.dataSchemaVersion,
-    }[column] ?? task[column])).join(","));
-    downloadTextFile(`glowdocket-assignments-${exportFileDate()}.csv`, [columns.join(","), ...rows].join("\r\n"), "text/csv;charset=utf-8");
-    setRecoveryStatus({ type: "success", message: "Assignment CSV downloaded for spreadsheets. Use the JSON backup—not CSV—to restore GlowDocket." });
+    downloadTextFile(`glowdocket-assignments-${exportFileDate()}.csv`, createAssignmentsCsv(tasks, { getStatus: getTaskStatus }), "text/csv;charset=utf-8");
+    setRecoveryStatus({ type: "success", message: "Google Sheets-compatible assignment CSV downloaded. Use the JSON backup—not CSV—to restore GlowDocket." });
   };
 
   const applyRecoveryState = (state) => {
@@ -6492,24 +6517,26 @@ function App() {
         {bulkImportOpen && (
           <div className="bulk-import-content">
             <div className="syllabus-upload-panel">
-              <div><strong>Import a course syllabus</strong><p>PDF, DOCX, TXT, Markdown, or CSV · processed locally · 10 MB maximum</p></div>
+              <div><strong>Upload a syllabus or assignment file</strong><p>PDF, DOCX, TXT, Markdown, or CSV · processed on this device · 10 MB maximum. Old .doc files must first be saved as DOCX, PDF, or TXT.</p></div>
               <label><span>Course for imported work</span><select value={syllabusCourse || courses[0] || "Other"} onChange={(event) => setSyllabusCourse(event.target.value)}>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
               <label className={`btn btn-secondary syllabus-file-button${syllabusImportStatus === "reading" ? " disabled" : ""}`}>
                 {syllabusImportStatus === "reading" ? "Reading syllabus…" : "Choose Syllabus File"}
-                <input type="file" accept=".pdf,.docx,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv" onChange={handleSyllabusFile} disabled={syllabusImportStatus === "reading"} />
+                <input aria-label="Choose a syllabus or assignment file" type="file" accept=".pdf,.doc,.docx,.txt,.md,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv" onChange={handleSyllabusFile} disabled={syllabusImportStatus === "reading"} />
               </label>
+              {syllabusImportStatus === "reading" && <button type="button" className="btn btn-secondary" onClick={() => syllabusAbortRef.current?.abort()}>Cancel reading</button>}
               {syllabusFileName && <span className="syllabus-file-name">{syllabusFileName}</span>}
               {syllabusExtractedText && <button type="button" className="syllabus-full-text-button" onClick={() => { setBulkImportText(syllabusExtractedText); setBulkImportPreview([]); setBulkImportMessage("Showing all extracted syllabus text. Remove policy and schedule lines that are not assignments, then choose Review Assignments."); setSyllabusImportStatus("needs-review"); }}>Use full extracted text</button>}
             </div>
             <div className="bulk-import-divider"><span>or paste assignment lines</span></div>
-            {isMobileUi && <div className="bulk-import-instructions"><strong>Paste-ready format</strong><p>Put one assignment on each line. A course heading ending in a colon applies to the lines below it. You may include a due date, priority, estimated minutes, and notes in the line. Missing details stay editable in review; nothing is saved until you approve it.</p><code>{"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\nEnglish:\n- Essay draft due July 15, medium priority"}</code></div>}
-            <textarea value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Biology:\n- Lab report due July 9, high priority, 90 minutes\n- Chapter quiz due July 12\nEnglish:\n- Essay draft due July 15"} rows={7} />
-            <div className="bulk-import-actions"><button type="button" className="btn btn-primary" onClick={handleParseBulkImport} disabled={!bulkImportText.trim()}>Review Assignments</button><small>Bullets and numbered lines are accepted. Without line breaks, separate assignments with semicolons.</small></div>
+            <div className="bulk-import-instructions"><strong>Paste one assignment per line</strong><p>Include course, assignment name, and due date. Tabs, commas, spaced dashes, copied table rows, dates with times, and a first row of column names are accepted.</p><button type="button" className="syllabus-full-text-button" aria-expanded={bulkImportHelpOpen} onClick={() => setBulkImportHelpOpen((open) => !open)}>{bulkImportHelpOpen ? "Hide example" : "Show example"}</button>{bulkImportHelpOpen && <code>{"History — Chapter 4 Notes — September 18\nBiology — Lab Report — September 20 at 11:59 PM\nMath — Problems 1–25 — Friday"}</code>}</div>
+            <label className="bulk-import-text-label">Assignment list<textarea aria-describedby="bulk-import-format-help" value={bulkImportText} onChange={(event) => setBulkImportText(event.target.value)} placeholder={"Course, Assignment, Due Date\nHistory, Chapter 4 Notes, 9/18/2026"} rows={7} /></label>
+            <div className="bulk-import-actions"><button type="button" className="btn btn-primary" onClick={handleParseBulkImport} disabled={!bulkImportText.trim()}>Review Assignments</button><small id="bulk-import-format-help">Nothing is saved until you review and approve the detected rows.</small></div>
             {bulkImportMessage && <p className="bulk-import-message" role="status">{bulkImportMessage}</p>}
             {bulkImportPreview.length > 0 && (
               <div className="bulk-import-review">
                 <div className="bulk-import-review-toolbar">
-                  <strong>{bulkImportPreview.filter((item) => item.selected).length}/{bulkImportPreview.length} selected | {bulkImportIssueCount} need review</strong>
+                  <strong>{bulkImportPreview.length} assignment{bulkImportPreview.length === 1 ? "" : "s"} detected · {bulkImportIssueCount} need review</strong>
+                  <small>Source: {bulkImportSource}</small>
                   <span>
                     <button type="button" className={`btn ${bulkImportIssuesOnly ? "btn-primary" : "btn-secondary"}`} onClick={() => setBulkImportIssuesOnly((value) => !value)} disabled={bulkImportIssueCount === 0}>{bulkImportIssuesOnly ? "Show all" : "Issues only"}</button>
                     <button type="button" className="btn btn-secondary" onClick={handleBulkPreviewSelectReady} disabled={bulkImportIssueCount === bulkImportPreview.length}>Select ready</button>
@@ -6523,16 +6550,20 @@ function App() {
                     <article key={item.previewId} className={item.selected ? "" : "is-skipped"}>
                       <label className="bulk-import-select"><input type="checkbox" checked={item.selected} onChange={(event) => handleBulkPreviewChange(item.previewId, "selected", event.target.checked)} /><span>{item.selected ? "Import" : "Skipped"}</span></label>
                       <label><span>Title</span><input value={item.title || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "title", event.target.value)} /></label>
-                      <label><span>Course</span><select value={item.course || "Other"} onChange={(event) => handleBulkPreviewChange(item.previewId, "course", event.target.value)}>{[...new Set([...courses, item.course || "Other"])].map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
+                      <label><span>Course</span><span className="bulk-import-course-control"><select value={item.course || "Other"} onChange={(event) => handleBulkPreviewChange(item.previewId, "course", event.target.value)}>{[...new Set([...courses, item.course || "Other"])].map((course) => <option key={course} value={course}>{course}</option>)}</select><button type="button" className="btn btn-secondary" onClick={() => handleBulkImportCourseCreate(item.previewId)}>New</button></span></label>
                       <label><span>Month</span><input type="number" min="1" max="12" value={item.dueMonth || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueMonth", event.target.value)} /></label>
                       <label><span>Day</span><input type="number" min="1" max="31" value={item.dueDay || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueDay", event.target.value)} /></label>
+                      <label><span>Due time</span><input value={item.dueHour || ""} placeholder="11:59" inputMode="numeric" onChange={(event) => handleBulkPreviewChange(item.previewId, "dueHour", event.target.value)} /></label>
+                      <label><span>AM/PM</span><select value={item.dueAmPm || userSettings.defaultDueAmPm || "PM"} onChange={(event) => handleBulkPreviewChange(item.previewId, "dueAmPm", event.target.value)}><option>AM</option><option>PM</option></select></label>
                       <label><span>Priority</span><select value={item.priority || userSettings.defaultPriority || "MED"} onChange={(event) => handleBulkPreviewChange(item.previewId, "priority", event.target.value)}><option value="LOW">Low</option><option value="MED">Medium</option><option value="HIGH">High</option></select></label>
                       <label><span>Minutes</span><input type="number" min="0" max="1440" value={item.estimatedMinutes ?? ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "estimatedMinutes", event.target.value)} /></label>
+                      <label className="bulk-import-notes"><span>Notes</span><textarea value={item.notes || ""} onChange={(event) => handleBulkPreviewChange(item.previewId, "notes", event.target.value)} rows="2" /></label>
+                      <span className={`bulk-import-readiness ${warnings.length ? "needs-review" : "ready"}`}>{warnings.length ? "Needs Review" : "Ready"}</span>
                       {warnings.length > 0 && <div className="bulk-import-warnings">{warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>}
                     </article>
                   );
                 })}
-                <button type="button" className="btn btn-primary bulk-import-submit" onClick={handleBulkImportSubmit}>Add Selected to To Do</button>
+                <button type="button" className="btn btn-primary bulk-import-submit" onClick={handleBulkImportSubmit} disabled={bulkImportSaving}>{bulkImportSaving ? "Adding…" : "Add Selected to To Do"}</button>
               </div>
             )}
           </div>
@@ -10177,7 +10208,7 @@ function App() {
                   <SettingsCard title="Backup & Restore" description="Download a copy you control, restore a complete JSON backup, or recover an earlier cloud version." className="settings-section-wide recovery-center-card">
                     <div className="recovery-action-grid">
                       <div><strong>Complete JSON backup</strong><p>Includes assignments, Trash, checklists, courses, preferences, and workspace layouts. Attachment files are browser-only and are not included.</p><button type="button" className="btn btn-primary" onClick={handleExportJson}>Download JSON Backup</button></div>
-                      <div><strong>Assignment spreadsheet</strong><p>Exports assignment rows for Excel or Google Sheets. CSV files cannot restore the full app.</p><button type="button" className="btn btn-secondary" onClick={handleExportCsv}>Download Assignment CSV</button></div>
+                      <div><strong>Assignment spreadsheet</strong><p>Download a CSV you can open or import in Google Sheets, Microsoft Excel, or Apple Numbers. CSV files cannot restore the full app.</p><button type="button" className="btn btn-secondary" onClick={handleExportCsv}>Export for Google Sheets / CSV</button></div>
                       <div><strong>Restore from JSON</strong><p>Your current planner is backed up locally before the imported version replaces it.</p><label className="btn btn-secondary recovery-file-button">Choose JSON Backup<input type="file" accept="application/json,.json" onChange={handleImportBackup} /></label></div>
                       <div><strong>Previous local version</strong><p>Restore the latest safety copy created before a backup, cloud conflict, or earlier restore.</p><button type="button" className="btn btn-secondary" onClick={handleRestoreLocalBackup}>Restore Previous Local Version</button></div>
                     </div>

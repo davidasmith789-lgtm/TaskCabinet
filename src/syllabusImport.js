@@ -1,6 +1,6 @@
 /* Local syllabus validation, text extraction, and heuristic assignment finding. */
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const MAX_PDF_PAGES = 150;
+export const MAX_SYLLABUS_FILE_BYTES = 10 * 1024 * 1024;
+export const MAX_PDF_PAGES = 150;
 
 export function getSyllabusFileKind(file) {
   const name = String(file?.name || "").toLowerCase();
@@ -14,25 +14,30 @@ export function getSyllabusFileKind(file) {
 export function validateSyllabusFile(file) {
   if (!file) throw new Error("Choose a syllabus file first.");
   if (file.size <= 0) throw new Error("That syllabus file is empty.");
-  if (file.size > MAX_FILE_BYTES) throw new Error("Syllabus files must be 10 MB or smaller.");
+  if (file.size > MAX_SYLLABUS_FILE_BYTES) throw new Error("This file is too large to process safely. Choose a file that is 10 MB or smaller.");
   const kind = getSyllabusFileKind(file);
-  if (kind === "legacy-doc") throw new Error("Older .doc files are not supported. Open the file in Word and save it as .docx first.");
+  if (kind === "legacy-doc") throw new Error("Older .doc files cannot be read safely in this browser. Save or export the file as DOCX, PDF, or TXT, then try again.");
   if (kind === "unknown") throw new Error("Choose a PDF, DOCX, TXT, Markdown, or CSV syllabus.");
   return kind;
 }
 
-async function extractPdfText(file) {
+async function extractPdfText(file, options = {}) {
   const [{ getDocument, GlobalWorkerOptions }, workerModule] = await Promise.all([
     import("pdfjs-dist/legacy/build/pdf.mjs"),
     import("pdfjs-dist/legacy/build/pdf.worker.mjs?url"),
   ]);
   GlobalWorkerOptions.workerSrc = workerModule.default;
-  const document = await getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  if (document.numPages > MAX_PDF_PAGES) throw new Error(`This PDF has ${document.numPages} pages. The maximum is ${MAX_PDF_PAGES}.`);
-  const pages = [];
-  for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-    const page = await document.getPage(pageNumber);
-    const content = await page.getTextContent();
+  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  let document;
+  try {
+    document = await loadingTask.promise;
+    if (document.numPages > MAX_PDF_PAGES) throw new Error(`This PDF has ${document.numPages} pages. Choose a PDF with ${MAX_PDF_PAGES} pages or fewer.`);
+    const pages = [];
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      if (options.signal?.aborted) throw new DOMException("Reading cancelled", "AbortError");
+      options.onProgress?.({ pageNumber, pageCount: document.numPages, message: `Reading page ${pageNumber} of ${document.numPages}` });
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
     let line = "";
     let lastY = null;
     const lines = [];
@@ -51,9 +56,19 @@ async function extractPdfText(file) {
       lastY = y;
     }
     if (line.trim()) lines.push(line.trim());
-    pages.push(lines.join("\n"));
+      pages.push(lines.join("\n"));
+      page.cleanup();
+    }
+    return pages.join("\n\n");
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("PDF reading was cancelled. Choose the file again when you are ready.", { cause: error });
+    if (/password/i.test(String(error?.name || "")) || /password/i.test(String(error?.message || ""))) throw new Error("This PDF is password-protected. Remove the password or export an unlocked copy, then try again.", { cause: error });
+    if (error instanceof Error && /pages|cancelled|password-protected/.test(error.message)) throw error;
+    throw new Error("This PDF appears corrupted or could not be read. Try exporting it again, or use DOCX or TXT.", { cause: error });
+  } finally {
+    await document?.destroy?.().catch(() => {});
+    await loadingTask.destroy?.().catch(() => {});
   }
-  return pages.join("\n\n");
 }
 
 async function extractDocxText(file) {
@@ -63,17 +78,17 @@ async function extractDocxText(file) {
   return String(result.value || "");
 }
 
-export async function extractSyllabusText(file) {
+export async function extractSyllabusText(file, options = {}) {
   const kind = validateSyllabusFile(file);
   const text = kind === "pdf"
-    ? await extractPdfText(file)
+    ? await extractPdfText(file, options)
     : kind === "docx"
       ? await extractDocxText(file)
       : await file.text();
   const cleaned = text.split(String.fromCharCode(0)).join("").replace(/[ \t]+\n/g, "\n").trim();
   if (!cleaned) {
     throw new Error(kind === "pdf"
-      ? "No selectable text was found. This may be a scanned PDF and would need OCR first."
+      ? "This appears to be a scanned PDF with no selectable text. OCR is not available yet; export it as a searchable PDF or TXT and try again."
       : "No readable text was found in that syllabus.");
   }
   return cleaned;

@@ -28,9 +28,10 @@ test("Vite injects version, commit, environment, build time, and source state", 
   assert.equal(JSON.parse(packageJson).version, "1.0.0");
 });
 
-test("CSV exports and crash diagnostics report the same build identity", async () => {
-  const [app, boundary] = await Promise.all([read("../src/App.jsx"), read("../src/AppErrorBoundary.jsx")]);
-  for (const column of ["appVersion", "commitSha", "environment", "exportedAt", "dataSchemaVersion"]) assert.match(app, new RegExp(`"${column}"`));
+test("assignment CSV omits build identity while crash diagnostics retain it", async () => {
+  const [app, csv, boundary] = await Promise.all([read("../src/App.jsx"), read("../src/assignmentCsv.js"), read("../src/AppErrorBoundary.jsx")]);
+  for (const field of ["appVersion", "commitSha", "environment", "exportedAt", "dataSchemaVersion"]) assert.doesNotMatch(csv, new RegExp(field));
+  assert.match(app, /createAssignmentsCsv/);
   assert.match(app, /Version & Diagnostics/);
   assert.match(boundary, /_metadata: createReportMetadata\(\)/);
   assert.match(boundary, /getBuildFingerprint\(\)/);

@@ -63,3 +63,8 @@ test("desktop account panel uses the available screen instead of a short cutoff"
   assert.match(styles, /\.auth-card\.welcome-auth-card \{[^}]*width: min\(100%, 680px\);[^}]*max-height: calc\(100dvh - 24px\);/);
   assert.match(styles, /\.welcome-auth-card \.card-form \{ gap: 8px; \}/);
 });
+
+test("signed-out feature headings stay readable in the default dark theme", async () => {
+  const styles = await read("../src/App.css");
+  assert.match(styles, /html\[data-theme="dark"\] \.welcome-feature-card h2 \{ color: #ffffff; \}/);
+});
