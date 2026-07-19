@@ -6850,6 +6850,7 @@ html[data-theme="dark"] .sync-conflict-dialog {
 /* Authoritative end-of-cascade mobile overrides. */
 @media (max-width: 767px) {
   :root { --mobile-nav-content-height: 70px; }
+  html[data-theme="dark"] .mobile-app-ui .mobile-settings-page .mobile-settings-list-heading h2 { color: #ffffff; }
   .mobile-app-main { padding-bottom: calc(var(--mobile-nav-clearance) + 28px); overflow-x: clip; }
   .App.is-standalone .mobile-app-main { padding-bottom: calc(var(--mobile-nav-clearance) + 34px); }
   .mobile-app-bottom-nav { height: var(--mobile-nav-clearance); padding-top: 3px; }

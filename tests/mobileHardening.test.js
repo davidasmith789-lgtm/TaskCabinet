@@ -86,3 +86,9 @@ test("mobile recommendation wording stays concise", async () => {
   assert.match(app, /Finish History outline/);
   assert.match(app, /Study Biology notes/);
 });
+
+test("mobile Customize GlowDocket heading stays white in dark themes", async () => {
+  const [app, styles] = await Promise.all([read("../src/App.jsx"), read("../src/App.css")]);
+  assert.match(app, /<h2>Customize GlowDocket<\/h2>/);
+  assert.match(styles, /html\[data-theme="dark"\] \.mobile-app-ui \.mobile-settings-page \.mobile-settings-list-heading h2 \{ color: #ffffff; \}/);
+});
