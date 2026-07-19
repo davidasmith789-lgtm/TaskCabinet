@@ -14,6 +14,18 @@ test("assignment completion uses accessible dependency-free confetti with reduce
   assert.match(app, /COMPLETION_CONFETTI\.map/);
   assert.match(app, /length: 36/);
   assert.match(css, /@keyframes completion-confetti-fall/);
+  for (const animationName of [
+    "completion-stars-fall",
+    "completion-course-wave",
+    "completion-rainbow-sweep",
+    "completion-sparkle-float",
+    "completion-ribbon-flutter",
+    "completion-prism-helix",
+  ]) {
+    assert.match(css, new RegExp(`@keyframes ${animationName}`));
+  }
+  assert.match(app, /celebration-\$\{completionCelebration\.confetti/);
+  assert.match(app, /reduceMotion \? 3100 : 8800/);
   assert.match(app, /window\.setTimeout\(\(\) => setCompletionCelebration\(null\)/);
   assert.match(css, /will-change: transform, opacity/);
   assert.match(css, /94% \{ opacity: 1; \}/);

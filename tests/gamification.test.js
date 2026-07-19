@@ -26,10 +26,12 @@ test("achievements unlock from totals, weekly consistency, and completion contex
   assert.deepEqual(getNewAchievementIds(tasks, { weeklyGoal: 5, earnedAchievementIds: unlocked }, { priority: "HIGH", wasOverdue: true, source: "focus" }, { now: new Date(2026, 6, 24) }), []);
 });
 
-test("locked cosmetics cannot be restored as selected", () => {
-  const normalized = normalizeGamification({ selectedConfetti: "stars", selectedTitle: "focus-finisher", earnedAchievementIds: [] });
+test("locked cosmetics and badges cannot be restored as selected", () => {
+  const normalized = normalizeGamification({ selectedConfetti: "stars", selectedTitle: "focus-finisher", selectedBadge: "weekly-goal", earnedAchievementIds: [] });
   assert.equal(normalized.selectedConfetti, "standard");
   assert.equal(normalized.selectedTitle, "getting-started");
+  assert.equal(normalized.selectedBadge, "");
+  assert.equal(normalizeGamification({ selectedBadge: "weekly-goal", earnedAchievementIds: ["weekly-goal"] }).selectedBadge, "weekly-goal");
 });
 
 test("expanded reward collection includes elaborate badges, titles, and celebration styles", () => {
@@ -49,6 +51,7 @@ test("the exact tester account receives every reward without granting lookalike 
   assert.deepEqual(new Set(granted.earnedAchievementIds), new Set(GAMIFICATION_ACHIEVEMENTS.map((item) => item.id)));
   assert.equal(granted.selectedConfetti, "prism");
   assert.equal(granted.selectedTitle, "assignment-ace");
+  assert.equal(granted.selectedBadge, "twenty-five-completions");
   assert.equal(grantAllGamificationRewards({ ...granted, selectedConfetti: "rainbow" }).selectedConfetti, "rainbow");
 });
 
@@ -65,5 +68,11 @@ test("completion paths timestamp work, undo clears it, and celebration covers th
   assert.match(css, /\.completion-celebration\s*\{[\s\S]*?inset: 0;/);
   assert.match(css, /translate3d\(var\(--confetti-drift\), 100vh/);
   assert.match(app, /momentum-earned-badge/);
+  assert.match(app, /selectedBadge: achievement\.id/);
+  assert.match(css, /\.achievement-card\.is-selected/);
+  assert.match(app, /<h2 id="gamification-title">Cosmetics<\/h2>/);
+  assert.doesNotMatch(app, /Gentle Momentum/);
+  assert.match(css, /\.gamification-dialog h2[\s\S]*color: var\(--text-color\) !important/);
+  assert.match(css, /selected-badge-aura/);
   assert.match(css, /\.reduce-motion \.completion-confetti/);
 });

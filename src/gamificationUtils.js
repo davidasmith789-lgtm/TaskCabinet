@@ -4,6 +4,7 @@ export const DEFAULT_GAMIFICATION = Object.freeze({
   earnedAchievementIds: [],
   selectedConfetti: "standard",
   selectedTitle: "getting-started",
+  selectedBadge: "",
   showHeaderSummary: true,
 });
 
@@ -65,7 +66,8 @@ export function normalizeGamification(value = {}) {
   const weeklyGoal = Math.max(1, Math.min(50, Math.round(Number(source.weeklyGoal) || DEFAULT_GAMIFICATION.weeklyGoal)));
   const selectedTitle = GAMIFICATION_TITLES.some((item) => item.id === source.selectedTitle && (!item.requirement || earned.has(item.requirement))) ? source.selectedTitle : DEFAULT_GAMIFICATION.selectedTitle;
   const selectedConfetti = GAMIFICATION_CONFETTI.some((item) => item.id === source.selectedConfetti && (!item.requirement || earned.has(item.requirement))) ? source.selectedConfetti : DEFAULT_GAMIFICATION.selectedConfetti;
-  return { version: 1, weeklyGoal, earnedAchievementIds, selectedConfetti, selectedTitle, showHeaderSummary: source.showHeaderSummary !== false };
+  const selectedBadge = earned.has(source.selectedBadge) ? source.selectedBadge : earnedAchievementIds.at(-1) || "";
+  return { version: 1, weeklyGoal, earnedAchievementIds, selectedConfetti, selectedTitle, selectedBadge, showHeaderSummary: source.showHeaderSummary !== false };
 }
 
 export function grantAllGamificationRewards(value = {}) {
@@ -77,6 +79,7 @@ export function grantAllGamificationRewards(value = {}) {
     earnedAchievementIds: allAchievementIds,
     selectedConfetti: alreadyGranted ? current.selectedConfetti : "prism",
     selectedTitle: alreadyGranted ? current.selectedTitle : "assignment-ace",
+    selectedBadge: alreadyGranted ? current.selectedBadge : "twenty-five-completions",
   });
 }
 

@@ -1945,7 +1945,7 @@ function App() {
 
   useEffect(() => {
     if (!completionCelebration) return undefined;
-    const timeoutId = window.setTimeout(() => setCompletionCelebration(null), userSettings.reduceMotion ? 3100 : 6500);
+    const timeoutId = window.setTimeout(() => setCompletionCelebration(null), userSettings.reduceMotion ? 3100 : 8800);
     return () => window.clearTimeout(timeoutId);
   }, [completionCelebration, userSettings.reduceMotion]);
   const [settingsSection, setSettingsSection] = useState(() => recoveryRequestedOnLoad() ? "storage" : "personalization");
@@ -7962,7 +7962,7 @@ function App() {
   const weeklyMomentum = summarizeWeeklyMomentum(tasks, gamification, { now: checklistNow, weekStartsOn: userSettings.calendarWeekStartsOn });
   const gamificationTitle = getGamificationTitle(gamification);
   const earnedAchievements = new Set(gamification.earnedAchievementIds);
-  const latestAchievement = GAMIFICATION_ACHIEVEMENTS.find((achievement) => achievement.id === gamification.earnedAchievementIds.at(-1));
+  const selectedAchievement = GAMIFICATION_ACHIEVEMENTS.find((achievement) => achievement.id === gamification.selectedBadge);
   const updateGamification = (changes) => handleAddFieldSettingChange("gamification", normalizeGamification({ ...gamification, ...changes }));
   const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses"];
   const mobileUsesOwnScreen = isMobileUi && mobileOwnedTabs.includes(currentTab);
@@ -8103,7 +8103,7 @@ function App() {
               <GlowDocketLogo decorative />
               <div><strong>GlowDocket</strong></div>
             </button>
-            {gamification.showHeaderSummary && <button type="button" className="mobile-momentum-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal}. ${earnedAchievements.size} badges earned. Open achievements.`}><span className="mobile-momentum-badge" aria-hidden="true">{latestAchievement?.icon || "🏅"}</span><strong>{weeklyMomentum.completed}/{weeklyMomentum.goal}</strong><small>Momentum</small></button>}
+            {gamification.showHeaderSummary && <button type="button" className="mobile-momentum-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal}. Displayed badge: ${selectedAchievement?.title || "none"}. ${earnedAchievements.size} badges earned. Open achievements.`}><span className="mobile-momentum-badge" aria-hidden="true">{selectedAchievement?.icon || "🏅"}</span><strong>{weeklyMomentum.completed}/{weeklyMomentum.goal}</strong><small>Momentum</small></button>}
             <button type="button" className="mobile-app-profile-button" onClick={() => setMobileMoreOpen(true)} aria-label="Open account and more menu">
               {safeDisplayName.charAt(0).toUpperCase()}
             </button>
@@ -8123,7 +8123,7 @@ function App() {
 
           <div className="hero-status-stack">
             <div className="user-pill">{currentUser ? `Signed in as ${displayName || "GlowDocket user"}` : "Guest Mode"}</div>
-            {gamification.showHeaderSummary && <button type="button" className="momentum-header-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal} assignments, ${weeklyMomentum.productiveDays} productive days, ${earnedAchievements.size} badges earned. Open achievements.`}><span className="momentum-summary-copy"><strong>{gamificationTitle.label}</strong><small>{weeklyMomentum.completed}/{weeklyMomentum.goal} this week · {weeklyMomentum.productiveDays} active day{weeklyMomentum.productiveDays === 1 ? "" : "s"}</small></span><span className={`momentum-earned-badge tone-${latestAchievement?.tone || "gold"}`} title={latestAchievement ? `Latest badge: ${latestAchievement.title}` : "Complete an assignment to earn your first badge"} aria-hidden="true"><b>{latestAchievement?.icon || "🏅"}</b><em>{earnedAchievements.size}</em></span><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress></button>}
+            {gamification.showHeaderSummary && <button type="button" className="momentum-header-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal} assignments, ${weeklyMomentum.productiveDays} productive days, displayed badge ${selectedAchievement?.title || "none"}, ${earnedAchievements.size} badges earned. Open achievements.`}><span className="momentum-summary-copy"><strong>{gamificationTitle.label}</strong><small>{weeklyMomentum.completed}/{weeklyMomentum.goal} this week · {weeklyMomentum.productiveDays} active day{weeklyMomentum.productiveDays === 1 ? "" : "s"}</small></span><span className={`momentum-earned-badge tone-${selectedAchievement?.tone || "gold"}`} title={selectedAchievement ? `Displayed badge: ${selectedAchievement.title}` : "Complete an assignment to earn your first badge"} aria-hidden="true"><b>{selectedAchievement?.icon || "🏅"}</b><em>{earnedAchievements.size}</em></span><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress></button>}
           </div>
         </header>
 
@@ -11131,9 +11131,9 @@ function App() {
       {gamificationOpen && (
         <div className="gamification-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setGamificationOpen(false); }}>
           <section className="gamification-dialog" role="dialog" aria-modal="true" aria-labelledby="gamification-title" onKeyDown={(event) => { if (event.key === "Escape") setGamificationOpen(false); }}>
-            <header><div><p className="eyebrow">Gentle Momentum</p><h2 id="gamification-title">Momentum & Achievements</h2><p>Build consistency at your pace. Missing a day never removes progress or rewards.</p></div><button autoFocus type="button" className="gamification-close" onClick={() => setGamificationOpen(false)} aria-label="Close Momentum and Achievements">×</button></header>
+            <header><div><h2 id="gamification-title">Cosmetics</h2><p>Collect badges, choose your display piece, equip a title, and pick a celebration style.</p></div><button autoFocus type="button" className="gamification-close" onClick={() => setGamificationOpen(false)} aria-label="Close Cosmetics">×</button></header>
             <div className="gamification-week-card"><div><strong>{weeklyMomentum.completed} of {weeklyMomentum.goal}</strong><span>assignments completed this week</span></div><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress><span>{weeklyMomentum.productiveDays} productive day{weeklyMomentum.productiveDays === 1 ? "" : "s"} this week</span><label>Weekly goal<input type="number" min="1" max="50" value={gamification.weeklyGoal} onChange={(event) => updateGamification({ weeklyGoal: event.target.value })} /></label></div>
-            <section><h3>Badges</h3><div className="achievement-grid">{GAMIFICATION_ACHIEVEMENTS.map((achievement) => { const earned = earnedAchievements.has(achievement.id); return <article key={achievement.id} className={`${earned ? "is-earned" : "is-locked"} tone-${achievement.tone}`}><span className="achievement-medallion" aria-hidden="true">{earned ? achievement.icon : "🔒"}</span><div><strong>{achievement.title}</strong><small>{achievement.description}</small><em>{earned ? "Earned" : "Locked"}</em></div></article>; })}</div></section>
+            <section><h3>Badges</h3><p className="gamification-section-hint">Choose any earned badge to display in your momentum summary.</p><div className="achievement-grid">{GAMIFICATION_ACHIEVEMENTS.map((achievement) => { const earned = earnedAchievements.has(achievement.id); const selected = gamification.selectedBadge === achievement.id; return <button type="button" key={achievement.id} className={`achievement-card ${earned ? "is-earned" : "is-locked"}${selected ? " is-selected" : ""} tone-${achievement.tone}`} disabled={!earned} aria-pressed={earned ? selected : undefined} onClick={() => updateGamification({ selectedBadge: achievement.id })}><span className="achievement-medallion" aria-hidden="true">{earned ? achievement.icon : "🔒"}</span><span className="achievement-card-copy"><strong>{achievement.title}</strong><small>{achievement.description}</small><em>{earned ? selected ? "Displayed" : "Earned" : "Locked"}</em></span></button>; })}</div></section>
             <section className="gamification-rewards"><h3>Celebration style</h3><div>{GAMIFICATION_CONFETTI.map((option) => { const unlocked = !option.requirement || earnedAchievements.has(option.requirement); return <button type="button" key={option.id} className={gamification.selectedConfetti === option.id ? "is-selected" : ""} disabled={!unlocked} onClick={() => updateGamification({ selectedConfetti: option.id })}>{option.label}{!unlocked ? " 🔒" : ""}</button>; })}</div><h3>Profile title</h3><div>{GAMIFICATION_TITLES.map((option) => { const unlocked = !option.requirement || earnedAchievements.has(option.requirement); return <button type="button" key={option.id} className={gamification.selectedTitle === option.id ? "is-selected" : ""} disabled={!unlocked} onClick={() => updateGamification({ selectedTitle: option.id })}>{option.label}{!unlocked ? " 🔒" : ""}</button>; })}</div></section>
           </section>
         </div>
@@ -11155,7 +11155,7 @@ function App() {
       {completionCelebration && (
         <div
           key={completionCelebration.id}
-          className="completion-celebration"
+          className={`completion-celebration celebration-${completionCelebration.confetti || "standard"}`}
           role="status"
           aria-live="polite"
         >
