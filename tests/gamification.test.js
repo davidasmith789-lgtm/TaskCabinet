@@ -43,6 +43,7 @@ test("completion paths timestamp work, undo clears it, and celebration covers th
   assert.match(app, /source: "related-tasks"/);
   assert.match(app, /Momentum & Achievements/);
   assert.match(css, /\.completion-celebration\s*\{[\s\S]*?inset: 0;/);
-  assert.match(css, /calc\(100vh \+ 40px\)/);
+  assert.match(css, /translate3d\(var\(--confetti-drift\), 100vh/);
+  assert.match(app, /momentum-earned-badge/);
   assert.match(css, /\.reduce-motion \.completion-confetti/);
 });

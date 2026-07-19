@@ -147,8 +147,8 @@ const COMPLETION_CONFETTI = Array.from({ length: 36 }, (_, index) => ({
   id: index,
   x: `${6 + ((index * 37) % 88)}%`,
   drift: `${((index * 29) % 90) - 45}px`,
-  delay: `${(index % 5) * 35}ms`,
-  duration: `${850 + (index % 4) * 120}ms`,
+  delay: `${(index % 5) * 80}ms`,
+  duration: `${4200 + (index % 4) * 500}ms`,
   rotation: `${120 + ((index * 47) % 300)}deg`,
   color: ["var(--primary-color)", "var(--secondary-color)", "var(--success-color)", "var(--warning-color)"][index % 4],
 }));
@@ -7941,6 +7941,7 @@ function App() {
   const weeklyMomentum = summarizeWeeklyMomentum(tasks, gamification, { now: checklistNow, weekStartsOn: userSettings.calendarWeekStartsOn });
   const gamificationTitle = getGamificationTitle(gamification);
   const earnedAchievements = new Set(gamification.earnedAchievementIds);
+  const latestAchievement = GAMIFICATION_ACHIEVEMENTS.find((achievement) => achievement.id === gamification.earnedAchievementIds.at(-1));
   const updateGamification = (changes) => handleAddFieldSettingChange("gamification", normalizeGamification({ ...gamification, ...changes }));
   const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses"];
   const mobileUsesOwnScreen = isMobileUi && mobileOwnedTabs.includes(currentTab);
@@ -8081,7 +8082,7 @@ function App() {
               <GlowDocketLogo decorative />
               <div><strong>GlowDocket</strong></div>
             </button>
-            {gamification.showHeaderSummary && <button type="button" className="mobile-momentum-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal}. Open achievements.`}><strong>{weeklyMomentum.completed}/{weeklyMomentum.goal}</strong><small>Momentum</small></button>}
+            {gamification.showHeaderSummary && <button type="button" className="mobile-momentum-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal}. ${earnedAchievements.size} badges earned. Open achievements.`}><span className="mobile-momentum-badge" aria-hidden="true">🏅</span><strong>{weeklyMomentum.completed}/{weeklyMomentum.goal}</strong><small>Momentum</small></button>}
             <button type="button" className="mobile-app-profile-button" onClick={() => setMobileMoreOpen(true)} aria-label="Open account and more menu">
               {safeDisplayName.charAt(0).toUpperCase()}
             </button>
@@ -8101,7 +8102,7 @@ function App() {
 
           <div className="hero-status-stack">
             <div className="user-pill">{currentUser ? `Signed in as ${displayName || "GlowDocket user"}` : "Guest Mode"}</div>
-            {gamification.showHeaderSummary && <button type="button" className="momentum-header-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal} assignments, ${weeklyMomentum.productiveDays} productive days. Open achievements.`}><span><strong>{gamificationTitle.label}</strong><small>{weeklyMomentum.completed}/{weeklyMomentum.goal} this week · {weeklyMomentum.productiveDays} active day{weeklyMomentum.productiveDays === 1 ? "" : "s"}</small></span><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress></button>}
+            {gamification.showHeaderSummary && <button type="button" className="momentum-header-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal} assignments, ${weeklyMomentum.productiveDays} productive days, ${earnedAchievements.size} badges earned. Open achievements.`}><span className="momentum-summary-copy"><strong>{gamificationTitle.label}</strong><small>{weeklyMomentum.completed}/{weeklyMomentum.goal} this week · {weeklyMomentum.productiveDays} active day{weeklyMomentum.productiveDays === 1 ? "" : "s"}</small></span><span className="momentum-earned-badge" title={latestAchievement ? `Latest badge: ${latestAchievement.title}` : "Complete an assignment to earn your first badge"} aria-hidden="true"><b>🏅</b><em>{earnedAchievements.size}</em></span><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress></button>}
           </div>
         </header>
 
