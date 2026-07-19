@@ -1109,7 +1109,7 @@ textarea {
 .momentum-summary-copy { display: grid; min-width: 0; gap: 2px; }
 .momentum-header-summary small { color: inherit; opacity: .86; }
 .momentum-header-summary progress { grid-column: 1 / -1; width: 100%; height: 7px; accent-color: var(--success-color); }
-.momentum-earned-badge { position: relative; display: grid; width: 42px; height: 42px; place-items: center; align-self: center; border: 1px solid color-mix(in srgb, currentColor 28%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--warning-color) 28%, transparent); }
+.momentum-earned-badge { --badge-color: var(--warning-color); position: relative; display: grid; width: 42px; height: 42px; place-items: center; align-self: center; border: 1px solid color-mix(in srgb, var(--badge-color) 58%, transparent); border-radius: 50%; background: radial-gradient(circle at 34% 25%, color-mix(in srgb, white 70%, var(--badge-color)) 0 8%, color-mix(in srgb, var(--badge-color) 35%, transparent) 11% 55%, color-mix(in srgb, var(--badge-color) 72%, transparent)); box-shadow: 0 4px 14px color-mix(in srgb, var(--badge-color) 25%, transparent); }
 .momentum-earned-badge b { font-size: 1.35rem; }
 .momentum-earned-badge em { position: absolute; right: -5px; bottom: -4px; display: grid; min-width: 20px; height: 20px; padding: 0 4px; place-items: center; border-radius: 999px; background: var(--success-color); color: var(--button-primary-color); font-size: .68rem; font-style: normal; font-weight: 900; }
 .mobile-momentum-summary { position: relative; display: grid; min-width: 76px; min-height: 44px; padding: 5px 9px; place-items: center; border: 1px solid var(--border-color); border-radius: 13px; background: var(--surface-alt); color: var(--text-color); }
@@ -1129,12 +1129,22 @@ textarea {
 .gamification-week-card label { display: flex; align-items: center; gap: 8px; }
 .gamification-week-card input { width: 72px; }
 .achievement-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.achievement-grid article { display: flex; min-width: 0; gap: 10px; padding: 12px; border: 1px solid var(--border-color); border-radius: 14px; background: var(--surface-alt); }
-.achievement-grid article > span { font-size: 1.35rem; }
+.achievement-grid article { --badge-color: var(--primary-color); --badge-soft: var(--surface-alt); display: flex; min-width: 0; align-items: center; gap: 12px; padding: 13px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--badge-color) 42%, var(--border-color)); border-radius: 16px; background: linear-gradient(135deg, color-mix(in srgb, var(--badge-color) 13%, var(--card-bg)), var(--badge-soft)); box-shadow: inset 3px 0 0 color-mix(in srgb, var(--badge-color) 75%, transparent); }
+.achievement-medallion { display: grid; width: 48px; height: 48px; flex: 0 0 48px; place-items: center; border: 1px solid color-mix(in srgb, var(--badge-color) 55%, var(--border-color)); border-radius: 50%; background: radial-gradient(circle at 34% 28%, white 0 7%, color-mix(in srgb, var(--badge-color) 38%, var(--card-bg)) 9% 48%, color-mix(in srgb, var(--badge-color) 76%, var(--card-bg))); box-shadow: 0 5px 14px color-mix(in srgb, var(--badge-color) 24%, transparent), inset 0 0 0 3px color-mix(in srgb, white 17%, transparent); font-size: 1.45rem; }
+.tone-gold { --badge-color: #f59e0b; --badge-soft: color-mix(in srgb, #f59e0b 8%, var(--surface-alt)); }
+.tone-violet { --badge-color: #8b5cf6; --badge-soft: color-mix(in srgb, #8b5cf6 8%, var(--surface-alt)); }
+.tone-blue { --badge-color: #3b82f6; --badge-soft: color-mix(in srgb, #3b82f6 8%, var(--surface-alt)); }
+.tone-legendary { --badge-color: #eab308; --badge-soft: color-mix(in srgb, #ec4899 10%, var(--surface-alt)); }
+.tone-rose { --badge-color: #ec4899; --badge-soft: color-mix(in srgb, #ec4899 8%, var(--surface-alt)); }
+.tone-orange { --badge-color: #f97316; --badge-soft: color-mix(in srgb, #f97316 8%, var(--surface-alt)); }
+.tone-emerald { --badge-color: #10b981; --badge-soft: color-mix(in srgb, #10b981 8%, var(--surface-alt)); }
+.tone-cyan { --badge-color: #06b6d4; --badge-soft: color-mix(in srgb, #06b6d4 8%, var(--surface-alt)); }
+.tone-lime { --badge-color: #84cc16; --badge-soft: color-mix(in srgb, #84cc16 8%, var(--surface-alt)); }
 .achievement-grid article > div { display: grid; gap: 3px; }
 .achievement-grid small { color: var(--muted-text); }
 .achievement-grid em { color: var(--success-color); font-size: .72rem; font-style: normal; font-weight: 800; text-transform: uppercase; }
 .achievement-grid .is-locked { opacity: .65; }
+.achievement-grid .is-locked .achievement-medallion { filter: grayscale(1); }
 .achievement-grid .is-locked em { color: var(--muted-text); }
 .gamification-rewards > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .gamification-rewards button { padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 999px; background: var(--surface-alt); color: var(--text-color); cursor: pointer; }
@@ -6411,6 +6421,16 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
 .completion-confetti i:nth-child(4n) { width: 11px; height: 5px; }
 .completion-confetti.is-stars i { width: 13px; height: 13px; background: #fbbf24; clip-path: polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 94%,50% 72%,21% 94%,32% 57%,2% 35%,39% 35%); }
 .completion-confetti.is-course i:nth-child(odd) { background: var(--course-confetti, var(--primary-color)); }
+.completion-confetti.is-rainbow i:nth-child(6n+1) { background: #ef4444; }
+.completion-confetti.is-rainbow i:nth-child(6n+2) { background: #f97316; }
+.completion-confetti.is-rainbow i:nth-child(6n+3) { background: #eab308; }
+.completion-confetti.is-rainbow i:nth-child(6n+4) { background: #22c55e; }
+.completion-confetti.is-rainbow i:nth-child(6n+5) { background: #3b82f6; }
+.completion-confetti.is-rainbow i:nth-child(6n) { background: #a855f7; }
+.completion-confetti.is-sparkles i { width: 12px; height: 12px; background: #fde68a; clip-path: polygon(50% 0,60% 39%,100% 50%,60% 61%,50% 100%,40% 61%,0 50%,40% 39%); box-shadow: 0 0 12px #fef3c7; }
+.completion-confetti.is-ribbons i { width: 5px; height: 24px; border-radius: 999px; }
+.completion-confetti.is-ribbons i:nth-child(odd) { background: linear-gradient(#ec4899, #8b5cf6); }
+.completion-confetti.is-prism i { width: 12px; height: 12px; border-radius: 3px; background: conic-gradient(from 45deg, #f43f5e, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #f43f5e); box-shadow: 0 0 9px color-mix(in srgb, var(--primary-color) 45%, transparent); }
 
 .completion-celebration-toast > span {
   display: grid;

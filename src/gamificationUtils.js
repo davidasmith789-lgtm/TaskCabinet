@@ -8,14 +8,22 @@ export const DEFAULT_GAMIFICATION = Object.freeze({
 });
 
 export const GAMIFICATION_ACHIEVEMENTS = Object.freeze([
-  { id: "first-completion", title: "First Win", description: "Complete your first assignment." },
-  { id: "five-completions", title: "Momentum Builder", description: "Complete five assignments." },
-  { id: "weekly-goal", title: "Goal Getter", description: "Reach your weekly assignment goal." },
-  { id: "three-productive-days", title: "Consistent Glow", description: "Complete work on three different days in one week." },
-  { id: "high-priority", title: "Priority Pro", description: "Complete a high-priority assignment." },
-  { id: "overdue-recovery", title: "Deadline Defender", description: "Complete an overdue assignment." },
-  { id: "related-tasks", title: "Step by Step", description: "Finish an assignment by completing all related tasks." },
-  { id: "focus-finish", title: "Focus Finisher", description: "Complete an assignment after a focus session." },
+  { id: "first-completion", title: "First Win", description: "Complete your first assignment.", icon: "🌟", tone: "gold" },
+  { id: "five-completions", title: "Momentum Builder", description: "Complete five assignments.", icon: "🚀", tone: "violet" },
+  { id: "ten-completions", title: "Tenacious Ten", description: "Complete ten assignments.", icon: "🔟", tone: "blue" },
+  { id: "twenty-five-completions", title: "Assignment Ace", description: "Complete twenty-five assignments.", icon: "🏆", tone: "legendary" },
+  { id: "weekly-goal", title: "Goal Getter", description: "Reach your weekly assignment goal.", icon: "🎯", tone: "rose" },
+  { id: "double-weekly-goal", title: "Overachiever", description: "Complete twice your weekly goal.", icon: "💥", tone: "orange" },
+  { id: "three-productive-days", title: "Consistent Glow", description: "Complete work on three different days in one week.", icon: "🔥", tone: "orange" },
+  { id: "five-productive-days", title: "Week Warrior", description: "Complete work on five different days in one week.", icon: "⚔️", tone: "blue" },
+  { id: "high-priority", title: "Priority Pro", description: "Complete a high-priority assignment.", icon: "⚡", tone: "gold" },
+  { id: "overdue-recovery", title: "Deadline Defender", description: "Complete an overdue assignment.", icon: "🛡️", tone: "emerald" },
+  { id: "ahead-of-schedule", title: "Ahead of Schedule", description: "Finish more than a day before the deadline.", icon: "⏩", tone: "cyan" },
+  { id: "quick-win", title: "Quick Win", description: "Complete an assignment estimated at 30 minutes or less.", icon: "🏃", tone: "lime" },
+  { id: "deep-work", title: "Big Project Finisher", description: "Complete work estimated at two hours or more.", icon: "🏔️", tone: "violet" },
+  { id: "course-five", title: "Course Champion", description: "Complete five assignments in one course.", icon: "🎓", tone: "cyan" },
+  { id: "related-tasks", title: "Step by Step", description: "Finish an assignment by completing all related tasks.", icon: "🪜", tone: "emerald" },
+  { id: "focus-finish", title: "Focus Finisher", description: "Complete an assignment after a focus session.", icon: "🧠", tone: "rose" },
 ]);
 
 export const GAMIFICATION_TITLES = Object.freeze([
@@ -23,12 +31,22 @@ export const GAMIFICATION_TITLES = Object.freeze([
   { id: "momentum-builder", label: "Momentum Builder", requirement: "five-completions" },
   { id: "deadline-defender", label: "Deadline Defender", requirement: "overdue-recovery" },
   { id: "focus-finisher", label: "Focus Finisher", requirement: "focus-finish" },
+  { id: "goal-getter", label: "Goal Getter", requirement: "weekly-goal" },
+  { id: "priority-pro", label: "Priority Pro", requirement: "high-priority" },
+  { id: "week-warrior", label: "Week Warrior", requirement: "five-productive-days" },
+  { id: "course-champion", label: "Course Champion", requirement: "course-five" },
+  { id: "assignment-ace", label: "Assignment Ace", requirement: "twenty-five-completions" },
+  { id: "overachiever", label: "Overachiever", requirement: "double-weekly-goal" },
 ]);
 
 export const GAMIFICATION_CONFETTI = Object.freeze([
   { id: "standard", label: "Glow Mix", requirement: null },
   { id: "stars", label: "Golden Stars", requirement: "weekly-goal" },
   { id: "course", label: "Course Colors", requirement: "three-productive-days" },
+  { id: "rainbow", label: "Rainbow Cascade", requirement: "ten-completions" },
+  { id: "sparkles", label: "Focus Sparkles", requirement: "focus-finish" },
+  { id: "ribbons", label: "Victory Ribbons", requirement: "related-tasks" },
+  { id: "prism", label: "Prismatic Party", requirement: "twenty-five-completions" },
 ]);
 
 const validIds = (values, allowed) => [...new Set((Array.isArray(values) ? values : []).filter((id) => allowed.has(id)))];
@@ -72,14 +90,23 @@ export function getNewAchievementIds(tasks, gamification, event = {}, options = 
   const settings = normalizeGamification(gamification);
   const earned = new Set(settings.earnedAchievementIds);
   const completed = (Array.isArray(tasks) ? tasks : []).filter((task) => task?.isCompleted && !task.isDeleted && task.completedAt);
+  const courseCounts = completed.reduce((counts, task) => counts.set(String(task.course || task.category || "Other").trim().toLocaleLowerCase(), (counts.get(String(task.course || task.category || "Other").trim().toLocaleLowerCase()) || 0) + 1), new Map());
   const weekly = summarizeWeeklyMomentum(tasks, settings, options);
   const candidates = [];
   if (completed.length >= 1) candidates.push("first-completion");
   if (completed.length >= 5) candidates.push("five-completions");
+  if (completed.length >= 10) candidates.push("ten-completions");
+  if (completed.length >= 25) candidates.push("twenty-five-completions");
   if (weekly.goalReached) candidates.push("weekly-goal");
+  if (weekly.completed >= weekly.goal * 2) candidates.push("double-weekly-goal");
   if (weekly.productiveDays >= 3) candidates.push("three-productive-days");
+  if (weekly.productiveDays >= 5) candidates.push("five-productive-days");
   if (event.priority === "HIGH") candidates.push("high-priority");
   if (event.wasOverdue) candidates.push("overdue-recovery");
+  if (event.completedEarly) candidates.push("ahead-of-schedule");
+  if (Number(event.estimatedMinutes) > 0 && Number(event.estimatedMinutes) <= 30) candidates.push("quick-win");
+  if (Number(event.estimatedMinutes) >= 120) candidates.push("deep-work");
+  if ([...courseCounts.values()].some((count) => count >= 5)) candidates.push("course-five");
   if (event.source === "related-tasks") candidates.push("related-tasks");
   if (event.source === "focus") candidates.push("focus-finish");
   return candidates.filter((id) => !earned.has(id));
