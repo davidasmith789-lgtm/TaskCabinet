@@ -9,7 +9,6 @@ import {
   selectStudyCards,
 } from "../flashcardUtils.js";
 import FlashcardSharedActions from "./FlashcardSharedActions.jsx";
-import FlashcardModeratorQueue from "./FlashcardModeratorQueue.jsx";
 import FlashcardConfirmDialog from "./FlashcardConfirmDialog.jsx";
 import "./FlashcardsHub.css";
 const blankCard = () => ({
@@ -63,7 +62,6 @@ export default function FlashcardsHub({
     [flipped, setFlipped] = useState(false),
     [summary, setSummary] = useState(null),
     [progress, setProgress] = useState({}),
-    [isModerator, setIsModerator] = useState(false),
     [rewardSummary, setRewardSummary] = useState(null),
     [confirmRequest, setConfirmRequest] = useState(null),
     [celebrating, setCelebrating] = useState(false);
@@ -90,12 +88,6 @@ export default function FlashcardsHub({
     const t = setTimeout(() => setDebounced(query.trim()), 350);
     return () => clearTimeout(t);
   }, [query]);
-  useEffect(() => {
-    getSupabaseBrowserClient()
-      .then((c) => c.rpc("is_community_moderator", { check_user_id: userId }))
-      .then(({ data }) => setIsModerator(Boolean(data)))
-      .catch(() => {});
-  }, [userId]);
   useEffect(() => {
     getSupabaseBrowserClient()
       .then((c) => c.rpc("flashcard_reward_summary"))
@@ -1002,7 +994,6 @@ export default function FlashcardsHub({
             >
               Create Deck
             </button>
-            {isModerator && <FlashcardModeratorQueue onError={setNotice} />}
           </div>
         </header>
         {rewardSummary && (

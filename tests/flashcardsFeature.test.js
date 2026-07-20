@@ -8,6 +8,7 @@ const sql = read("supabase/migrations/202607200002_create_flashcards.sql");
 const hub = read("src/components/FlashcardsHub.jsx");
 const community = read("src/components/CommunityFlashcardActions.jsx");
 const assignment = read("src/components/AssignmentFlashcards.jsx");
+const confirmDialog = read("src/components/FlashcardConfirmDialog.jsx");
 
 test("ratings and reports are enforced server-side", () => {
   assert.match(sql, /primary key\(deck_id,user_id\)/i);
@@ -28,6 +29,12 @@ test("moderation uses Community moderator authorization", () => {
   assert.match(sql, /is_community_moderator\(auth\.uid\(\)\)/i);
   assert.match(sql, /flashcard_moderation_queue/);
   assert.match(sql, /moderate_flashcard_deck/);
+});
+
+test("Flashcards page omits the moderator queue and uses themed confirmations", () => {
+  assert.doesNotMatch(hub, /FlashcardModeratorQueue|is_community_moderator/);
+  assert.match(confirmDialog, /flash-confirm-dialog/);
+  assert.match(confirmDialog, /flash-confirm-actions/);
 });
 
 test("Community conversion is reviewed and only selected cards are saved", () => {

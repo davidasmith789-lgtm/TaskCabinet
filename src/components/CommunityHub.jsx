@@ -76,6 +76,7 @@ export default function CommunityHub({ userId, isMobile = false }) {
   const [remainingPosts, setRemainingPosts] = useState(null);
   const [moderating, setModerating] = useState(false);
   const [queue, setQueue] = useState([]);
+  const [courseOptions, setCourseOptions] = useState([]);
   const [reporting, setReporting] = useState(false);
   const dialogRef = useRef(null);
   const triggerRef = useRef(null);
@@ -179,6 +180,27 @@ export default function CommunityHub({ userId, isMobile = false }) {
     setConfirmed(false);
     setFormMode("create");
   };
+  useEffect(() => {
+    if (!formMode) return;
+    getSupabaseBrowserClient()
+      .then((client) =>
+        client
+          .from("community_posts")
+          .select("course_name")
+          .eq("status", "active")
+          .order("course_name")
+          .limit(500),
+      )
+      .then(({ data, error }) => {
+        if (error) throw error;
+        setCourseOptions(
+          [
+            ...new Set((data || []).map((row) => row.course_name.trim())),
+          ].filter(Boolean),
+        );
+      })
+      .catch(() => setCourseOptions([]));
+  }, [formMode]);
   const openEdit = (post) => {
     setDraft({ ...post, tags: (post.topic_tags || []).join(", ") });
     setConfirmed(true);
@@ -629,12 +651,22 @@ export default function CommunityHub({ userId, isMobile = false }) {
                     </small>
                     <input
                       required
+                      list="community-existing-courses"
                       maxLength={COMMUNITY_LIMITS.course}
                       value={draft.course_name}
                       onChange={(e) =>
                         setDraft({ ...draft, course_name: e.target.value })
                       }
                     />
+                    <datalist id="community-existing-courses">
+                      {courseOptions.map((courseName) => (
+                        <option key={courseName} value={courseName} />
+                      ))}
+                    </datalist>
+                    <span className="community-course-help">
+                      Choose an existing course suggestion, or keep typing to
+                      create a new course name.
+                    </span>
                   </label>
                   <label>
                     Post type

@@ -31,6 +31,7 @@ export default function FlashcardConfirmDialog({ request, onClose }) {
   return (
     <div className="flash-modal">
       <section
+        className="flash-confirm-dialog"
         ref={ref}
         role="alertdialog"
         aria-modal="true"
@@ -39,10 +40,15 @@ export default function FlashcardConfirmDialog({ request, onClose }) {
       >
         <h2 id="flash-confirm-title">{request.title}</h2>
         <p id="flash-confirm-description">{request.description}</p>
-        <button onClick={() => onClose(true)}>
-          {request.confirmLabel || "Confirm"}
-        </button>
-        <button onClick={() => onClose(false)}>Cancel</button>
+        <div className="flash-confirm-actions">
+          <button
+            className="flash-confirm-primary"
+            onClick={() => onClose(true)}
+          >
+            {request.confirmLabel || "Confirm"}
+          </button>
+          <button onClick={() => onClose(false)}>Cancel</button>
+        </div>
       </section>
     </div>
   );
