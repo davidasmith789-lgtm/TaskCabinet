@@ -58,6 +58,8 @@ test("the exact tester account receives every reward without granting lookalike 
   assert.deepEqual(new Set(granted.masteredBadgeIds), new Set(BADGE_MASTERY_CHALLENGES.map((item) => item.id)));
   assert.ok(granted.masteredBadgeIds.every((id) => granted.badgeAnimationPreferences[id]));
   assert.equal(grantAllGamificationRewards({ ...granted, selectedConfetti: "rainbow" }).selectedConfetti, "rainbow");
+  const disabledAnimation = grantAllGamificationRewards({ ...granted, badgeAnimationPreferences: { ...granted.badgeAnimationPreferences, "first-completion": false } });
+  assert.equal(disabledAnimation.badgeAnimationPreferences["first-completion"], false);
 });
 
 test("badge mastery stays hidden until every base badge is earned and then tracks harder challenges", () => {

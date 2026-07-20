@@ -136,7 +136,7 @@ export function grantAllGamificationRewards(value = {}) {
     masteryUnlockedAt: current.masteryUnlockedAt || new Date().toISOString(),
     masteryProgress: Object.fromEntries(BADGE_MASTERY_CHALLENGES.map((challenge) => [challenge.id, challenge.target])),
     masteredBadgeIds: BADGE_MASTERY_CHALLENGES.map((challenge) => challenge.id),
-    badgeAnimationPreferences: Object.fromEntries(BADGE_MASTERY_CHALLENGES.map((challenge) => [challenge.id, true])),
+    badgeAnimationPreferences: Object.fromEntries(BADGE_MASTERY_CHALLENGES.map((challenge) => [challenge.id, current.badgeAnimationPreferences[challenge.id] !== false])),
   });
 }
 
