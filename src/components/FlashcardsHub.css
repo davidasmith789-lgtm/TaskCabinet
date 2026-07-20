@@ -28,6 +28,55 @@
   align-items: center;
   gap: 12px;
 }
+.flash-editor > header {
+  position: sticky;
+  z-index: 10;
+  top: 0;
+  margin: -12px -12px 20px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--page-bg) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+.flash-editor > header > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.flash-editor > header span {
+  color: var(--muted-text, var(--text-color));
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.flash-editor-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+.flash-editor-intro h1 {
+  margin: 3px 0 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.04em;
+}
+.flash-editor-intro span {
+  color: var(--primary-color);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.flash-editor-intro p {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: var(--muted-text, var(--text-color));
+  background: var(--surface-alt);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
 .flash-page h1,
 .flash-page h2,
 .flash-editor h1,
@@ -290,6 +339,45 @@
   gap: 12px;
   margin: 12px 0;
 }
+.flash-card-editor > b {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--muted-text, var(--text-color));
+  font-size: 0.85rem;
+}
+.flash-card-editor textarea {
+  min-height: 108px;
+  resize: vertical;
+}
+.flash-card-editor textarea::placeholder,
+.flash-deck-fields input::placeholder {
+  color: var(--muted-text, var(--text-color));
+  opacity: 0.72;
+}
+.flash-add-card-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 14px 0 28px;
+  padding: 18px !important;
+  border: 2px dashed var(--border-color) !important;
+  background: transparent !important;
+  font-weight: 850;
+}
+.flash-add-card-row:hover,
+.flash-add-card-row:focus-visible {
+  border-color: var(--primary-color) !important;
+  color: var(--primary-color);
+}
+.flash-add-card-row span {
+  font-size: 1.35rem;
+  line-height: 1;
+}
 .flash-card-editor > b,
 .flash-card-editor details,
 .flash-card-editor footer {
@@ -522,6 +610,18 @@
   .flash-page,
   .flash-editor {
     padding: 12px 8px 110px;
+  }
+  .flash-editor > header {
+    margin: -12px -8px 16px;
+    padding: 10px 8px;
+  }
+  .flash-editor > header > div {
+    display: grid;
+    justify-items: end;
+    gap: 3px;
+  }
+  .flash-editor-intro {
+    align-items: center;
   }
   .flash-page > header {
     display: grid;

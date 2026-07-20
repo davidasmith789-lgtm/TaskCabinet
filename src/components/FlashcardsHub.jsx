@@ -706,6 +706,13 @@ export default function FlashcardsHub({
               <button onClick={() => save()}>Save</button>
             </div>
           </header>
+          <section className="flash-editor-intro">
+            <div>
+              <span>Flashcard set</span>
+              <h1>{editor.id ? "Edit your deck" : "Create a new deck"}</h1>
+            </div>
+            <p>{editor.cards.length} cards</p>
+          </section>
           <div className="flash-deck-fields">
             <label>
               Deck title
@@ -713,6 +720,7 @@ export default function FlashcardsHub({
                 maxLength={120}
                 value={editor.title}
                 onChange={(e) => change("title", e.target.value)}
+                placeholder="Enter a title, like Biology — Chapter 4"
               />
             </label>
             <label>
@@ -843,6 +851,7 @@ export default function FlashcardsHub({
                   maxLength={500}
                   value={c.front}
                   onChange={(e) => cardChange(c.id, "front", e.target.value)}
+                  placeholder="Enter a term or question"
                 />
               </label>
               <label>
@@ -851,6 +860,7 @@ export default function FlashcardsHub({
                   maxLength={2000}
                   value={c.back}
                   onChange={(e) => cardChange(c.id, "back", e.target.value)}
+                  placeholder="Enter a definition or answer"
                 />
               </label>
               <details>
@@ -892,6 +902,12 @@ export default function FlashcardsHub({
               </footer>
             </article>
           ))}
+          <button
+            className="flash-add-card-row"
+            onClick={() => change("cards", [...editor.cards, blankCard()])}
+          >
+            <span aria-hidden="true">+</span> Add another card
+          </button>
           {importing && (
             <div className="flash-modal">
               <section role="dialog" aria-modal="true">
