@@ -92,6 +92,28 @@
   gap: 15px;
   margin-top: 18px;
 }
+.flash-page progress,
+.flash-study progress {
+  overflow: hidden;
+  border-radius: 999px;
+  accent-color: var(--primary-color);
+  background: color-mix(in srgb, var(--border-color) 78%, transparent);
+}
+.flash-page progress::-webkit-progress-bar,
+.flash-study progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-color) 78%, transparent);
+}
+.flash-page progress::-webkit-progress-value,
+.flash-study progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+.flash-page progress::-moz-progress-bar,
+.flash-study progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--primary-color);
+}
 .flash-grid article,
 .flash-card-editor {
   padding: 17px;
