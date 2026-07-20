@@ -105,6 +105,8 @@ test("completion paths timestamp work, undo clears it, and celebration covers th
   assert.match(app, /momentum-badge-count/);
   assert.match(app, /selectedBadge: achievement\.id/);
   assert.match(css, /\.achievement-card\.is-selected/);
+  assert.match(css, /content-visibility: auto/);
+  assert.match(css, /\.adaptive-low-motion \.gamification-dialog \.badge-first-completion\.is-mastery-animated/);
   assert.match(app, /<h2 id="gamification-title">Cosmetics<\/h2>/);
   assert.doesNotMatch(app, /Gentle Momentum/);
   assert.match(css, /\.gamification-dialog h2[\s\S]*color: var\(--text-color\) !important/);
