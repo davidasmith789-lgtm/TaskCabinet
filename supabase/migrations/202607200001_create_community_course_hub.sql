@@ -1,48 +1,366 @@
 begin;
+
 create extension if not exists pg_trgm;
-create or replace function public.community_tags_valid(tags text[]) returns boolean language sql immutable set search_path=public,pg_temp as $$select coalesce(cardinality(tags),0)<=8 and not exists(select 1 from unnest(coalesce(tags,'{}')) tag where char_length(btrim(tag)) not between 1 and 30)$$;
 
-create table public.community_posts(id uuid primary key default gen_random_uuid(),author_id uuid not null references auth.users(id) on delete cascade,course_name text not null,normalized_course_name text generated always as (lower(regexp_replace(btrim(course_name),'\s+',' ','g'))) stored,post_type text not null,title text not null,body text not null,topic_tags text[] not null default '{}',status text not null default 'active',search_document tsvector generated always as (to_tsvector('english',coalesce(course_name,'')||' '||coalesce(title,'')||' '||coalesce(body,'')||' '||array_to_string(topic_tags,' '))) stored,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),constraint community_post_type_allowed check(post_type in ('Course Advice','Study Guide','Concept Explanation','Class Tips')),constraint community_post_status_allowed check(status in ('active','hidden','removed')),constraint community_post_course_valid check(char_length(btrim(course_name)) between 1 and 100),constraint community_post_title_valid check(char_length(btrim(title)) between 1 and 140),constraint community_post_body_valid check(char_length(btrim(body)) between 1 and 10000),constraint community_post_tags_valid check(public.community_tags_valid(topic_tags)));
-create table public.community_post_votes(post_id uuid not null references public.community_posts(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,vote text not null check(vote in ('Helpful','Not helpful')),created_at timestamptz not null default now(),updated_at timestamptz not null default now(),primary key(post_id,user_id));
-create table public.community_post_saves(post_id uuid not null references public.community_posts(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,created_at timestamptz not null default now(),primary key(post_id,user_id));
-create table public.community_post_reports(id uuid primary key default gen_random_uuid(),post_id uuid not null references public.community_posts(id) on delete cascade,reporter_id uuid not null references auth.users(id) on delete cascade,reason text not null check(reason in ('Cheating or answer key','Copyrighted material','Personal information','Harassment or harmful content','Spam','Other')),details text check(details is null or char_length(details)<=1000),created_at timestamptz not null default now(),unique(post_id,reporter_id));
-create table public.community_moderators(user_id uuid primary key references auth.users(id) on delete cascade,created_at timestamptz not null default now());
+create or replace function public.community_tags_valid(tags text[])
+returns boolean
+language sql
+immutable
+set search_path = public, pg_temp
+as $$
+  select coalesce(cardinality(tags), 0) <= 8
+    and not exists (
+      select 1
+      from unnest(coalesce(tags, '{}'::text[])) as tag
+      where char_length(btrim(tag)) not between 1 and 30
+    );
+$$;
 
-create index community_posts_course_idx on public.community_posts(normalized_course_name); create index community_posts_course_trgm_idx on public.community_posts using gin(normalized_course_name gin_trgm_ops); create index community_posts_created_idx on public.community_posts(created_at desc); create index community_posts_status_type_idx on public.community_posts(status,post_type); create index community_posts_search_idx on public.community_posts using gin(search_document); create index community_votes_post_idx on public.community_post_votes(post_id); create index community_saves_post_idx on public.community_post_saves(post_id); create index community_reports_post_idx on public.community_post_reports(post_id);
+create table public.community_posts (
+  id uuid primary key default gen_random_uuid(),
+  author_id uuid not null references auth.users(id) on delete cascade,
+  course_name text not null,
+  normalized_course_name text not null default '',
+  post_type text not null,
+  title text not null,
+  body text not null,
+  topic_tags text[] not null default '{}',
+  status text not null default 'active',
+  search_document tsvector not null default ''::tsvector,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint community_post_type_allowed check (
+    post_type in ('Course Advice', 'Study Guide', 'Concept Explanation', 'Class Tips')
+  ),
+  constraint community_post_status_allowed check (status in ('active', 'hidden', 'removed')),
+  constraint community_post_course_valid check (char_length(btrim(course_name)) between 1 and 100),
+  constraint community_post_title_valid check (char_length(btrim(title)) between 1 and 140),
+  constraint community_post_body_valid check (char_length(btrim(body)) between 1 and 10000),
+  constraint community_post_tags_valid check (public.community_tags_valid(topic_tags))
+);
 
-create or replace function public.is_community_moderator(check_user_id uuid default auth.uid()) returns boolean language sql stable security definer set search_path=public,pg_temp as $$select check_user_id is not null and exists(select 1 from public.community_moderators where user_id=check_user_id)$$;
-revoke all on function public.is_community_moderator(uuid) from public; grant execute on function public.is_community_moderator(uuid) to authenticated;
-create or replace function public.community_touch_updated_at() returns trigger language plpgsql set search_path=public,pg_temp as $$begin new.updated_at=now(); return new; end$$;
-create trigger community_posts_touch before update on public.community_posts for each row execute function public.community_touch_updated_at(); create trigger community_votes_touch before update on public.community_post_votes for each row execute function public.community_touch_updated_at();
-create or replace function public.community_protect_status() returns trigger language plpgsql set search_path=public,pg_temp as $$begin if new.status<>old.status and pg_trigger_depth()<2 and not public.is_community_moderator(auth.uid()) then raise exception 'Only community moderators may change status'; end if; return new; end$$;
-create trigger community_posts_protect_status before update on public.community_posts for each row execute function public.community_protect_status();
-create or replace function public.community_auto_hide() returns trigger language plpgsql security definer set search_path=public,pg_temp as $$begin update public.community_posts set status='hidden' where id=new.post_id and status='active' and (select count(distinct reporter_id) from public.community_post_reports where post_id=new.post_id)>=3; return new; end$$;
-create trigger community_reports_auto_hide after insert on public.community_post_reports for each row execute function public.community_auto_hide();
+create table public.community_post_votes (
+  post_id uuid not null references public.community_posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  vote text not null check (vote in ('Helpful', 'Not helpful')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
 
-alter table public.community_posts enable row level security; alter table public.community_post_votes enable row level security; alter table public.community_post_saves enable row level security; alter table public.community_post_reports enable row level security; alter table public.community_moderators enable row level security;
-create policy posts_read on public.community_posts for select to authenticated using(status='active' or author_id=auth.uid() or public.is_community_moderator(auth.uid()));
-create policy posts_insert on public.community_posts for insert to authenticated with check(author_id=auth.uid() and status='active');
-create policy posts_update on public.community_posts for update to authenticated using(author_id=auth.uid() or public.is_community_moderator(auth.uid())) with check(author_id=auth.uid() or public.is_community_moderator(auth.uid()));
-create policy posts_delete on public.community_posts for delete to authenticated using(author_id=auth.uid());
-create policy votes_own on public.community_post_votes for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid()); create policy saves_own on public.community_post_saves for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
-create policy reports_insert on public.community_post_reports for insert to authenticated with check(reporter_id=auth.uid()); create policy reports_moderator_read on public.community_post_reports for select to authenticated using(public.is_community_moderator(auth.uid())); create policy reports_moderator_delete on public.community_post_reports for delete to authenticated using(public.is_community_moderator(auth.uid()));
-create policy moderators_self_read on public.community_moderators for select to authenticated using(user_id=auth.uid());
-revoke all on all tables in schema public from anon; revoke all on public.community_moderators from authenticated; grant select,update,delete on public.community_posts to authenticated; grant select,insert,update,delete on public.community_post_votes,public.community_post_saves to authenticated; grant select,insert,delete on public.community_post_reports to authenticated; grant select on public.community_moderators to authenticated;
+create table public.community_post_saves (
+  post_id uuid not null references public.community_posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
 
-create or replace function public.create_community_post(new_course_name text,new_post_type text,new_title text,new_body text,new_topic_tags text[] default '{}') returns uuid language plpgsql security definer set search_path=public,pg_temp as $$declare new_id uuid; begin if auth.uid() is null then raise exception 'Authentication required'; end if; perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text,20260720)); if (select count(*) from public.community_posts where author_id=auth.uid() and created_at>now()-interval '24 hours')>=3 then raise exception 'Daily post limit reached: maximum three posts in any rolling 24 hours'; end if; insert into public.community_posts(author_id,course_name,post_type,title,body,topic_tags) values(auth.uid(),new_course_name,new_post_type,new_title,new_body,new_topic_tags) returning id into new_id; return new_id; end$$;
-grant execute on function public.create_community_post(text,text,text,text,text[]) to authenticated;
-revoke all on function public.create_community_post(text,text,text,text,text[]) from public; grant execute on function public.create_community_post(text,text,text,text,text[]) to authenticated;
-create or replace function public.community_post_quota() returns integer language sql stable security definer set search_path=public,pg_temp as $$select greatest(0,3-count(*))::integer from public.community_posts where auth.uid() is not null and author_id=auth.uid() and created_at>now()-interval '24 hours'$$;
-revoke all on function public.community_post_quota() from public; grant execute on function public.community_post_quota() to authenticated;
+create table public.community_post_reports (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null references public.community_posts(id) on delete cascade,
+  reporter_id uuid not null references auth.users(id) on delete cascade,
+  reason text not null check (reason in (
+    'Cheating or answer key', 'Copyrighted material', 'Personal information',
+    'Harassment or harmful content', 'Spam', 'Other'
+  )),
+  details text check (details is null or char_length(details) <= 1000),
+  created_at timestamptz not null default now(),
+  unique (post_id, reporter_id)
+);
 
-create or replace function public.community_search_posts(search_text text default '',filter_post_type text default null,sort_by text default 'helpful',page_number int default 0,page_size int default 20,saved_only boolean default false) returns table(id uuid,author_id uuid,course_name text,post_type text,title text,body text,topic_tags text[],status text,created_at timestamptz,updated_at timestamptz,helpful_count bigint,not_helpful_count bigint,save_count bigint,current_vote text,is_saved boolean) language sql stable security definer set search_path=public,pg_temp as $$select p.id,p.author_id,p.course_name,p.post_type,p.title,p.body,p.topic_tags,p.status,p.created_at,p.updated_at,count(distinct v.user_id) filter(where v.vote='Helpful'),count(distinct v.user_id) filter(where v.vote='Not helpful'),count(distinct s.user_id),max(v.vote) filter(where v.user_id=auth.uid()),coalesce(bool_or(s.user_id=auth.uid()),false) from public.community_posts p left join public.community_post_votes v on v.post_id=p.id left join public.community_post_saves s on s.post_id=p.id where auth.uid() is not null and (p.status='active' or p.author_id=auth.uid() or public.is_community_moderator(auth.uid())) and (filter_post_type is null or p.post_type=filter_post_type) and (not saved_only or exists(select 1 from public.community_post_saves mine where mine.post_id=p.id and mine.user_id=auth.uid())) and (coalesce(btrim(search_text),'')='' or p.search_document@@websearch_to_tsquery('english',search_text) or p.normalized_course_name like '%'||lower(search_text)||'%' or exists(select 1 from unnest(p.topic_tags) t where lower(t) like '%'||lower(search_text)||'%')) group by p.id order by case when sort_by='helpful' then count(distinct v.user_id) filter(where v.vote='Helpful') end desc,case when sort_by='updated' then p.updated_at end desc,p.created_at desc,p.id limit least(greatest(page_size,1),50) offset greatest(page_number,0)*least(greatest(page_size,1),50)$$;
-grant execute on function public.community_search_posts(text,text,text,int,int,boolean) to authenticated;
-revoke all on function public.community_search_posts(text,text,text,int,int,boolean) from public; grant execute on function public.community_search_posts(text,text,text,int,int,boolean) to authenticated;
+create table public.community_moderators (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
 
-create or replace function public.community_moderation_queue() returns table(id uuid,author_id uuid,course_name text,post_type text,title text,body text,topic_tags text[],status text,created_at timestamptz,report_count bigint,reports jsonb) language plpgsql security definer set search_path=public,pg_temp as $$begin if not public.is_community_moderator(auth.uid()) then raise exception 'Moderator access required'; end if; return query select p.id,p.author_id,p.course_name,p.post_type,p.title,p.body,p.topic_tags,p.status,p.created_at,count(distinct r.reporter_id),coalesce(jsonb_agg(jsonb_build_object('reason',r.reason,'details',r.details,'created_at',r.created_at)) filter(where r.id is not null),'[]'::jsonb) from public.community_posts p left join public.community_post_reports r on r.post_id=p.id where p.status='hidden' or r.id is not null group by p.id order by count(distinct r.reporter_id) desc,p.created_at; end$$;
+create or replace function public.community_prepare_post()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.normalized_course_name := lower(regexp_replace(btrim(new.course_name), '\s+', ' ', 'g'));
+  new.search_document :=
+      setweight(to_tsvector('english'::regconfig, coalesce(new.course_name, '')), 'A')
+    || setweight(to_tsvector('english'::regconfig, coalesce(new.title, '')), 'A')
+    || setweight(to_tsvector('english'::regconfig, coalesce(new.body, '')), 'B')
+    || setweight(to_tsvector('english'::regconfig, coalesce(array_to_string(new.topic_tags, ' '), '')), 'A');
+  return new;
+end;
+$$;
+
+create trigger community_posts_prepare_search
+before insert or update of course_name, title, body, topic_tags
+on public.community_posts
+for each row execute function public.community_prepare_post();
+
+create index community_posts_course_idx on public.community_posts (normalized_course_name);
+create index community_posts_course_trgm_idx on public.community_posts using gin (normalized_course_name gin_trgm_ops);
+create index community_posts_created_idx on public.community_posts (created_at desc);
+create index community_posts_status_type_idx on public.community_posts (status, post_type);
+create index community_posts_search_idx on public.community_posts using gin (search_document);
+create index community_votes_post_idx on public.community_post_votes (post_id);
+create index community_saves_post_idx on public.community_post_saves (post_id);
+create index community_reports_post_idx on public.community_post_reports (post_id);
+
+create or replace function public.is_community_moderator(check_user_id uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select check_user_id is not null
+    and exists (select 1 from public.community_moderators where user_id = check_user_id);
+$$;
+revoke all on function public.is_community_moderator(uuid) from public;
+grant execute on function public.is_community_moderator(uuid) to authenticated;
+
+create or replace function public.community_touch_updated_at()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+create trigger community_posts_touch
+before update on public.community_posts
+for each row execute function public.community_touch_updated_at();
+
+create trigger community_votes_touch
+before update on public.community_post_votes
+for each row execute function public.community_touch_updated_at();
+
+create or replace function public.community_auto_hide()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  update public.community_posts
+  set status = 'hidden'
+  where id = new.post_id
+    and status = 'active'
+    and (
+      select count(distinct reporter_id)
+      from public.community_post_reports
+      where post_id = new.post_id
+    ) >= 3;
+  return new;
+end;
+$$;
+
+create trigger community_reports_auto_hide
+after insert on public.community_post_reports
+for each row execute function public.community_auto_hide();
+
+alter table public.community_posts enable row level security;
+alter table public.community_post_votes enable row level security;
+alter table public.community_post_saves enable row level security;
+alter table public.community_post_reports enable row level security;
+alter table public.community_moderators enable row level security;
+
+create policy posts_read on public.community_posts
+for select to authenticated
+using (status = 'active' or author_id = auth.uid() or public.is_community_moderator(auth.uid()));
+
+create policy posts_update on public.community_posts
+for update to authenticated
+using (author_id = auth.uid() or public.is_community_moderator(auth.uid()))
+with check (author_id = auth.uid() or public.is_community_moderator(auth.uid()));
+
+create policy posts_delete on public.community_posts
+for delete to authenticated
+using (author_id = auth.uid());
+
+create policy votes_own on public.community_post_votes
+for all to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create policy saves_own on public.community_post_saves
+for all to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+create policy reports_insert on public.community_post_reports
+for insert to authenticated
+with check (reporter_id = auth.uid());
+
+create policy reports_moderator_read on public.community_post_reports
+for select to authenticated
+using (public.is_community_moderator(auth.uid()));
+
+create policy reports_moderator_delete on public.community_post_reports
+for delete to authenticated
+using (public.is_community_moderator(auth.uid()));
+
+create policy moderators_self_read on public.community_moderators
+for select to authenticated
+using (user_id = auth.uid());
+
+revoke all on public.community_posts, public.community_post_votes,
+  public.community_post_saves, public.community_post_reports, public.community_moderators from anon;
+revoke all on public.community_moderators from authenticated;
+grant select, delete on public.community_posts to authenticated;
+grant update (course_name, post_type, title, body, topic_tags) on public.community_posts to authenticated;
+grant select, insert, update, delete on public.community_post_votes, public.community_post_saves to authenticated;
+grant select, insert, delete on public.community_post_reports to authenticated;
+grant select on public.community_moderators to authenticated;
+
+create or replace function public.create_community_post(
+  new_course_name text,
+  new_post_type text,
+  new_title text,
+  new_body text,
+  new_topic_tags text[] default '{}'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  new_id uuid;
+begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
+  perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text, 20260720));
+  if (
+    select count(*) from public.community_posts
+    where author_id = auth.uid() and created_at > now() - interval '24 hours'
+  ) >= 3 then
+    raise exception 'Daily post limit reached: maximum three posts in any rolling 24 hours';
+  end if;
+  insert into public.community_posts (author_id, course_name, post_type, title, body, topic_tags)
+  values (auth.uid(), new_course_name, new_post_type, new_title, new_body, new_topic_tags)
+  returning id into new_id;
+  return new_id;
+end;
+$$;
+revoke all on function public.create_community_post(text, text, text, text, text[]) from public;
+grant execute on function public.create_community_post(text, text, text, text, text[]) to authenticated;
+
+create or replace function public.community_post_quota()
+returns integer
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select greatest(0, 3 - count(*))::integer
+  from public.community_posts
+  where auth.uid() is not null
+    and author_id = auth.uid()
+    and created_at > now() - interval '24 hours';
+$$;
+revoke all on function public.community_post_quota() from public;
+grant execute on function public.community_post_quota() to authenticated;
+
+create or replace function public.community_search_posts(
+  search_text text default '', filter_post_type text default null,
+  sort_by text default 'helpful', page_number int default 0,
+  page_size int default 20, saved_only boolean default false
+)
+returns table (
+  id uuid, author_id uuid, course_name text, post_type text, title text, body text,
+  topic_tags text[], status text, created_at timestamptz, updated_at timestamptz,
+  helpful_count bigint, not_helpful_count bigint, save_count bigint,
+  current_vote text, is_saved boolean
+)
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select p.id, p.author_id, p.course_name, p.post_type, p.title, p.body,
+    p.topic_tags, p.status, p.created_at, p.updated_at,
+    count(distinct v.user_id) filter (where v.vote = 'Helpful'),
+    count(distinct v.user_id) filter (where v.vote = 'Not helpful'),
+    count(distinct s.user_id),
+    max(v.vote) filter (where v.user_id = auth.uid()),
+    coalesce(bool_or(s.user_id = auth.uid()), false)
+  from public.community_posts p
+  left join public.community_post_votes v on v.post_id = p.id
+  left join public.community_post_saves s on s.post_id = p.id
+  where auth.uid() is not null
+    and (p.status = 'active' or p.author_id = auth.uid() or public.is_community_moderator(auth.uid()))
+    and (filter_post_type is null or p.post_type = filter_post_type)
+    and (not saved_only or exists (
+      select 1 from public.community_post_saves mine
+      where mine.post_id = p.id and mine.user_id = auth.uid()
+    ))
+    and (
+      coalesce(btrim(search_text), '') = ''
+      or p.search_document @@ websearch_to_tsquery('english'::regconfig, search_text)
+      or p.normalized_course_name like '%' || lower(search_text) || '%'
+      or exists (
+        select 1 from unnest(p.topic_tags) t
+        where lower(t) like '%' || lower(search_text) || '%'
+      )
+    )
+  group by p.id
+  order by
+    case when sort_by = 'helpful' then count(distinct v.user_id) filter (where v.vote = 'Helpful') end desc,
+    case when sort_by = 'updated' then p.updated_at end desc,
+    p.created_at desc, p.id
+  limit least(greatest(page_size, 1), 50)
+  offset greatest(page_number, 0) * least(greatest(page_size, 1), 50);
+$$;
+revoke all on function public.community_search_posts(text, text, text, int, int, boolean) from public;
+grant execute on function public.community_search_posts(text, text, text, int, int, boolean) to authenticated;
+
+create or replace function public.community_moderation_queue()
+returns table (
+  id uuid, author_id uuid, course_name text, post_type text, title text, body text,
+  topic_tags text[], status text, created_at timestamptz, report_count bigint, reports jsonb
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not public.is_community_moderator(auth.uid()) then raise exception 'Moderator access required'; end if;
+  return query
+  select p.id, p.author_id, p.course_name, p.post_type, p.title, p.body,
+    p.topic_tags, p.status, p.created_at, count(distinct r.reporter_id),
+    coalesce(
+      jsonb_agg(jsonb_build_object('reason', r.reason, 'details', r.details, 'created_at', r.created_at))
+        filter (where r.id is not null),
+      '[]'::jsonb
+    )
+  from public.community_posts p
+  left join public.community_post_reports r on r.post_id = p.id
+  where p.status = 'hidden' or r.id is not null
+  group by p.id
+  order by count(distinct r.reporter_id) desc, p.created_at;
+end;
+$$;
+revoke all on function public.community_moderation_queue() from public;
 grant execute on function public.community_moderation_queue() to authenticated;
-revoke all on function public.community_moderation_queue() from public; grant execute on function public.community_moderation_queue() to authenticated;
-create or replace function public.moderate_community_post(target_post_id uuid,new_status text,clear_reports boolean default true) returns void language plpgsql security invoker set search_path=public,pg_temp as $$begin if not public.is_community_moderator(auth.uid()) then raise exception 'Moderator access required'; end if; if new_status not in ('active','hidden','removed') then raise exception 'Invalid status'; end if; update public.community_posts set status=new_status where id=target_post_id; if clear_reports then delete from public.community_post_reports where post_id=target_post_id; end if; end$$;
-grant execute on function public.moderate_community_post(uuid,text,boolean) to authenticated;
-revoke all on function public.moderate_community_post(uuid,text,boolean) from public; grant execute on function public.moderate_community_post(uuid,text,boolean) to authenticated;
+
+create or replace function public.moderate_community_post(
+  target_post_id uuid, new_status text, clear_reports boolean default true
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if not public.is_community_moderator(auth.uid()) then raise exception 'Moderator access required'; end if;
+  if new_status not in ('active', 'hidden', 'removed') then raise exception 'Invalid status'; end if;
+  update public.community_posts set status = new_status where id = target_post_id;
+  if clear_reports then
+    delete from public.community_post_reports where post_id = target_post_id;
+  end if;
+end;
+$$;
+revoke all on function public.moderate_community_post(uuid, text, boolean) from public;
+grant execute on function public.moderate_community_post(uuid, text, boolean) to authenticated;
+
 commit;
