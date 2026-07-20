@@ -55,6 +55,7 @@ import DeferredCalendar from "./components/DeferredCalendar.jsx";
 import FocusSession from "./components/FocusSession.jsx";
 import AchievementEmblem from "./components/AchievementEmblem.jsx";
 import CompletionRippleCanvas from "./components/CompletionRippleCanvas.jsx";
+import CommunityHub from "./components/CommunityHub.jsx";
 import { getFocusTimeUpdate } from "./focusSessionUtils.js";
 import { getUniqueAssignmentMetadata } from "./assignmentMetadataUtils.js";
 import { startAdaptiveMotionMonitor } from "./adaptiveMotion.js";
@@ -8110,10 +8111,11 @@ function App() {
   const lockedTitleOptions = GAMIFICATION_TITLES.filter((option) => option.requirement && !earnedAchievements.has(option.requirement)).map((option) => ({ ...option, achievement: GAMIFICATION_ACHIEVEMENTS.find((achievement) => achievement.id === option.requirement) }));
   const lockedCelebrationOptions = GAMIFICATION_CONFETTI.filter((option) => option.requirement && !earnedAchievements.has(option.requirement)).map((option) => ({ ...option, achievement: GAMIFICATION_ACHIEVEMENTS.find((achievement) => achievement.id === option.requirement) }));
   const updateGamification = (changes) => handleAddFieldSettingChange("gamification", normalizeGamification({ ...gamification, ...changes }));
-  const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses"];
+  const communityEnabled = import.meta.env.VITE_COMMUNITY_HUB_ENABLED === "true" && accountMode === "cloud";
+  const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses", ...(communityEnabled ? ["community"] : [])];
   const mobileUsesOwnScreen = isMobileUi && mobileOwnedTabs.includes(currentTab);
   const mobileTaskTabActive = ["todo", "inProgress", "completed"].includes(currentTab);
-  const mobileMoreActive = ["settings", "recommendations", "mobile-tools", "mobile-courses"].includes(currentTab);
+  const mobileMoreActive = ["settings", "recommendations", "mobile-tools", "mobile-courses", "community"].includes(currentTab);
   const selectedMobileSettingsSection = SETTINGS_SECTIONS.find((section) => section.id === settingsSection) || SETTINGS_SECTIONS[0];
   const normalizedHelpSearch = helpSearch.trim().toLowerCase();
   const visiblePersonalizationTips = PERSONALIZATION_TIPS
@@ -8340,6 +8342,8 @@ function App() {
             Feedback & Support
           </button>
 
+          {communityEnabled && <button className={`tab-button ${currentTab === "community" ? "active" : ""}`} onClick={() => setCurrentTab("community")}>Community</button>}
+
           <button
             data-tab="settings"
             onDragOver={(event) => event.preventDefault()}
@@ -8454,6 +8458,7 @@ function App() {
                 <section className="mobile-app-card">{renderCourseColorsWidget()}</section>
               </>
             )}
+            {communityEnabled && currentTab === "community" && <CommunityHub userId={currentUser} isMobile />}
           </main>
         )}
 
@@ -8468,6 +8473,7 @@ function App() {
           <main id="workspace-main-content" className="workspace-main" ref={workspaceMainRef} tabIndex="-1">
 
         {currentTab === "dashboard" && renderWorkspaceForTab("dashboard")}
+        {!isMobileUi && communityEnabled && currentTab === "community" && <CommunityHub userId={currentUser} />}
         {!isMobileUi && currentTab !== "dashboard" && currentTab !== "calendar" && renderWorkspaceExtrasForTab(currentTab)}
 
         {/*
@@ -10630,6 +10636,7 @@ function App() {
                   <div className="mobile-app-menu-grid">
                     <button type="button" onClick={() => openMobileTab("mobile-tools")}><strong>Study tools</strong><span>Reminders and course overview</span></button>
                     <button type="button" onClick={() => openMobileTab("mobile-courses")}><strong>Courses & colors</strong><span>Manage your subjects</span></button>
+                    {communityEnabled && <button type="button" onClick={() => openMobileTab("community")}><strong>Community</strong><span>Course advice and study guides</span></button>}
                     <button type="button" onClick={() => openMobileTab("recommendations")}><strong>Feedback & Support</strong><span>Report a problem or suggest an improvement</span></button>
                     <button type="button" onClick={() => openMobileTab("settings")}><strong>Settings</strong><span>Appearance, reminders, and account</span></button>
                   </div>
