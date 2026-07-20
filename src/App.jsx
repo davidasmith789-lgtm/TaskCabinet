@@ -9723,7 +9723,7 @@ function App() {
                           />
                         </label>
                         <label className="settings-select-row page-color-wash-picker">
-                          <span>Background accent</span>
+                          <span>Background accent:</span>
                           <input
                             type="color"
                             value={userSettings.pageColorWashColor || "#6366f1"}

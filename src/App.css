@@ -1266,11 +1266,16 @@ textarea {
 .page-color-wash-picker input[type="color"] {
   width: 54px;
   height: 38px;
+  justify-self: center;
   padding: 3px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   background: var(--surface-alt);
   cursor: pointer;
+}
+.page-color-wash-picker {
+  justify-items: center;
+  text-align: center;
 }
 .page-color-wash-picker input[type="color"]:disabled {
   cursor: not-allowed;
