@@ -7079,7 +7079,7 @@ html[data-theme="dark"] .sync-conflict-dialog {
 }
 
 @keyframes completion-gold-ripple {
-  0% { opacity: 0; transform: translate(-50%,-50%) scale(.08) rotateX(62deg); }
+  0% { opacity: 0; filter: drop-shadow(0 0 5px color-mix(in srgb, var(--celebration-3, #d4a72c) 68%, transparent)) drop-shadow(0 0 12px color-mix(in srgb, var(--celebration-3, #d4a72c) 42%, transparent)); transform: translate(-50%,-50%) scale(.08) rotateX(62deg); }
   3% { opacity: .14; transform: translate(-50%,-50%) scale(.1) rotateX(60deg); }
   6% { opacity: .32; transform: translate(-50%,-50%) scale(.14) rotateX(58deg); }
   10% { opacity: .58; transform: translate(-50%,-50%) scale(.22) rotateX(55deg); }
@@ -7092,17 +7092,16 @@ html[data-theme="dark"] .sync-conflict-dialog {
   50% { opacity: .76; transform: translate(-50%,-50%) scale(4.5) rotateX(22deg); }
   57% { opacity: .67; transform: translate(-50%,-50%) scale(6.2) rotateX(18deg); }
   64% { opacity: .58; transform: translate(-50%,-50%) scale(8.4) rotateX(14deg); }
-  71% { opacity: .46; transform: translate(-50%,-50%) scale(11.1) rotateX(10deg); }
-  78% { opacity: .34; transform: translate(-50%,-50%) scale(14.5) rotateX(7deg); }
-  81% { opacity: .29; transform: translate(-50%,-50%) scale(16.15) rotateX(5.5deg); }
-  84% { opacity: .24; transform: translate(-50%,-50%) scale(18) rotateX(4deg); }
-  87% { opacity: .19; transform: translate(-50%,-50%) scale(19.9) rotateX(3deg); }
-  90% { opacity: .14; transform: translate(-50%,-50%) scale(22) rotateX(2deg); }
-  92.5% { opacity: .1; transform: translate(-50%,-50%) scale(24.6) rotateX(1.5deg); }
-  95% { opacity: .06; transform: translate(-50%,-50%) scale(27.5) rotateX(1deg); }
-  97% { opacity: .035; transform: translate(-50%,-50%) scale(30) rotateX(.6deg); }
-  98.5% { opacity: .016; transform: translate(-50%,-50%) scale(32) rotateX(.3deg); }
-  100% { opacity: 0; transform: translate(-50%,-50%) scale(34) rotateX(0deg); }
+  68% { opacity: .51; transform: translate(-50%,-50%) scale(9.85) rotateX(11.7deg); }
+  71% { opacity: .44; transform: translate(-50%,-50%) scale(11.1) rotateX(10deg); }
+  74% { opacity: .35; transform: translate(-50%,-50%) scale(12.45) rotateX(8.7deg); }
+  77% { opacity: .26; filter: drop-shadow(0 0 3px color-mix(in srgb, var(--celebration-3, #d4a72c) 42%, transparent)) drop-shadow(0 0 7px color-mix(in srgb, var(--celebration-3, #d4a72c) 25%, transparent)); transform: translate(-50%,-50%) scale(14) rotateX(7.3deg); }
+  80% { opacity: .18; transform: translate(-50%,-50%) scale(15.6) rotateX(6deg); }
+  82% { opacity: .12; transform: translate(-50%,-50%) scale(16.8) rotateX(5.2deg); }
+  84% { opacity: .075; transform: translate(-50%,-50%) scale(18) rotateX(4deg); }
+  86% { opacity: .04; filter: none; transform: translate(-50%,-50%) scale(19.25) rotateX(3.3deg); }
+  88% { opacity: .016; transform: translate(-50%,-50%) scale(20.6) rotateX(2.6deg); }
+  90%, 100% { opacity: 0; filter: none; transform: translate(-50%,-50%) scale(22) rotateX(2deg); }
 }
 
 @keyframes completion-gold-ripple-flash {
