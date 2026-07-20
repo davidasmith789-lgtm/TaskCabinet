@@ -117,6 +117,8 @@ test("completion paths timestamp work, undo clears it, and celebration covers th
   assert.match(css, /\.achievement-core/);
   assert.match(app, /data-badge=\{achievement\.id\}/);
   assert.match(app, /AchievementEmblem id=\{earned \? achievement\.id : "locked"\}/);
+  assert.match(app, /const masteryProgress = challenge \?/);
+  assert.match(app, /masteryUnlocked && challenge &&/);
   assert.doesNotMatch(app, /selectedAchievement\?\.icon/);
   assert.match(css, /contain: layout paint style/);
   assert.doesNotMatch(app, /handleGamificationScroll/);
