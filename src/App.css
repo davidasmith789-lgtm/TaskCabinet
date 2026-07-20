@@ -6509,6 +6509,10 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
   contain: strict;
   transform: translateZ(0);
 }
+.completion-fireworks { position: absolute; inset: 0; overflow: hidden; contain: strict; pointer-events: none; }
+.completion-firework { position: absolute; top: var(--burst-y); left: var(--burst-x); width: 1px; height: 1px; }
+.completion-firework > b { position: absolute; z-index: 2; width: 9px; height: 9px; border: 2px solid white; border-radius: 50%; background: var(--celebration-3, #facc15); box-shadow: 0 0 12px var(--celebration-3, #facc15); opacity: 0; transform: translate(-50%, -50%) scale(.2); animation: completion-firework-core 500ms ease-out var(--burst-delay) both; }
+.completion-firework > i { position: absolute; top: -1px; left: 0; width: clamp(34px, 5.5vw, 86px); height: 3px; border-radius: 999px; background: linear-gradient(90deg, var(--burst-color), color-mix(in srgb, var(--burst-color) 70%, white), transparent); opacity: 0; transform: rotate(var(--burst-angle)) translateX(0) scaleX(.05); transform-origin: 0 50%; will-change: transform, opacity; animation: completion-firework-ray 500ms cubic-bezier(.12,.62,.28,1) var(--burst-delay) both; }
 
 .completion-confetti i {
   position: absolute;
@@ -7044,6 +7048,20 @@ html[data-theme="dark"] .sync-conflict-dialog {
   100% { opacity: 0; transform: translate3d(0, 100vh, 0); }
 }
 
+@keyframes completion-firework-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.2); }
+  16% { opacity: 1; transform: translate(-50%, -50%) scale(1.35); }
+  48% { opacity: 1; transform: translate(-50%, -50%) scale(.85); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(.1); }
+}
+
+@keyframes completion-firework-ray {
+  0% { opacity: 0; transform: rotate(var(--burst-angle)) translateX(0) scaleX(.05); }
+  14% { opacity: 1; }
+  58% { opacity: 1; transform: rotate(var(--burst-angle)) translateX(8px) scaleX(1); }
+  100% { opacity: 0; transform: rotate(var(--burst-angle)) translateX(28px) scaleX(.45); }
+}
+
 @keyframes completion-bubble-fall {
   0% { opacity: 0; transform: translate3d(0, -110%, 0) scale(.65); }
   7% { opacity: .9; }
@@ -7196,11 +7214,11 @@ html[data-theme="dark"] .sync-conflict-dialog {
   100% { opacity: 0; transform: translate3d(0, 100vh, 0) rotate(-980deg) scale(.2); }
 }
 
-.reduce-motion .completion-confetti { display: none; }
+.reduce-motion :is(.completion-confetti, .completion-fireworks) { display: none; }
 .reduce-motion .badge-twenty-five-completions .achievement-rays { animation: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .completion-confetti { display: none; }
+  :is(.completion-confetti, .completion-fireworks) { display: none; }
   .badge-twenty-five-completions .achievement-rays { animation: none; }
 }
 

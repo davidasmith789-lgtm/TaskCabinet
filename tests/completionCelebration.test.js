@@ -11,8 +11,11 @@ test("assignment completion uses accessible dependency-free confetti with reduce
 
   assert.match(app, /setCompletionCelebration/);
   assert.match(app, /className=\{`completion-confetti is-/);
-  assert.match(app, /COMPLETION_CONFETTI\.map/);
+  assert.match(app, /METEOR_SHOWER_PARTICLES : COMPLETION_CONFETTI\)\.map/);
   assert.match(app, /length: 24/);
+  assert.match(app, /METEOR_SHOWER_PARTICLES = Array\.from\(\{ length: 48 \}/);
+  assert.match(app, /Array\.from\(\{ length: 7 \}/);
+  assert.match(app, /Array\.from\(\{ length: 12 \}/);
   assert.match(css, /@keyframes completion-confetti-fall/);
   for (const animationName of [
     "completion-stars-fall",
@@ -25,6 +28,7 @@ test("assignment completion uses accessible dependency-free confetti with reduce
     "completion-bubble-fall",
     "completion-leaf-rock",
     "completion-firework-burst",
+    "completion-firework-ray",
   ]) {
     assert.match(css, new RegExp(`@keyframes ${animationName}`));
   }
@@ -35,7 +39,7 @@ test("assignment completion uses accessible dependency-free confetti with reduce
   assert.match(css, /will-change: transform/);
   assert.match(css, /94% \{ opacity: 1; \}/);
   assert.match(css, /\.completion-celebration-toast/);
-  assert.match(css, /\.reduce-motion \.completion-confetti \{ display: none; \}/);
+  assert.match(css, /\.reduce-motion :is\(\.completion-confetti, \.completion-fireworks\) \{ display: none; \}/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.doesNotMatch(packageJson, /confetti|canvas-confetti/);
 });

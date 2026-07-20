@@ -158,6 +158,27 @@ const COMPLETION_CONFETTI = Array.from({ length: 24 }, (_, index) => ({
   rotation: `${120 + ((index * 47) % 300)}deg`,
   color: ["var(--primary-color)", "var(--secondary-color)", "var(--success-color)", "var(--warning-color)"][index % 4],
 }));
+const METEOR_SHOWER_PARTICLES = Array.from({ length: 48 }, (_, index) => ({
+  id: `meteor-${index}`,
+  x: `${2 + ((index * 43) % 96)}%`,
+  drift: "0px",
+  sway: "0px",
+  swayBack: "0px",
+  scale: `${0.68 + (index % 6) * 0.08}`,
+  delay: `${(index % 9) * 310}ms`,
+  duration: `${1450 + (index % 5) * 170}ms`,
+  rotation: "0deg",
+  color: ["var(--primary-color)", "var(--secondary-color)"][index % 2],
+}));
+const getFireworkBursts = (celebrationId) => {
+  const seed = String(celebrationId || "fireworks").split("").reduce((total, character) => (total * 31 + character.charCodeAt(0)) % 9973, 17);
+  return Array.from({ length: 7 }, (_, index) => ({
+    id: index,
+    x: 10 + ((seed + index * 47) % 80),
+    y: 9 + ((seed * (index + 3) + index * 29) % 62),
+    delay: index * 250,
+  }));
+};
 const CELEBRATION_PREVIEW_PARTICLES = Array.from({ length: 14 }, (_, index) => ({
   id: index,
   x: `${7 + ((index * 29) % 86)}%`,
@@ -11299,9 +11320,9 @@ function App() {
           role="status"
           aria-live="polite"
         >
-          <div className={`completion-confetti is-${completionCelebration.confetti || "standard"}`} style={{ "--course-confetti": completionCelebration.courseColor }} aria-hidden="true">
-            {COMPLETION_CONFETTI.map((piece, index) => <i key={piece.id} style={{ "--confetti-x": piece.x, "--confetti-drift": piece.drift, "--confetti-sway": piece.sway, "--confetti-sway-back": piece.swayBack, "--confetti-scale": piece.scale, "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-rotation": piece.rotation, "--confetti-color": `var(--celebration-${(index % 6) + 1}, ${piece.color})` }} />)}
-          </div>
+          {completionCelebration.confetti === "fireworks" ? <div className="completion-fireworks" aria-hidden="true">{getFireworkBursts(completionCelebration.id).map((burst) => <span className="completion-firework" key={burst.id} style={{ "--burst-x": `${burst.x}%`, "--burst-y": `${burst.y}%`, "--burst-delay": `${burst.delay}ms` }}><b />{Array.from({ length: 12 }, (_, lineIndex) => <i key={lineIndex} style={{ "--burst-angle": `${lineIndex * 30}deg`, "--burst-color": `var(--celebration-${(burst.id + lineIndex) % 6 + 1}, ${["#f43f5e", "#f59e0b", "#facc15", "#22c55e", "#06b6d4", "#a855f7"][(burst.id + lineIndex) % 6]})` }} />)}</span>)}</div> : <div className={`completion-confetti is-${completionCelebration.confetti || "standard"}`} style={{ "--course-confetti": completionCelebration.courseColor }} aria-hidden="true">
+            {(completionCelebration.confetti === "meteors" ? METEOR_SHOWER_PARTICLES : COMPLETION_CONFETTI).map((piece, index) => <i key={piece.id} style={{ "--confetti-x": piece.x, "--confetti-drift": piece.drift, "--confetti-sway": piece.sway, "--confetti-sway-back": piece.swayBack, "--confetti-scale": piece.scale, "--confetti-delay": piece.delay, "--confetti-duration": piece.duration, "--confetti-rotation": piece.rotation, "--confetti-color": `var(--celebration-${(index % 6) + 1}, ${piece.color})` }} />)}
+          </div>}
           <div className="completion-celebration-toast"><span aria-hidden="true">✓</span><div><strong>{completionCelebration.achievementIds?.length ? "Achievement unlocked!" : "Nice work!"}</strong><small>{completionCelebration.title} is complete.{completionCelebration.achievementIds?.length ? ` ${completionCelebration.achievementIds.map((id) => GAMIFICATION_ACHIEVEMENTS.find((item) => item.id === id)?.title).filter(Boolean).join(", ")}.` : ""}</small></div></div>
         </div>
       )}

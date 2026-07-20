@@ -97,7 +97,7 @@ test("completion paths timestamp work, undo clears it, and celebration covers th
   assert.doesNotMatch(app, /handleGamificationScroll/);
   assert.doesNotMatch(css, /\.gamification-dialog\.is-scrolling/);
   assert.doesNotMatch(css, /\.gamification-backdrop[^}]*backdrop-filter/);
-  assert.match(css, /\.reduce-motion \.completion-confetti/);
+  assert.match(css, /\.reduce-motion :is\(\.completion-confetti, \.completion-fireworks\)/);
   assert.match(app, /Celebration Color Studio/);
   assert.match(app, /celebrationStudioProgress\.unlocked/);
   assert.match(app, /currentUser !== "guest" \? userSettings\.signInDays : \[\]/);
