@@ -4,6 +4,7 @@ const RIPPLE_COUNT = 7;
 const RIPPLE_STAGGER_MS = 95;
 const RIPPLE_DURATION_MS = 1120;
 const MAX_DEVICE_PIXEL_RATIO = 2;
+const MAX_CANVAS_PIXELS = 4_000_000;
 const GOLD_FALLBACK = "#d4a72c";
 
 const RIPPLE_FRAMES = [
@@ -47,6 +48,8 @@ const getCompletionRippleFrame = (progress) => {
   return { opacity: mix(lower[1], upper[1], eased), radiusX: mix(lower[2], upper[2], eased), radiusY: mix(lower[3], upper[3], eased) };
 };
 
+const RIPPLE_FRAME_SAMPLES = Array.from({ length: RIPPLE_DURATION_MS + 1 }, (_, millisecond) => getCompletionRippleFrame(millisecond / RIPPLE_DURATION_MS));
+
 export default function CompletionRippleCanvas({ originX, originY, color = GOLD_FALLBACK, reduceMotion = false }) {
   const canvasRef = useRef(null);
 
@@ -54,7 +57,7 @@ export default function CompletionRippleCanvas({ originX, originY, color = GOLD_
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (reduceMotion || mediaQuery.matches) return undefined;
     const canvas = canvasRef.current;
-    const context = canvas?.getContext("2d");
+    const context = canvas?.getContext("2d", { alpha: true, desynchronized: true });
     if (!canvas || !context) return undefined;
 
     let animationFrameId = 0;
@@ -67,7 +70,8 @@ export default function CompletionRippleCanvas({ originX, originY, color = GOLD_
     const resizeCanvas = () => {
       viewportWidth = window.innerWidth;
       viewportHeight = window.innerHeight;
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+      const pixelBudgetRatio = Math.sqrt(MAX_CANVAS_PIXELS / Math.max(1, viewportWidth * viewportHeight));
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO, Math.max(1, pixelBudgetRatio));
       canvas.width = Math.max(1, Math.round(viewportWidth * pixelRatio));
       canvas.height = Math.max(1, Math.round(viewportHeight * pixelRatio));
       canvas.style.width = `${viewportWidth}px`;
@@ -98,12 +102,11 @@ export default function CompletionRippleCanvas({ originX, originY, color = GOLD_
       for (let index = 0; index < RIPPLE_COUNT; index += 1) {
         const localElapsed = elapsed - index * RIPPLE_STAGGER_MS;
         if (localElapsed < 0 || localElapsed > RIPPLE_DURATION_MS) continue;
-        const frame = getCompletionRippleFrame(localElapsed / RIPPLE_DURATION_MS);
+        const frame = RIPPLE_FRAME_SAMPLES[Math.min(RIPPLE_DURATION_MS, Math.round(localElapsed))];
         if (frame.opacity <= 0) continue;
         const radiusX = viewportMinimum * frame.radiusX / 100;
         const radiusY = viewportMinimum * frame.radiusY / 100;
-        drawStroke(radiusX, radiusY, frame.opacity * 0.16, clamp(viewportMinimum * 0.02, 14, 28));
-        drawStroke(radiusX, radiusY, frame.opacity * 0.38, clamp(viewportMinimum * 0.01, 7, 14));
+        drawStroke(radiusX, radiusY, frame.opacity * 0.3, clamp(viewportMinimum * 0.014, 10, 20));
         drawStroke(radiusX, radiusY, frame.opacity, clamp(viewportMinimum * 0.0042, 2, 6));
       }
       context.globalAlpha = 1;

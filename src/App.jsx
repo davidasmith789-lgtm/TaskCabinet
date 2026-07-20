@@ -4384,8 +4384,9 @@ function App() {
   };
 
   // Completing a repeating task also appends its next incomplete occurrence.
-  const getCelebrationOrigin = (element) => {
-    const bounds = element?.getBoundingClientRect?.();
+  const getCelebrationOrigin = (event) => {
+    if (event?.detail > 0 && Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) return { x: event.clientX, y: event.clientY };
+    const bounds = event?.currentTarget?.getBoundingClientRect?.();
     return bounds ? { x: bounds.left + bounds.width / 2, y: bounds.top + bounds.height / 2 } : null;
   };
 
@@ -7666,7 +7667,7 @@ function App() {
         <button
           type="button"
           className="btn btn-primary"
-          onClick={(event) => stopCardClick(event, () => handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(event.currentTarget) }))}
+          onClick={(event) => stopCardClick(event, () => handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(event) }))}
         >
           Complete ✅
         </button>
@@ -7698,7 +7699,7 @@ function App() {
         <button type="button" className="btn btn-primary focus-session-start-button" onClick={(event) => stopCardClick(event, () => handleFocusStart(task.id))}>Focus</button>
         <div className="task-action-pair task-action-pair-left">
           <button type="button" className="btn btn-warning status-action-button" onClick={(event) => stopCardClick(event, () => handleMoveToTodo(task.id))}>Back to To Do</button>
-          <button type="button" className="btn btn-primary" onClick={(event) => stopCardClick(event, () => handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(event.currentTarget) }))}>Complete ✅</button>
+          <button type="button" className="btn btn-primary" onClick={(event) => stopCardClick(event, () => handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(event) }))}>Complete ✅</button>
         </div>
         {renderVoiceUndoAction(task)}
         <div className="task-action-pair task-action-pair-right">
@@ -8842,7 +8843,7 @@ function App() {
                                   className="btn btn-primary"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(e.currentTarget) });
+                                    handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(e) });
                                   }}
                                   style={{
                                     padding: "5px 10px",
@@ -8990,7 +8991,7 @@ function App() {
                                   className="btn btn-primary"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(e.currentTarget) });
+                                    handleComplete(task.id, { celebrationOrigin: getCelebrationOrigin(e) });
                                   }}
                                   style={{
                                     padding: "5px 10px",

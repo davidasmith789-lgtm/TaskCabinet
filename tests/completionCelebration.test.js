@@ -18,12 +18,16 @@ test("assignment completion uses accessible dependency-free confetti with reduce
   assert.match(app, /Array\.from\(\{ length: 7 \}/);
   assert.match(app, /<CompletionRippleCanvas/);
   assert.match(rippleCanvas, /window\.requestAnimationFrame/);
-  assert.match(rippleCanvas, /Math\.min\(window\.devicePixelRatio \|\| 1, MAX_DEVICE_PIXEL_RATIO\)/);
+  assert.match(rippleCanvas, /MAX_CANVAS_PIXELS = 4_000_000/);
+  assert.match(rippleCanvas, /Math\.min\(window\.devicePixelRatio \|\| 1, MAX_DEVICE_PIXEL_RATIO, Math\.max\(1, pixelBudgetRatio\)\)/);
+  assert.match(rippleCanvas, /desynchronized: true/);
+  assert.match(rippleCanvas, /RIPPLE_FRAME_SAMPLES/);
   assert.match(rippleCanvas, /context\.ellipse/);
   assert.match(rippleCanvas, /RIPPLE_COUNT = 7/);
   assert.match(rippleCanvas, /RIPPLE_STAGGER_MS = 95/);
   assert.match(rippleCanvas, /RIPPLE_DURATION_MS = 1120/);
   assert.match(rippleCanvas, /prefers-reduced-motion: reduce/);
+  assert.match(app, /event\.clientX/);
   assert.doesNotMatch(app, /completion-gold-ripple-ring/);
   assert.match(app, /Array\.from\(\{ length: 12 \}/);
   assert.match(css, /@keyframes completion-confetti-fall/);
