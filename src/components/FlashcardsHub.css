@@ -2,7 +2,10 @@
 .flash-editor,
 .flash-setup,
 .flash-study,
-.flash-summary {
+.flash-summary,
+.flash-modal {
+  --primary-color: var(--flashcard-accent-color);
+  --button-primary-color: var(--flashcard-action-text);
   width: min(1200px, 100%);
   margin: auto;
   padding: 24px;

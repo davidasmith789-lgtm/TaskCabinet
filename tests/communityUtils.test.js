@@ -71,3 +71,15 @@ test("community post course entry suggests existing courses but remains free tex
   assert.match(hub, /<datalist id="community-existing-courses">/);
   assert.match(hub, /keep typing to\s+create a new course name/);
 });
+
+test("Community uses its Full Color Studio accent", () => {
+  const styles = readFileSync(
+    new URL("../src/components/CommunityHub.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(styles, /--primary-color: var\(--community-accent-color\)/);
+  assert.match(
+    styles,
+    /--button-primary-color: var\(--community-action-text\)/,
+  );
+});

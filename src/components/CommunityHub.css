@@ -1,3 +1,8 @@
+.community-page,
+.community-dialog-backdrop {
+  --primary-color: var(--community-accent-color);
+  --button-primary-color: var(--community-action-text);
+}
 .community-page {
   width: min(1200px, 100%);
   margin: 0 auto;
@@ -37,10 +42,9 @@
 }
 .community-toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 2fr) repeat(
-      2,
-      minmax(140px, 1fr)
-    ) auto auto;
+  grid-template-columns:
+    minmax(240px, 2fr) repeat(2, minmax(140px, 1fr))
+    auto auto;
   gap: 10px;
   align-items: end;
   padding: 16px;

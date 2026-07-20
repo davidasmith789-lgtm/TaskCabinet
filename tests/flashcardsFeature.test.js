@@ -10,6 +10,7 @@ const community = read("src/components/CommunityFlashcardActions.jsx");
 const assignment = read("src/components/AssignmentFlashcards.jsx");
 const confirmDialog = read("src/components/FlashcardConfirmDialog.jsx");
 const hubStyles = read("src/components/FlashcardsHub.css");
+const appSource = read("src/App.jsx");
 
 test("ratings and reports are enforced server-side", () => {
   assert.match(sql, /primary key\(deck_id,user_id\)/i);
@@ -107,6 +108,14 @@ test("study progress follows the card and mobile is browse-and-study only", () =
     hubStyles,
     /progress::-webkit-progress-value[\s\S]*var\(--primary-color\)/,
   );
+});
+
+test("Full Color Studio exposes Community and Flashcards feature colors", () => {
+  assert.match(appSource, /communityAccent[\s\S]*group: "Community"/);
+  assert.match(appSource, /flashcardAccent[\s\S]*group: "Flashcards"/);
+  assert.match(appSource, /--community-accent-color/);
+  assert.match(appSource, /--flashcard-accent-color/);
+  assert.match(hubStyles, /--primary-color: var\(--flashcard-accent-color\)/);
 });
 
 test("Flashcards includes no uploads, paid AI, or service-role secret", () => {

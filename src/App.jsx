@@ -263,6 +263,10 @@ const COLOR_PERSONALIZATION_FIELDS = [
   { key: "dangerText", label: "Danger text", group: "Actions" },
   { key: "priorityHigh", label: "High-priority cards", group: "Actions" },
   { key: "link", label: "Links", group: "Actions" },
+  { key: "communityAccent", label: "Accent and buttons", group: "Community" },
+  { key: "communityActionText", label: "Button text", group: "Community" },
+  { key: "flashcardAccent", label: "Accent and buttons", group: "Flashcards" },
+  { key: "flashcardActionText", label: "Button text", group: "Flashcards" },
   { key: "calendar", label: "Calendar background", group: "Calendar" },
   { key: "calendarText", label: "Calendar text", group: "Calendar" },
   { key: "calendarSelected", label: "Selected date", group: "Calendar" },
@@ -397,6 +401,8 @@ const THEME_COLOR_DEFAULTS = {
     heroStart: "#4f46e5", heroMiddle: "#7c3aed", heroEnd: "#2563eb", heroText: "#ffffff",
     logoBackground: "#ffffff", logoGradientStart: "#4f46e5", logoGradientEnd: "#2563eb",
     logoStar: "#ffffff", logoGlow: "#a78bfa", logoSpeedLines: "#4f46e5",
+    communityAccent: "#4f46e5", communityActionText: "#ffffff",
+    flashcardAccent: "#4f46e5", flashcardActionText: "#ffffff",
   },
   dark: {
     page: "#0b1020", surface: "#151b2e", surfaceAlt: "#1f2937",
@@ -413,6 +419,8 @@ const THEME_COLOR_DEFAULTS = {
     heroStart: "#312e81", heroMiddle: "#581c87", heroEnd: "#1e3a8a", heroText: "#ffffff",
     logoBackground: "#151b2e", logoGradientStart: "#818cf8", logoGradientEnd: "#60a5fa",
     logoStar: "#ffffff", logoGlow: "#a78bfa", logoSpeedLines: "#60a5fa",
+    communityAccent: "#60a5fa", communityActionText: "#0b1020",
+    flashcardAccent: "#60a5fa", flashcardActionText: "#0b1020",
   },
 };
 
@@ -516,6 +524,8 @@ const getSafeColorThemeColors = (colors = {}) => {
     ...(normalized.surface && { text: ensureReadableText(normalized.text, normalized.surface) }),
     ...(normalized.page && { muted: ensureReadableText(normalized.muted, normalized.page, 3) }),
     ...(normalized.primary && { primaryText: ensureReadableText(normalized.primaryText, normalized.primary) }),
+    ...(normalized.communityAccent && { communityActionText: ensureReadableText(normalized.communityActionText, normalized.communityAccent) }),
+    ...(normalized.flashcardAccent && { flashcardActionText: ensureReadableText(normalized.flashcardActionText, normalized.flashcardAccent) }),
     ...(normalized.secondary && { secondaryText: ensureReadableText(normalized.secondaryText, normalized.secondary) }),
     ...(normalized.warning && { warningText: ensureReadableText(normalized.warningText, normalized.warning) }),
     ...(normalized.danger && { dangerText: ensureReadableText(normalized.dangerText, normalized.danger) }),
@@ -572,6 +582,10 @@ const COLOR_CSS_VARIABLES = {
   logoStar: ["--logo-star"],
   logoGlow: ["--logo-glow"],
   logoSpeedLines: ["--logo-speed-lines"],
+  communityAccent: ["--community-accent-color"],
+  communityActionText: ["--community-action-text"],
+  flashcardAccent: ["--flashcard-accent-color"],
+  flashcardActionText: ["--flashcard-action-text"],
 };
 
 const SETTINGS_SECTIONS = [
@@ -2496,7 +2510,9 @@ function App() {
     } catch (error) {
       console.error("Could not load login-screen colors:", error);
     }
-    activeColors = getSafeColorThemeColors(activeColors);
+    activeColors = getSafeColorThemeColors(
+      getEffectiveThemeColors(theme, activeColors),
+    );
     Object.entries(activeColors).forEach(([key, value]) => {
       if (!/^#[0-9a-f]{6}$/i.test(value)) return;
       (COLOR_CSS_VARIABLES[key] || []).forEach((variable) => {
