@@ -39,6 +39,21 @@
 .flash-page > header h1 {
   margin: 2px 0;
   font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: -0.04em;
+}
+.flash-page > header {
+  padding: clamp(20px, 4vw, 36px);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 24%, var(--border-color));
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 88% 15%, color-mix(in srgb, var(--primary-color) 16%, transparent), transparent 34%),
+    var(--card-bg);
+}
+.flash-page > header p {
+  max-width: 62ch;
+  margin-bottom: 0;
+  color: var(--muted-text, var(--text-color));
+  line-height: 1.6;
 }
 .flash-page > header span {
   color: var(--primary-color);
@@ -49,6 +64,8 @@
   display: flex;
   gap: 8px;
   margin: 20px 0;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border-color);
 }
 .flash-page button,
 .flash-editor button,
@@ -64,12 +81,24 @@
 .flash-page > nav .active {
   color: var(--button-primary-color);
   background: var(--primary-color);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--primary-color) 22%, transparent);
 }
 .flash-toolbar,
 .flash-deck-fields {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
+}
+.flash-toolbar {
+  align-items: end;
+  margin-top: 14px;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--card-bg);
+}
+.flash-toolbar .flash-search-field {
+  grid-column: span 1;
 }
 .flash-toolbar label,
 .flash-deck-fields label,
@@ -88,6 +117,16 @@
   border-radius: 10px;
   color: var(--text-color);
   background: var(--card-bg);
+}
+.flash-toolbar :is(input, select) {
+  min-height: 46px;
+  background: var(--surface-alt);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.flash-toolbar :is(input, select):focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 16%, transparent);
+  outline: none;
 }
 .flash-grid {
   display: grid;
@@ -125,6 +164,21 @@
   background: var(--card-bg);
   box-shadow: var(--shadow);
 }
+.flash-grid article {
+  position: relative;
+  overflow: hidden;
+}
+.flash-grid article::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  content: "";
+  background: var(--primary-color);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
 .flash-deck-meta {
   display: flex;
   justify-content: space-between;
@@ -157,6 +211,26 @@
   transform: translateY(-2px);
   outline: none;
 }
+.flash-deck-tile:hover::after,
+.flash-deck-tile:focus-visible::after {
+  opacity: 1;
+}
+.flash-course-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+.flash-owner-label {
+  color: var(--muted-text, var(--text-color));
+  font-size: 0.75rem;
+  font-weight: 700;
+}
 .flash-deck-tile > :is(h2, p, small) {
   margin: 0;
   line-height: 1.45;
@@ -164,6 +238,22 @@
 }
 .flash-deck-tile h2 {
   font-size: clamp(1.25rem, 2vw, 1.55rem);
+  letter-spacing: -0.025em;
+}
+.flash-deck-progress {
+  display: grid;
+  gap: 7px;
+}
+.flash-deck-progress > span {
+  color: var(--muted-text, var(--text-color));
+  font-size: 0.8rem;
+}
+.flash-deck-progress > span b {
+  color: var(--text-color);
+}
+.flash-deck-progress progress {
+  width: 100%;
+  height: 9px;
 }
 .flash-deck-tile footer {
   align-self: end;
@@ -436,6 +526,8 @@
   .flash-page > header {
     display: grid;
     gap: 6px;
+    padding: 20px 18px;
+    border-radius: 20px;
   }
   .flash-page > header p {
     margin: 4px 0 0;

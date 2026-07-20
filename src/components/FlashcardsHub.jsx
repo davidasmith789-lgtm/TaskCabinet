@@ -1052,12 +1052,13 @@ export default function FlashcardsHub({
           </nav>
         )}
         <div className="flash-toolbar">
-          <label>
-            Search
+          <label className="flash-search-field">
+            <span>Search your library</span>
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by title, course, or topic"
             />
           </label>
           <label>
@@ -1114,8 +1115,8 @@ export default function FlashcardsHub({
                 }}
               >
                 <div className="flash-deck-meta">
-                  <span>{d.course_name}</span>
-                  <b>
+                  <span className="flash-course-badge">{d.course_name}</span>
+                  <b className="flash-owner-label">
                     {d.owner_id === userId ? "Your Deck" : "GlowDocket Student"}
                   </b>
                 </div>
@@ -1130,7 +1131,16 @@ export default function FlashcardsHub({
                     {new Date(`${d.target_date}T00:00`).toLocaleDateString()}
                   </p>
                 )}
-                <progress value={d.understanding_percent || 0} max="100" />
+                <div className="flash-deck-progress">
+                  <span>
+                    <b>{d.understanding_percent || 0}%</b> understood
+                  </span>
+                  <progress
+                    value={d.understanding_percent || 0}
+                    max="100"
+                    aria-label={`${d.title}: ${d.understanding_percent || 0}% understood`}
+                  />
+                </div>
                 {section === "mine" && (
                   <div className="flash-progress-details">
                     <span>New {d.new_count}</span>
