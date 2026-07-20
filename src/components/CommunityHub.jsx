@@ -879,16 +879,14 @@ export default function CommunityHub({ userId, isMobile = false }) {
                 </p>
                 {renderActions(selected)}
                 <footer>
-                  {selected.author_id === userId && (
-                    <>
-                      <button onClick={() => openEdit(selected)}>Edit</button>
-                      <button
-                        className="btn-danger"
-                        onClick={() => deletePost(selected)}
-                      >
-                        Delete
-                      </button>
-                    </>
+                  {selected.author_id === userId && <button onClick={() => openEdit(selected)}>Edit</button>}
+                  {(selected.author_id === userId || isModerator) && (
+                    <button
+                      className="btn-danger"
+                      onClick={() => deletePost(selected)}
+                    >
+                      Delete
+                    </button>
                   )}
                   <button onClick={() => setReporting(true)}>Report</button>
                 </footer>

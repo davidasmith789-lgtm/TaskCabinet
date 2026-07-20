@@ -11,6 +11,8 @@ const assignment = read("src/components/AssignmentFlashcards.jsx");
 const confirmDialog = read("src/components/FlashcardConfirmDialog.jsx");
 const hubStyles = read("src/components/FlashcardsHub.css");
 const appSource = read("src/App.jsx");
+const communityHub = read("src/components/CommunityHub.jsx");
+const developerMigration = read("supabase/migrations/202607200004_dev_moderator_shared_decks.sql");
 
 test("ratings and reports are enforced server-side", () => {
   assert.match(sql, /primary key\(deck_id,user_id\)/i);
@@ -25,6 +27,22 @@ test("public deck and Community attachment visibility require active shared deck
   assert.match(sql, guard);
   assert.match(community, /visibility", "shared"/);
   assert.match(community, /status", "active"/);
+});
+
+test("shared decks open a Community-style read-only viewer for every signed-in user", () => {
+  assert.match(sql, /flashcard_shared_decks[\s\S]*d\.visibility='shared'and d\.status='active'/i);
+  assert.match(sql, /flashcard_get_deck[\s\S]*visibility='shared'and d\.status='active'/i);
+  assert.match(hub, /mode === "view"/);
+  assert.match(hub, /className="flash-viewer"/);
+  assert.match(hub, /viewer\.cards\.map/);
+  assert.match(hub, /Shared by a GlowDocket student/);
+});
+
+test("the exact developer account can delete any Community post through server authorization", () => {
+  assert.match(developerMigration, /lower\(developer\.email\) = 'purplxr@gmail\.com'/i);
+  assert.match(developerMigration, /check_user_id = auth\.uid\(\)/i);
+  assert.match(developerMigration, /author_id = auth\.uid\(\) or public\.is_community_moderator\(auth\.uid\(\)\)/i);
+  assert.match(communityHub, /selected\.author_id === userId \|\| isModerator/);
 });
 
 test("moderation uses Community moderator authorization", () => {
@@ -79,7 +97,7 @@ test("study remains confidence-based without queues or card due dates", () => {
 
 test("deck tiles open full personal decks while Study starts study setup", () => {
   assert.match(hub, /className="flash-deck-tile"/);
-  assert.match(hub, /openDeck\(d, section === "mine" \? "edit" : "study"\)/);
+  assert.match(hub, /openDeck\(d, section === "mine" \? "edit" : "view"\)/);
   assert.match(hub, /openDeck\(d, "study"\)/);
   assert.match(hub, /Study this deck/);
   assert.match(hub, /onClick=\{\(\) => rate\("Good"\)\}/);

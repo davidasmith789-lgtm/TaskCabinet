@@ -59,6 +59,7 @@ export default function FlashcardsHub({
     [importText, setImportText] = useState(""),
     [importRows, setImportRows] = useState([]),
     [setup, setSetup] = useState(null),
+    [viewer, setViewer] = useState(null),
     [study, setStudy] = useState(null),
     [flipped, setFlipped] = useState(false),
     [summary, setSummary] = useState(null),
@@ -162,6 +163,7 @@ export default function FlashcardsHub({
         cards: data.cards || [],
       };
       if (mode === "study") return prepareStudy(d);
+      if (mode === "view") return setViewer(d);
       setEditor(d);
       setDirty(false);
     } catch (e) {
@@ -677,6 +679,53 @@ export default function FlashcardsHub({
         {confirmationDialog}
       </>
     );
+  if (viewer)
+    return (
+      <>
+        <main className="flash-viewer">
+          <header>
+            <button onClick={() => setViewer(null)}>← Shared Decks</button>
+            <div className="flash-viewer-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => prepareStudy(viewer)}
+              >
+                Study this deck
+              </button>
+              <button
+                onClick={async () => {
+                  const c = await getSupabaseBrowserClient();
+                  const { error } = await c.rpc("copy_flashcard_deck", {
+                    source_id: viewer.id,
+                  });
+                  setNotice(error ? error.message : "Copied to My Decks.");
+                  if (!error) setViewer(null);
+                }}
+              >
+                Copy to My Decks
+              </button>
+            </div>
+          </header>
+          <section className="flash-viewer-heading">
+            <span>{viewer.course_name}</span>
+            <h1>{viewer.title}</h1>
+            {viewer.description && <p>{viewer.description}</p>}
+            <small>{viewer.cards.length} cards · Shared by a GlowDocket student</small>
+          </section>
+          <div className="flash-viewer-cards">
+            {viewer.cards.map((card, index) => (
+              <article key={card.id}>
+                <b>{index + 1}</b>
+                <div><small>Term</small><p>{card.front}</p></div>
+                <div><small>Answer</small><p>{card.back}</p></div>
+                {card.explanation && <div className="flash-viewer-explanation"><small>Explanation</small><p>{card.explanation}</p></div>}
+              </article>
+            ))}
+          </div>
+        </main>
+        {confirmationDialog}
+      </>
+    );
   if (editor)
     return (
       <>
@@ -1128,7 +1177,7 @@ export default function FlashcardsHub({
                     event.target.closest("button, input, select, textarea, a")
                   )
                     return;
-                  openDeck(d, section === "mine" ? "edit" : "study");
+                  openDeck(d, section === "mine" ? "edit" : "view");
                 }}
               >
                 <div className="flash-deck-meta">

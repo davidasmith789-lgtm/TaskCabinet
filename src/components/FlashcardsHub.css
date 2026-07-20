@@ -1,5 +1,6 @@
 .flash-page,
 .flash-editor,
+.flash-viewer,
 .flash-setup,
 .flash-study,
 .flash-summary,
@@ -13,6 +14,7 @@
 }
 .flash-page :is(h1, h2, h3, p, small, strong, b, label, summary),
 .flash-editor :is(h1, h2, h3, p, small, strong, b, label, summary),
+.flash-viewer :is(h1, h2, h3, p, small, strong, b, label),
 .flash-setup :is(h1, h2, h3, p, small, strong, b, label),
 .flash-study :is(h1, h2, h3, p, small, strong, b, label, summary),
 .flash-summary :is(h1, h2, h3, p, small, strong, b, label) {
@@ -20,6 +22,7 @@
 }
 .flash-page > header,
 .flash-editor > header,
+.flash-viewer > header,
 .flash-card-editor footer,
 .flash-grid article footer,
 .flash-study > header {
@@ -81,6 +84,7 @@
 .flash-page h2,
 .flash-editor h1,
 .flash-editor h2,
+.flash-viewer h1,
 .flash-study {
   display: block;
   color: var(--text-color);
@@ -385,6 +389,81 @@
   font-size: 1.35rem;
   line-height: 1;
 }
+.flash-viewer > header,
+.flash-viewer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.flash-viewer-heading {
+  margin: 24px 0;
+  padding: clamp(20px, 4vw, 34px);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 28%, var(--border-color));
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 90% 10%, color-mix(in srgb, var(--primary-color) 17%, transparent), transparent 30%),
+    var(--card-bg);
+}
+.flash-viewer-heading > span {
+  color: var(--primary-color);
+  font-size: .78rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.flash-viewer-heading h1 {
+  margin: 6px 0 10px;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  letter-spacing: -.04em;
+}
+.flash-viewer-heading p {
+  max-width: 70ch;
+  line-height: 1.55;
+}
+.flash-viewer-cards {
+  display: grid;
+  gap: 12px;
+}
+.flash-viewer-cards article {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--card-bg);
+}
+.flash-viewer-cards article > b {
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 12%, var(--surface-alt));
+}
+.flash-viewer-cards article > div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--surface-alt);
+}
+.flash-viewer-cards small {
+  color: var(--muted-text, var(--text-color));
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.flash-viewer-cards p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.flash-viewer-explanation {
+  grid-column: 2 / -1;
+}
 .flash-card-editor > b,
 .flash-card-editor details,
 .flash-card-editor footer {
@@ -638,7 +717,8 @@
 }
 @media (max-width: 650px) {
   .flash-page,
-  .flash-editor {
+  .flash-editor,
+  .flash-viewer {
     padding: 12px 8px 110px;
   }
   .flash-editor > header {
@@ -652,6 +732,21 @@
   }
   .flash-editor-intro {
     align-items: center;
+  }
+  .flash-viewer > header,
+  .flash-viewer-actions {
+    align-items: stretch;
+  }
+  .flash-viewer-actions,
+  .flash-viewer-actions button {
+    width: 100%;
+  }
+  .flash-viewer-cards article {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+  .flash-viewer-cards article > div,
+  .flash-viewer-explanation {
+    grid-column: 2;
   }
   .flash-page > header {
     display: grid;
