@@ -100,6 +100,16 @@ test("community post course entry suggests account and existing courses but rema
   assert.match(hub, /keep typing to\s+create a new course name/);
 });
 
+test("Community list cards keep post bodies and details behind selection", () => {
+  const hub = readFileSync(
+    new URL("../src/components/CommunityHub.jsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(hub, /<Body text=\{post\.body\} preview/);
+  assert.match(hub, /<Body text=\{selected\.body\} \/>/);
+  assert.match(hub, /\{renderActions\(post\)\}/);
+});
+
 test("Community uses its Full Color Studio accent", () => {
   const styles = readFileSync(
     new URL("../src/components/CommunityHub.css", import.meta.url),

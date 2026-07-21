@@ -107,6 +107,12 @@ test("Flashcards page omits the moderator queue and uses themed confirmations", 
   assert.match(confirmDialog, /flash-confirm-actions/);
 });
 
+test("Flashcards quietly falls back when the new library RPC is not deployed yet", () => {
+  assert.match(hub, /error\?\.code === "PGRST202"/);
+  assert.match(hub, /includes\("flashcard_library_decks"\)/);
+  assert.match(hub, /c\.rpc\("flashcard_my_decks"/);
+});
+
 test("Community conversion is reviewed and only selected cards are saved", () => {
   assert.match(community, /Review Proposed Flashcards/);
   assert.match(community, /filter\(\(x\) => x\.selected\)/);

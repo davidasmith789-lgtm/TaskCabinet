@@ -118,7 +118,6 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [type, setType] = useState("");
-  const [sort, setSort] = useState("helpful");
   const [savedOnly, setSavedOnly] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
@@ -198,7 +197,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
         const { data, error } = await client.rpc("community_search_posts", {
           search_text: debouncedQuery,
           filter_post_type: type || null,
-          sort_by: sort,
+          sort_by: "helpful",
           page_number: nextPage,
           page_size: PAGE_SIZE,
           saved_only: savedOnly,
@@ -224,7 +223,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
         setLoadingMore(false);
       }
     },
-    [debouncedQuery, type, sort, savedOnly],
+    [debouncedQuery, type, savedOnly],
   );
   useEffect(() => {
     queueMicrotask(() => load());
@@ -738,14 +737,6 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
             ))}
           </select>
         </label>
-        <label>
-          <span>Sort</span>
-          <select value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="helpful">Most Helpful</option>
-            <option value="newest">Newest</option>
-            <option value="updated">Recently Updated</option>
-          </select>
-        </label>
         <button
           type="button"
           className={savedOnly ? "active" : ""}
@@ -833,19 +824,8 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
               </div>
               <div className="community-card-content">
                 <h2>{post.title}</h2>
-                <Body text={post.body} preview />
-              </div>
-              <div className="community-links">
-                {normalizeCommunityLinks(post.links).map((link) => (
-                  <a key={`${link.name}-${link.url}`} href={link.url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>{link.name}</a>
-                ))}
               </div>
               <div className="community-card-footer">
-                <p className="community-byline">
-                  <strong>{post.author_id === userId ? "You" : "GlowDocket Student"}</strong>
-                  <span>{new Date(post.created_at).toLocaleDateString()}</span>
-                </p>
-                <FlashcardProfileChip tags={post.topic_tags || []} compact />
                 {renderActions(post)}
               </div>
             </article>

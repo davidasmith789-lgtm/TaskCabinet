@@ -16,6 +16,9 @@ import { getGamificationLevel } from "../gamificationUtils.js";
 import "./FlashcardsHub.css";
 const STUDY_ACTIONS = ["Again", "Hard"];
 const STUDY_SUMMARY_ACTIONS = ["Again", "Hard", "Good"];
+const isMissingLibraryFunction = (error) =>
+  error?.code === "PGRST202" &&
+  String(error.message || "").includes("flashcard_library_decks");
 const blankCard = () => ({
   id: crypto.randomUUID(),
   front: "",
@@ -133,8 +136,24 @@ export default function FlashcardsHub({
           page_number: next,
           page_size: 20,
         };
-        const { data, error } = await c.rpc(fn, rpcArgs);
+        let { data, error } = await c.rpc(fn, rpcArgs);
+        if (isMissingLibraryFunction(error)) {
+          if (["all", "mine", "starred"].includes(section)) {
+            ({ data, error } = await c.rpc("flashcard_my_decks", {
+              search_text: debounced,
+              course_filter: course || null,
+              sort_by: sort,
+              page_number: next,
+              page_size: 20,
+              group_filter: section === "starred" ? "favorites" : "all",
+            }));
+          } else {
+            data = [];
+            error = null;
+          }
+        }
         if (error) throw error;
+        data ||= [];
         setDecks((x) =>
           append
             ? [...x, ...data.filter((d) => !x.some((y) => y.id === d.id))]

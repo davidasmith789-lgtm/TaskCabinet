@@ -681,7 +681,7 @@
 .community-card {
   position: relative;
   display: flex;
-  min-height: 310px;
+  min-height: 190px;
   flex-direction: column;
   overflow: hidden;
   border-color: color-mix(in srgb, var(--primary-color) 22%, var(--border-color));
@@ -935,9 +935,51 @@
   margin: 16px 0 4px;
 }
 @media (max-width: 560px) {
+  .community-page.is-mobile { scroll-behavior: smooth; }
+  .community-search-toggle,
+  .community-toolbar,
+  .community-card,
+  .community-dialog-backdrop,
+  .community-dialog { will-change: transform, opacity; }
+  .community-page.is-mobile .community-search-toggle:active {
+    transform: scale(.985);
+    background: color-mix(in srgb, var(--primary-color) 7%, var(--card-bg));
+  }
+  .community-page.is-mobile .community-search-toggle[aria-expanded="true"] > b {
+    transform: rotate(180deg);
+  }
+  .community-page.is-mobile .community-search-toggle > b {
+    transition: transform 220ms ease, background 220ms ease;
+  }
+  .community-toolbar { animation: community-mobile-reveal 220ms ease-out both; }
   .community-grid { gap: 14px; }
-  .community-card { min-height: 0; padding: 17px 15px 15px; }
+  .community-card {
+    min-height: 0;
+    padding: 17px 15px 15px;
+    animation: community-mobile-card-in 300ms ease-out both;
+    transform-origin: center bottom;
+  }
+  .community-card:nth-child(2) { animation-delay: 35ms; }
+  .community-card:nth-child(3) { animation-delay: 70ms; }
+  .community-card:nth-child(4) { animation-delay: 105ms; }
+  .community-card:nth-child(n + 5) { animation-delay: 140ms; }
   .community-card:hover { transform: none; }
+  .community-card:active {
+    transform: scale(.985);
+    border-color: color-mix(in srgb, var(--primary-color) 62%, var(--border-color));
+  }
+  .community-card-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .community-card-actions button {
+    min-height: 42px;
+    padding-inline: 6px;
+    font-size: .7rem;
+  }
+  .community-card-actions button:active { transform: scale(.94); }
+  .community-dialog-backdrop { animation: community-mobile-fade-in 180ms ease-out both; }
+  .community-dialog { animation: community-mobile-sheet-in 260ms cubic-bezier(.2, .8, .2, 1) both; }
   .community-detail-header { position: relative; padding-top: 44px; }
   .community-detail-header > button { position: absolute; top: 0; right: 0; }
   .community-link-row { grid-template-columns: 1fr; }
@@ -949,7 +991,26 @@
   .community-draft-restored > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
   .community-draft-toolbar { align-items: stretch; flex-direction: column; }
 }
+@keyframes community-mobile-reveal {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes community-mobile-card-in {
+  from { opacity: 0; transform: translateY(12px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes community-mobile-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes community-mobile-sheet-in {
+  from { opacity: 0; transform: translateY(28px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @media (prefers-reduced-motion: reduce) {
   .community-card,
-  .community-card-actions button { transition: none; }
+  .community-card-actions button,
+  .community-toolbar,
+  .community-dialog-backdrop,
+  .community-dialog { animation: none; transition: none; }
 }
