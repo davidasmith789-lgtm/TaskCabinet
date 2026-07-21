@@ -7841,7 +7841,7 @@ function App() {
       const mobileLevel = mobileTaskLevels[task.id] || MOBILE_TASK_LEVELS.compact;
       const mobileSummaryOpen = !isMobileUi || mobileLevel >= MOBILE_TASK_LEVELS.summary;
       const mobileDetailsOpen = !isMobileUi ? expandedTaskId === task.id : mobileLevel >= MOBILE_TASK_LEVELS.details;
-      const overdue = getTaskDueBucket(task).startsWith("Overdue");
+      const overdue = status !== "completed" && getTaskDueBucket(task).startsWith("Overdue");
       return (
   <li
     key={task.id}
