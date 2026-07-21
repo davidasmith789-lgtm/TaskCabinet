@@ -4,11 +4,15 @@ import { readFileSync } from "node:fs";
 import {
   COMMUNITY_POST_TYPES,
   communityBodyBlocks,
+  clearCommunityDraft,
+  getCommunityDraftStorageKey,
   getCommunityFormattingMarker,
   isSafeCommunityLink,
+  loadCommunityDraft,
   matchCommunityCourses,
   normalizeCommunityLinks,
   parseCommunityTags,
+  saveCommunityDraft,
   validateCommunityPost,
 } from "../src/communityUtils.js";
 
@@ -147,4 +151,41 @@ test("Community editor supports document keyboard formatting", () => {
   assert.match(hub, /placeholder="Title"/);
   assert.match(hub, /<InlineText text=\{item\}/);
   assert.match(hub, /\*\*\$\{selectedText\}\*\*/);
+});
+
+test("Community drafts round-trip safely and stay isolated by account", () => {
+  const values = new Map();
+  const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) };
+  const draft = { course_name: "APUSH", post_type: "Study Guide", title: "Review", body: "Notes", links: [{ name: "Source", url: "https://example.com" }] };
+  saveCommunityDraft(storage, "user-a", draft, 1234);
+  assert.deepEqual(loadCommunityDraft(storage, "user-a"), { draft: { ...draft, tags: "" }, savedAt: 1234 });
+  assert.equal(loadCommunityDraft(storage, "user-b"), null);
+  assert.notEqual(getCommunityDraftStorageKey("user-a"), getCommunityDraftStorageKey("user-b"));
+  clearCommunityDraft(storage, "user-a");
+  assert.equal(loadCommunityDraft(storage, "user-a"), null);
+});
+
+test("Community drafts discard empty, malformed, oversized, and old data", () => {
+  const values = new Map();
+  const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: (key) => values.delete(key) };
+  assert.equal(saveCommunityDraft(storage, "user", { course_name: "", title: "", body: "", links: [] }), null);
+  values.set(getCommunityDraftStorageKey("user"), "not json");
+  assert.equal(loadCommunityDraft(storage, "user"), null);
+  values.set(getCommunityDraftStorageKey("user"), JSON.stringify({ version: 0, savedAt: 1, draft: { title: "Old" } }));
+  assert.equal(loadCommunityDraft(storage, "user"), null);
+  saveCommunityDraft(storage, "user", { title: "x".repeat(500), body: "y".repeat(20000) }, 2);
+  const loaded = loadCommunityDraft(storage, "user");
+  assert.equal(loaded.draft.title.length, 140);
+  assert.equal(loaded.draft.body.length, 10000);
+});
+
+test("Community composer exposes draft status and mobile preview controls", () => {
+  const hub = readFileSync(new URL("../src/components/CommunityHub.jsx", import.meta.url), "utf8");
+  assert.match(hub, /Draft restored/);
+  assert.match(hub, /Saving draft…/);
+  assert.match(hub, /Draft saved · Saved on this device/);
+  assert.match(hub, /mobileComposerView === "preview"/);
+  assert.match(hub, /formMode !== "create"/);
+  assert.match(hub, /latestFormModeRef\.current === "create"/);
+  assert.match(hub, /saveCommunityDraft\(window\.localStorage, userId, latestDraftRef\.current\)/);
 });

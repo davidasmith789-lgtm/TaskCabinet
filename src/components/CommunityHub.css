@@ -283,6 +283,51 @@
   height: 21px;
   min-height: 0 !important;
 }
+.community-draft-restored {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 38%, var(--border-color));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-alt));
+}
+.community-draft-restored > div { display: flex; gap: 8px; }
+.community-draft-restored > div:first-child { flex-direction: column; gap: 2px; }
+.community-draft-restored span,
+.community-draft-status { color: var(--muted-text); font-size: .78rem; }
+.community-draft-restored button,
+.community-composer-switch button {
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  color: var(--text-color);
+  background: var(--card-bg);
+}
+.community-draft-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.community-draft-status.is-saving { color: var(--primary-color); }
+.community-draft-status.is-saved::before { content: "✓ "; color: var(--primary-color); font-weight: 900; }
+.community-composer-switch {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 11px;
+  background: var(--surface-alt);
+}
+.community-composer-switch button.active {
+  color: var(--button-primary-color);
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+}
 .community-dialog footer {
   margin-top: 18px;
   justify-content: flex-end;
@@ -730,6 +775,10 @@
   .community-link-row { grid-template-columns: 1fr; }
   .community-link-row button { width: 100%; }
   .community-form-grid textarea#community-body { padding: 18px; }
+  .community-draft-restored { align-items: stretch; flex-direction: column; }
+  .community-draft-restored > div:last-child { display: grid; grid-template-columns: 1fr 1fr; }
+  .community-draft-toolbar { align-items: stretch; flex-direction: column; }
+  .community-composer-switch { display: grid; grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   .community-card,

@@ -1,6 +1,67 @@
 export const COMMUNITY_POST_TYPES = ["Course Advice", "Study Guide", "Concept Explanation", "Class Tips", "Other"];
 export const COMMUNITY_REPORT_REASONS = ["Cheating or answer key", "Copyrighted material", "Personal information", "Harassment or harmful content", "Spam", "Other"];
 export const COMMUNITY_LIMITS = { course: 100, title: 140, body: 10000, tags: 8, tag: 30 };
+export const COMMUNITY_DRAFT_VERSION = 1;
+
+export const getCommunityDraftStorageKey = (userId) =>
+  `glowdocket_community_draft_v${COMMUNITY_DRAFT_VERSION}_${String(userId || "guest")}`;
+
+export function hasMeaningfulCommunityDraft(draft) {
+  return Boolean(
+    String(draft?.course_name || "").trim()
+    || String(draft?.title || "").trim()
+    || String(draft?.body || "").trim()
+    || (Array.isArray(draft?.links) && draft.links.some((link) => String(link?.name || "").trim() || String(link?.url || "").trim())),
+  );
+}
+
+export function normalizeCommunityDraft(draft) {
+  if (!draft || typeof draft !== "object" || Array.isArray(draft)) return null;
+  const postType = COMMUNITY_POST_TYPES.includes(draft.post_type) ? draft.post_type : COMMUNITY_POST_TYPES[0];
+  return {
+    course_name: String(draft.course_name || "").slice(0, COMMUNITY_LIMITS.course),
+    post_type: postType,
+    title: String(draft.title || "").slice(0, COMMUNITY_LIMITS.title),
+    body: String(draft.body || "").slice(0, COMMUNITY_LIMITS.body),
+    tags: "",
+    links: (Array.isArray(draft.links) ? draft.links : []).slice(0, 5).map((link) => ({
+      name: String(link?.name || "").slice(0, 80),
+      url: String(link?.url || "").slice(0, 2000),
+    })),
+  };
+}
+
+export function loadCommunityDraft(storage, userId) {
+  try {
+    const stored = JSON.parse(storage?.getItem(getCommunityDraftStorageKey(userId)) || "null");
+    if (stored?.version !== COMMUNITY_DRAFT_VERSION || !Number.isFinite(stored?.savedAt)) return null;
+    const draft = normalizeCommunityDraft(stored.draft);
+    if (!draft || !hasMeaningfulCommunityDraft(draft)) return null;
+    return { draft, savedAt: stored.savedAt };
+  } catch {
+    return null;
+  }
+}
+
+export function saveCommunityDraft(storage, userId, draft, savedAt = Date.now()) {
+  const key = getCommunityDraftStorageKey(userId);
+  const normalized = normalizeCommunityDraft(draft);
+  try {
+    if (!normalized || !hasMeaningfulCommunityDraft(normalized)) {
+      storage?.removeItem(key);
+      return null;
+    }
+    const value = { version: COMMUNITY_DRAFT_VERSION, savedAt, draft: normalized };
+    storage?.setItem(key, JSON.stringify(value));
+    return value;
+  } catch {
+    return null;
+  }
+}
+
+export function clearCommunityDraft(storage, userId) {
+  try { storage?.removeItem(getCommunityDraftStorageKey(userId)); } catch { /* storage may be unavailable */ }
+}
 
 const normalizeCourseSearch = (value) => String(value || "")
   .normalize("NFKD")

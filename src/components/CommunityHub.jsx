@@ -5,12 +5,16 @@ import {
   COMMUNITY_LIMITS,
   COMMUNITY_POST_TYPES,
   COMMUNITY_REPORT_REASONS,
+  clearCommunityDraft,
   communityBodyBlocks,
+  hasMeaningfulCommunityDraft,
+  loadCommunityDraft,
   getCommunityFormattingMarker,
   isSafeCommunityLink,
   matchCommunityCourses,
   normalizeCommunityLinks,
   parseCommunityTags,
+  saveCommunityDraft,
   validateCommunityPost,
 } from "../communityUtils.js";
 import "./CommunityHub.css";
@@ -87,6 +91,10 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
   const [selected, setSelected] = useState(null);
   const [formMode, setFormMode] = useState("");
   const [draft, setDraft] = useState(EMPTY);
+  const [draftStatus, setDraftStatus] = useState("");
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [mobileComposerView, setMobileComposerView] = useState("edit");
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
@@ -99,14 +107,32 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
   const matchingCourseOptions = matchCommunityCourses(courseOptions, draft.course_name);
   const dialogRef = useRef(null);
   const triggerRef = useRef(null);
-  const closeDialog = useCallback(() => {
+  const latestDraftRef = useRef(EMPTY);
+  const latestFormModeRef = useRef("");
+  useEffect(() => {
+    latestDraftRef.current = draft;
+    latestFormModeRef.current = formMode;
+  }, [draft, formMode]);
+  useEffect(() => () => {
+    if (latestFormModeRef.current === "create") {
+      saveCommunityDraft(window.localStorage, userId, latestDraftRef.current);
+    }
+  }, [userId]);
+  const resetDialog = useCallback(() => {
     setFormMode("");
     setSelected(null);
     setReporting(false);
     setConfirmed(false);
     setDraft(EMPTY);
+    setDraftStatus("");
+    setDraftRestored(false);
+    setMobileComposerView("edit");
     setTimeout(() => triggerRef.current?.focus(), 0);
   }, []);
+  const closeDialog = useCallback(() => {
+    if (formMode === "create") saveCommunityDraft(window.localStorage, userId, draft);
+    resetDialog();
+  }, [draft, formMode, resetDialog, userId]);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350);
     return () => clearTimeout(timer);
@@ -195,9 +221,49 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
       return setNotice(
         "You have reached the three-post limit for the current rolling 24-hour period.",
       );
-    setDraft(EMPTY);
+    const saved = loadCommunityDraft(window.localStorage, userId);
+    setDraft(saved?.draft || EMPTY);
+    setDraftSavedAt(saved?.savedAt || null);
+    setDraftRestored(Boolean(saved));
+    setDraftStatus(saved ? "saved" : "");
+    setMobileComposerView("edit");
     setConfirmed(false);
     setFormMode("create");
+  };
+  useEffect(() => {
+    if (formMode !== "create") return undefined;
+    const statusTimer = window.setTimeout(() => {
+      if (!hasMeaningfulCommunityDraft(draft)) {
+        clearCommunityDraft(window.localStorage, userId);
+        setDraftStatus("");
+        setDraftSavedAt(null);
+      } else {
+        setDraftStatus("saving");
+      }
+    }, 0);
+    if (!hasMeaningfulCommunityDraft(draft)) {
+      return () => window.clearTimeout(statusTimer);
+    }
+    const timer = window.setTimeout(() => {
+      const saved = saveCommunityDraft(window.localStorage, userId, draft);
+      if (saved) {
+        setDraftSavedAt(saved.savedAt);
+        setDraftStatus("saved");
+      }
+    }, 500);
+    return () => {
+      window.clearTimeout(statusTimer);
+      window.clearTimeout(timer);
+    };
+  }, [draft, formMode, userId]);
+  const discardCreateDraft = () => {
+    clearCommunityDraft(window.localStorage, userId);
+    latestDraftRef.current = EMPTY;
+    setDraft(EMPTY);
+    setDraftSavedAt(null);
+    setDraftRestored(false);
+    setDraftStatus("");
+    setMobileComposerView("edit");
   };
   useEffect(() => {
     if (!formMode) return;
@@ -284,7 +350,11 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
         if (error) throw error;
         setRemainingPosts((count) => Math.max(0, Number(count ?? 3) - 1));
       }
-      closeDialog();
+      if (formMode === "create") {
+        clearCommunityDraft(window.localStorage, userId);
+        latestFormModeRef.current = "";
+      }
+      resetDialog();
       setNotice(formMode === "edit" ? "Post updated." : "Post published.");
       await load();
     } catch (error) {
@@ -742,6 +812,32 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
                     ×
                   </button>
                 </header>
+                {formMode === "create" && draftRestored && (
+                  <aside className="community-draft-restored" role="status">
+                    <div>
+                      <strong>Draft restored</strong>
+                      <span>{draftSavedAt ? `Last saved ${new Date(draftSavedAt).toLocaleString()}` : "Saved on this device"}</span>
+                    </div>
+                    <div>
+                      <button type="button" onClick={() => { setDraftRestored(false); requestAnimationFrame(() => document.getElementById("community-body")?.focus()); }}>Continue writing</button>
+                      <button type="button" onClick={discardCreateDraft}>Clear draft</button>
+                    </div>
+                  </aside>
+                )}
+                {formMode === "create" && (
+                  <div className="community-draft-toolbar">
+                    <span className={`community-draft-status${draftStatus ? ` is-${draftStatus}` : ""}`} aria-live="polite">
+                      {draftStatus === "saving" ? "Saving draft…" : draftStatus === "saved" ? "Draft saved · Saved on this device" : "Drafts save on this device"}
+                    </span>
+                    {isMobile && (
+                      <div className="community-composer-switch" aria-label="Post composer view">
+                        <button type="button" className={mobileComposerView === "edit" ? "active" : ""} aria-pressed={mobileComposerView === "edit"} onClick={() => setMobileComposerView("edit")}>Edit</button>
+                        <button type="button" className={mobileComposerView === "preview" ? "active" : ""} aria-pressed={mobileComposerView === "preview"} onClick={() => setMobileComposerView("preview")}>Preview</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {(!isMobile || mobileComposerView === "edit") && (
                 <div className="community-form-grid">
                   <label>
                     Course name{" "}
@@ -854,14 +950,15 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
                     {draft.links.length < 5 && <button type="button" className="community-add-link" onClick={() => setDraft({ ...draft, links: [...draft.links, { name: "", url: "" }] })}>Add link</button>}
                   </fieldset>
                 </div>
-                <section className="community-preview">
+                )}
+                {(!isMobile || mobileComposerView === "preview") && <section className="community-preview">
                   <h3>Preview</h3>
                   <Body
                     text={
                       draft.body || "Your formatted preview will appear here."
                     }
                   />
-                </section>
+                </section>}
                 <aside className="community-rules">
                   <strong>Community rules</strong>
                   <ul>
