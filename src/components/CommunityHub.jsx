@@ -3,7 +3,8 @@ import { getSupabaseBrowserClient } from "../supabaseClient.js";
 import CommunityFlashcardActions from "./CommunityFlashcardActions.jsx";
 import FlashcardProfileChip from "./FlashcardProfileChip.jsx";
 import FlashcardProfileSharingControls from "./FlashcardProfileSharingControls.jsx";
-import { buildFlashcardProfileTags, getFlashcardLevel } from "../flashcardUtils.js";
+import { buildFlashcardProfileTags } from "../flashcardUtils.js";
+import { getGamificationLevel } from "../gamificationUtils.js";
 import { communityEditorToMarkup, communityMarkupToEditorHtml } from "../communityEditorUtils.js";
 import {
   COMMUNITY_LIMITS,
@@ -136,7 +137,6 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
   const [queue, setQueue] = useState([]);
   const [courseOptions, setCourseOptions] = useState([]);
   const [reporting, setReporting] = useState(false);
-  const [flashcardXp, setFlashcardXp] = useState(0);
   const [highlightMenuOpen, setHighlightMenuOpen] = useState(false);
   const [highlightColor, setHighlightColor] = useState("#fff8c5");
   const [editorToolbarState, setEditorToolbarState] = useState({ block: "p", font: "Arial", size: "3", bold: false, italic: false, underline: false, textColor: "#172033", highlighted: false });
@@ -147,7 +147,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
     badgeId: !profileSettings.sharedFlashcardBadge || profileSettings.sharedFlashcardBadge === "current"
       ? profileSettings.selectedBadge || ""
       : profileSettings.sharedFlashcardBadge,
-    level: getFlashcardLevel(flashcardXp).level,
+    level: getGamificationLevel(profileSettings.totalXp).level,
     name: displayName,
   };
   const dialogRef = useRef(null);
@@ -166,9 +166,6 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
     if (latestFormModeRef.current === "create") {
       saveCommunityDraft(window.localStorage, userId, latestDraftRef.current);
     }
-  }, [userId]);
-  useEffect(() => {
-    getSupabaseBrowserClient().then((client) => client.rpc("flashcard_reward_summary")).then(({ data }) => setFlashcardXp(Number(data?.total_xp) || 0)).catch(() => setFlashcardXp(0));
   }, [userId]);
   const resetDialog = useCallback(() => {
     setFormMode("");
@@ -688,7 +685,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
             Find tips, explanations, and study guides shared by other students.
           </p>
         </div>
-        <FlashcardProfileSharingControls profileSettings={profileSettings} onChange={onProfileSettingsChange} level={getFlashcardLevel(flashcardXp).level} displayName={displayName} />
+        <FlashcardProfileSharingControls profileSettings={profileSettings} onChange={onProfileSettingsChange} level={getGamificationLevel(profileSettings.totalXp).level} displayName={displayName} />
         <button
           className="btn btn-primary"
           type="button"

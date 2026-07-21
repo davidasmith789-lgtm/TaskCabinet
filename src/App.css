@@ -1142,6 +1142,12 @@ textarea {
 .gamification-dialog > header p { margin-bottom: 0; color: var(--muted-text) !important; }
 .gamification-dialog > section { margin-top: 20px; }
 .gamification-close { display: grid; width: 46px; height: 46px; flex: 0 0 46px; padding: 0; place-items: center; border: 1px solid color-mix(in srgb, var(--primary-color) 45%, var(--border-color)); border-radius: 50%; background: radial-gradient(circle at 35% 25%, color-mix(in srgb, white 18%, var(--surface-alt)), var(--surface-alt)); color: var(--text-color); box-shadow: 0 8px 24px color-mix(in srgb, var(--primary-color) 18%, transparent); cursor: pointer; font-size: 1.7rem; }
+.gamification-xp-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .8fr); align-items: center; gap: 12px 20px; padding: 18px; border: 1px solid color-mix(in srgb, #fbbf24 55%, var(--border-color)); border-radius: 20px; background: linear-gradient(135deg, color-mix(in srgb, #fbbf24 17%, var(--surface-alt)), color-mix(in srgb, var(--primary-color) 12%, var(--surface-alt))); }
+.gamification-xp-card > div { display: grid; gap: 2px; }
+.gamification-xp-card strong { font-size: 1.6rem; }
+.gamification-xp-card small, .gamification-xp-card span { color: var(--muted-text); }
+.gamification-xp-card progress { width: 100%; accent-color: #f59e0b; }
+.gamification-xp-card p { grid-column: 1 / -1; margin-bottom: 0; color: var(--muted-text) !important; line-height: 1.55; }
 .gamification-week-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 18px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--primary-color) 52%, var(--border-color)); border-radius: 20px; background: linear-gradient(135deg, color-mix(in srgb, var(--primary-color) 17%, var(--surface-alt)), color-mix(in srgb, var(--secondary-color) 10%, var(--surface-alt))); box-shadow: 0 12px 30px color-mix(in srgb, var(--primary-color) 12%, transparent), inset 0 0 0 1px color-mix(in srgb, white 8%, transparent); }
 .gamification-week-card > div { display: grid; }
 .gamification-week-card > div strong { font-size: 1.35rem; }
@@ -1386,6 +1392,8 @@ textarea {
   .gamification-dialog > header { margin: -18px -14px 18px; padding: 20px 14px 17px; }
   .achievement-grid { grid-template-columns: 1fr; }
   .gamification-week-card { grid-template-columns: 1fr; }
+  .gamification-xp-card { grid-template-columns: 1fr; }
+  .gamification-xp-card p { grid-column: auto; }
   .gamification-week-card progress { grid-column: auto; }
   .cosmetic-unlock-guide li { grid-template-columns: 1fr; gap: 3px; }
 }
@@ -6201,10 +6209,10 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 .tutorial-backdrop {
   position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center;
   padding: 20px; background: color-mix(in srgb, var(--backdrop-color, #111827) 82%, transparent);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(3px);
 }
 .tutorial-dialog {
-  position: relative; width: min(680px, 100%); max-height: min(760px, calc(100dvh - 32px)); overflow: auto;
+  position: relative; width: min(980px, 100%); height: min(760px, calc(100dvh - 32px)); max-height: min(760px, calc(100dvh - 32px)); overflow: auto;
   padding: clamp(22px, 4vw, 38px); border: 1px solid var(--border-color); border-radius: 26px;
   background: var(--modal-color, var(--surface-color)); color: var(--text-color); box-shadow: 0 28px 80px rgba(0,0,0,.32);
 }
@@ -6300,7 +6308,6 @@ html[data-theme] .react-calendar__tile.copy-cycle-muted:disabled {
 .tutorial-gate-message { margin: 0 auto 14px; max-width: 600px; padding: 10px 12px; border: 1px solid var(--warning-color, #f59e0b); border-radius: 10px; color: var(--text-color); background: color-mix(in srgb, var(--warning-color, #f59e0b) 12%, var(--surface-color)); text-align: center; font-weight: 700; }
 .tutorial-actions { display: flex; justify-content: space-between; gap: 12px; }
 .tutorial-actions .btn { min-width: 112px; min-height: 46px; }
-.tutorial-dialog:has(.tutorial-practice) { width: min(1100px, 100%); height: min(760px, calc(100dvh - 32px)); max-height: none; }
 .tutorial-practice { display: grid; min-height: 100%; grid-template-rows: auto 1fr; gap: 22px; }
 .tutorial-practice-header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--border-color); }
 .tutorial-practice-header h2, .tutorial-practice-header p { margin: 3px 0; color: #fff; }
@@ -6523,7 +6530,7 @@ html[data-theme] .focus-session-header h2 { margin-top: 4px; color: var(--text-c
   animation: backdrop-arrive var(--motion-standard) ease-out both;
 }
 
-:where(.edit-modal, .tutorial-dialog, .widget-menu-popover, .practice-widget-hide) {
+:where(.edit-modal, .widget-menu-popover, .practice-widget-hide) {
   animation: floating-surface-arrive 200ms var(--motion-ease-out) both;
   transform-origin: top right;
 }

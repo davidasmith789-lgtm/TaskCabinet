@@ -1,5 +1,6 @@
 import AchievementEmblem from "./AchievementEmblem.jsx";
 import { parseFlashcardProfile } from "../flashcardUtils.js";
+import { getGamificationLevel } from "../gamificationUtils.js";
 import "./FlashcardProfileChip.css";
 
 export default function FlashcardProfileChip({ tags = [], compact = false }) {
@@ -10,7 +11,7 @@ export default function FlashcardProfileChip({ tags = [], compact = false }) {
       {profile.badgeId && <span className={`flash-public-profile-badge badge-${profile.badgeId}`} aria-hidden="true"><AchievementEmblem id={profile.badgeId} /></span>}
       <span>
         {profile.name && <strong>{profile.name}</strong>}
-        {profile.level && <small>Level {profile.level}</small>}
+        {profile.level && <small>{getGamificationLevel((profile.level - 1) * 100).name} · Level {profile.level}</small>}
       </span>
     </div>
   );

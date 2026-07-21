@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildFlashcardProfileTags, getFlashcardLevel, parseFlashcardProfile, stripFlashcardProfileTags } from "../src/flashcardUtils.js";
+import { getGamificationLevel } from "../src/gamificationUtils.js";
 
 const read = (path) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -29,13 +30,15 @@ test("Flashcards XP has escalating account levels", () => {
   assert.equal(getFlashcardLevel(100).level, 2);
   assert.equal(getFlashcardLevel(224).level, 2);
   assert.equal(getFlashcardLevel(225).level, 3);
+  assert.equal(getGamificationLevel(225).level, 3);
   assert.match(hub, /className="flash-level-card"/);
+  assert.match(hub, /Account XP/);
   assert.match(hub, /XP to Level/);
 });
 
 test("Flashcards header includes a closed expandable XP guide", () => {
   assert.match(hub, /\[xpGuideOpen, setXpGuideOpen\] = useState\(false\)/);
-  assert.match(hub, /How XP and levels work/);
+  assert.match(hub, /How do levels work\?/);
   assert.match(hub, /aria-expanded=\{xpGuideOpen\}/);
   assert.match(hub, /up to 100 XP per day/);
   assert.match(hubStyles, /\.flash-xp-guide-toggle/);
@@ -48,11 +51,12 @@ test("public Flashcards profiles store level badge and name independently in hid
   const named = buildFlashcardProfileTags([], { shareFlashcardLevel: false, showFlashcardName: true, level: 7, name: "Taylor" });
   assert.deepEqual(parseFlashcardProfile(named), { level: null, badgeId: "", name: "Taylor" });
   assert.match(profileSharing, /<option value="current">Current<\/option>/);
-  assert.match(profileSharing, /Share Flashcard level &amp; badge/);
+  assert.match(profileSharing, /Share Account level &amp; badge/);
   assert.match(profileSharing, /Show my account name publicly/);
   assert.doesNotMatch(profileSharing, /Show my account name separately/);
   assert.match(communityHub, /FlashcardProfileChip/);
   assert.match(communityHub, /FlashcardProfileSharingControls/);
+  assert.doesNotMatch(hub, /FlashcardProfileSharingControls/);
 });
 
 test("public deck and Community attachment visibility require active shared decks", () => {

@@ -4,7 +4,6 @@ import {
   buildFlashcardProfileTags,
   confidenceFor,
   deckProgress,
-  getFlashcardLevel,
   parseFlashcardImport,
   parseFlashcardTags,
   selectStudyCards,
@@ -13,7 +12,7 @@ import {
 import FlashcardSharedActions from "./FlashcardSharedActions.jsx";
 import FlashcardConfirmDialog from "./FlashcardConfirmDialog.jsx";
 import FlashcardProfileChip from "./FlashcardProfileChip.jsx";
-import FlashcardProfileSharingControls from "./FlashcardProfileSharingControls.jsx";
+import { getGamificationLevel } from "../gamificationUtils.js";
 import "./FlashcardsHub.css";
 const STUDY_ACTIONS = ["Again", "Hard"];
 const STUDY_SUMMARY_ACTIONS = ["Again", "Hard", "Good"];
@@ -46,7 +45,6 @@ export default function FlashcardsHub({
   onRewards = () => {},
   displayName = "",
   profileSettings = {},
-  onProfileSettingsChange = () => {},
   reduceMotion = false,
 }) {
   const [section, setSection] = useState("mine"),
@@ -79,16 +77,16 @@ export default function FlashcardsHub({
   const saveTimer = useRef();
   const rewardsCallbackRef = useRef(onRewards);
   rewardsCallbackRef.current = onRewards;
-  const flashLevel = getFlashcardLevel(rewardSummary?.total_xp || 0);
+  const accountLevel = getGamificationLevel(profileSettings.totalXp);
   const publicProfile = useMemo(() => ({
     shareFlashcardLevel: profileSettings.shareFlashcardLevel === true,
     showFlashcardName: profileSettings.showFlashcardName === true,
     badgeId: !profileSettings.sharedFlashcardBadge || profileSettings.sharedFlashcardBadge === "current"
       ? profileSettings.selectedBadge || ""
       : profileSettings.sharedFlashcardBadge,
-    level: flashLevel.level,
+    level: getGamificationLevel(profileSettings.totalXp).level,
     name: displayName,
-  }), [displayName, flashLevel.level, profileSettings.selectedBadge, profileSettings.shareFlashcardLevel, profileSettings.sharedFlashcardBadge, profileSettings.showFlashcardName]);
+  }), [displayName, profileSettings.selectedBadge, profileSettings.shareFlashcardLevel, profileSettings.sharedFlashcardBadge, profileSettings.showFlashcardName, profileSettings.totalXp]);
   const askToConfirm = (title, description, action, confirmLabel = "Confirm") =>
     setConfirmRequest({ title, description, action, confirmLabel });
   const closeConfirmation = useCallback(
@@ -401,7 +399,7 @@ export default function FlashcardsHub({
         unlocked = (reward.badges || []).some(
           (id) => !(rewardSummary?.badges || []).includes(id),
         );
-        leveledUp = getFlashcardLevel(reward.total_xp || 0).level > getFlashcardLevel(rewardSummary?.total_xp || 0).level;
+        leveledUp = getGamificationLevel((profileSettings.totalXp || 0) + (reward.xp_earned || 0)).level > accountLevel.level;
         setRewardSummary(reward);
         rewardsCallbackRef.current(reward);
       } catch (e) {
@@ -1077,23 +1075,6 @@ export default function FlashcardsHub({
               daily card deadlines.
             </p>
           </div>
-          <aside className={`flash-xp-guide${xpGuideOpen ? " is-open" : ""}`}>
-            <button type="button" className="flash-xp-guide-toggle" aria-expanded={xpGuideOpen} aria-controls="flash-xp-guide-content" onClick={() => setXpGuideOpen((open) => !open)}>
-              <span><strong>How XP and levels work</strong><small>{xpGuideOpen ? "Hide guide" : "Open guide"}</small></span>
-              <b aria-hidden="true">{xpGuideOpen ? "↑" : "↓"}</b>
-            </button>
-            {xpGuideOpen && (
-              <div id="flash-xp-guide-content" className="flash-xp-guide-content">
-                <p>Complete study sessions to earn Flashcards XP. Thoughtful reviews, improving a card’s confidence, finishing a session, and studying before a target date can all add XP.</p>
-                <ul>
-                  <li><strong>Review cards:</strong> 2 XP per eligible card review each day.</li>
-                  <li><strong>Improve confidence:</strong> 5 XP when a card moves forward.</li>
-                  <li><strong>Finish studying:</strong> session and completion bonuses, plus a target-date bonus when eligible.</li>
-                </ul>
-                <p>You can earn up to 100 XP per day. Lifetime XP never resets. Fill the level bar to level up.</p>
-              </div>
-            )}
-          </aside>
           <div className="flash-header-actions">
             <button
               className="btn btn-primary"
@@ -1104,14 +1085,41 @@ export default function FlashcardsHub({
           </div>
         </header>
         {rewardSummary && (
-          <section className="flash-level-card" aria-label={`Flashcards level ${flashLevel.level}`}>
-            <div className="flash-level-orb"><small>Level</small><strong>{flashLevel.level}</strong></div>
+          <section className="flash-level-card" aria-label={`Account level ${accountLevel.level}, ${accountLevel.name}`}>
+            <div className="flash-level-orb"><small>Level</small><strong>{accountLevel.level}</strong></div>
             <div className="flash-level-progress">
-              <div><strong>{rewardSummary.total_xp} Flashcards XP</strong><span>{flashLevel.xpIntoLevel}/{flashLevel.xpNeeded} XP to Level {flashLevel.level + 1}</span></div>
-              <progress max={flashLevel.xpNeeded} value={flashLevel.xpIntoLevel}>{flashLevel.progress}%</progress>
-              <small>Today: {rewardSummary.today_xp ?? rewardSummary.xp_earned ?? 0}/{rewardSummary.daily_cap || 100} XP</small>
+              <div><strong>{profileSettings.totalXp || 0} Account XP</strong><span>{accountLevel.xpNeeded - accountLevel.xpIntoLevel} XP to Level {Math.min(10, accountLevel.level + 1)} · {accountLevel.name}</span></div>
+              <progress max={accountLevel.xpNeeded} value={accountLevel.xpIntoLevel}>{accountLevel.progress}%</progress>
+              <small>Flashcards today: {rewardSummary.today_xp ?? rewardSummary.xp_earned ?? 0}/{rewardSummary.daily_cap || 100} XP</small>
             </div>
-            <FlashcardProfileSharingControls profileSettings={profileSettings} onChange={onProfileSettingsChange} level={flashLevel.level} displayName={displayName} />
+            <aside className={`flash-xp-guide${xpGuideOpen ? " is-open" : ""}`}>
+              <button type="button" className="flash-xp-guide-toggle" aria-expanded={xpGuideOpen} aria-controls="flash-xp-guide-content" onClick={() => setXpGuideOpen((open) => !open)}>
+                <span><strong>How do levels work?</strong><small>{xpGuideOpen ? "Hide guide" : "See how to earn XP"}</small></span>
+                <b aria-hidden="true">{xpGuideOpen ? "↑" : "↓"}</b>
+              </button>
+              {xpGuideOpen && (
+                <div id="flash-xp-guide-content" className="flash-xp-guide-content">
+                  <p>GlowDocket uses one account XP total and one level everywhere. Assignments and Flashcards both add to it in different ways.</p>
+                  <h4>Flashcards XP</h4>
+                  <ul>
+                    <li><strong>Review cards:</strong> 2 XP per eligible card review each day.</li>
+                    <li><strong>Improve confidence:</strong> 5 XP when a card moves forward.</li>
+                    <li><strong>Meaningful session:</strong> 10 XP.</li>
+                    <li><strong>Finish a session:</strong> 5 XP.</li>
+                    <li><strong>Study before the target date:</strong> 5 XP.</li>
+                  </ul>
+                  <h4>Assignment XP</h4>
+                  <ul>
+                    <li><strong>Add an assignment:</strong> 5 XP.</li>
+                    <li><strong>Start an assignment:</strong> 5 XP.</li>
+                    <li><strong>Finish an assignment:</strong> 20 XP.</li>
+                    <li><strong>Finish at least one day early:</strong> 30 XP.</li>
+                    <li><strong>Reach a 7-day completion streak:</strong> 50 XP.</li>
+                  </ul>
+                  <p>You can earn up to 100 XP per day from Flashcards. Account XP is cumulative and never resets.</p>
+                </div>
+              )}
+            </aside>
           </section>
         )}
         {notice && (

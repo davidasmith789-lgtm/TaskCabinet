@@ -1,17 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { getTutorialStorageKey, shouldStartTutorialForProfile } from "../src/onboardingUtils.js";
+import { getTutorialStorageKey, markTutorialEligibleForNewProfile, shouldStartTutorialForProfile } from "../src/onboardingUtils.js";
 
 const read = (relativePath) => readFile(new URL(relativePath, import.meta.url), "utf8");
 
-test("only a profile without tutorial history starts the tutorial automatically", async () => {
+test("only an explicitly eligible brand-new profile starts the tutorial automatically", async () => {
   const app = await read("../src/App.jsx");
   const values = new Map();
   const storage = { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
 
   assert.match(app, /const startTutorialForProfile = \(profileKey\) =>/);
   assert.match(app, /if \(!shouldStartTutorialForProfile\(localStorage, profileKey\)\) return;/);
+  assert.equal(shouldStartTutorialForProfile(storage, "student"), false);
+  markTutorialEligibleForNewProfile(storage, "student");
   assert.equal(shouldStartTutorialForProfile(storage, "student"), true);
   storage.setItem(getTutorialStorageKey("student"), JSON.stringify({ complete: false }));
   assert.equal(shouldStartTutorialForProfile(storage, "student"), false);

@@ -9,7 +9,49 @@ export const DEFAULT_GAMIFICATION = Object.freeze({
   shareFlashcardLevel: false,
   showFlashcardName: false,
   sharedFlashcardBadge: "current",
+  totalXp: 0,
+  flashcardXp: 0,
+  awardedStreakDays: [],
 });
+
+export const XP_REWARDS = Object.freeze({
+  addAssignment: 5,
+  startAssignment: 5,
+  completeAssignment: 20,
+  completeEarly: 30,
+  sevenDayStreak: 50,
+});
+
+export const LEVEL_NAMES = Object.freeze([
+  "Spark", "Scout", "Climber", "Builder", "Striver",
+  "Achiever", "Scholar", "Expert", "Master", "Legend",
+]);
+
+export function getGamificationLevel(totalXp = 0) {
+  const xp = Math.max(0, Math.floor(Number(totalXp) || 0));
+  const level = Math.min(LEVEL_NAMES.length, Math.floor(xp / 100) + 1);
+  const isMaxLevel = level === LEVEL_NAMES.length;
+  const xpIntoLevel = isMaxLevel ? 100 : xp % 100;
+  return {
+    level,
+    name: LEVEL_NAMES[Math.min(level - 1, LEVEL_NAMES.length - 1)],
+    totalXp: xp,
+    xpIntoLevel,
+    xpNeeded: 100,
+    progress: xpIntoLevel,
+  };
+}
+
+export function getCompletionStreak(tasks, now = new Date()) {
+  const days = new Set((Array.isArray(tasks) ? tasks : []).filter((task) => task?.isCompleted && task.completedAt && !task.isDeleted).map((task) => getLocalSignInDay(new Date(task.completedAt))));
+  const cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let count = 0;
+  while (days.has(getLocalSignInDay(cursor))) {
+    count += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return count;
+}
 
 export const GAMIFICATION_ACHIEVEMENTS = Object.freeze([
   { id: "first-completion", title: "First Win", description: "Complete your first assignment.", icon: "🌟", tone: "gold" },
@@ -165,7 +207,10 @@ export function normalizeGamification(value = {}) {
   const sharedFlashcardBadge = source.sharedFlashcardBadge === "current" || !source.sharedFlashcardBadge
     ? "current"
     : earned.has(source.sharedFlashcardBadge) ? source.sharedFlashcardBadge : "current";
-  return { version: 2, weeklyGoal, earnedAchievementIds, selectedConfetti, selectedTitle, selectedBadge, showHeaderSummary: source.showHeaderSummary !== false, shareFlashcardLevel: source.shareFlashcardLevel === true, showFlashcardName: source.showFlashcardName === true, sharedFlashcardBadge, masteryUnlockedAt: typeof source.masteryUnlockedAt === "string" ? source.masteryUnlockedAt : "", masteryProgress, masteryMilestoneKeys, masteryCourseCounts, masteredBadgeIds, badgeAnimationPreferences };
+  const totalXp = Math.max(0, Math.round(Number(source.totalXp) || 0));
+  const flashcardXp = Math.max(0, Math.round(Number(source.flashcardXp) || 0));
+  const awardedStreakDays = [...new Set((Array.isArray(source.awardedStreakDays) ? source.awardedStreakDays : []).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(String(day))))].slice(-100);
+  return { version: 4, weeklyGoal, earnedAchievementIds, selectedConfetti, selectedTitle, selectedBadge, showHeaderSummary: source.showHeaderSummary !== false, shareFlashcardLevel: source.shareFlashcardLevel === true, showFlashcardName: source.showFlashcardName === true, sharedFlashcardBadge, totalXp, flashcardXp, awardedStreakDays, masteryUnlockedAt: typeof source.masteryUnlockedAt === "string" ? source.masteryUnlockedAt : "", masteryProgress, masteryMilestoneKeys, masteryCourseCounts, masteredBadgeIds, badgeAnimationPreferences };
 }
 
 export function grantAllGamificationRewards(value = {}) {

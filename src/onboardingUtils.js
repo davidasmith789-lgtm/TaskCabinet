@@ -5,7 +5,16 @@ export function getTutorialStorageKey(profileKey) {
 }
 
 export function shouldStartTutorialForProfile(storage, profileKey) {
-  return storage.getItem(getTutorialStorageKey(profileKey)) === null;
+  try {
+    const value = JSON.parse(storage.getItem(getTutorialStorageKey(profileKey)) || "null");
+    return value?.eligible === true && value?.complete === false;
+  } catch {
+    return false;
+  }
+}
+
+export function markTutorialEligibleForNewProfile(storage, profileKey) {
+  storage.setItem(getTutorialStorageKey(profileKey), JSON.stringify({ complete: false, eligible: true }));
 }
 
 export function createDemoData(now = new Date()) {

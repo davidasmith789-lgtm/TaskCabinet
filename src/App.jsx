@@ -32,6 +32,7 @@ import {
 from "./recommendationUtils.js";
 import {
   getTutorialStorageKey,
+  markTutorialEligibleForNewProfile,
   shouldStartTutorialForProfile,
 } from "./onboardingUtils.js";
 import { buildDesiredReminders, EXTERNAL_PUSH_CLIENT_ENABLED, getPushDeviceStorageKey, shouldUseOpenAppFallback } from "./externalReminderUtils.js";
@@ -61,7 +62,7 @@ import AssignmentFlashcards from "./components/AssignmentFlashcards.jsx";
 import { getFocusTimeUpdate } from "./focusSessionUtils.js";
 import { getUniqueAssignmentMetadata } from "./assignmentMetadataUtils.js";
 import { startAdaptiveMotionMonitor } from "./adaptiveMotion.js";
-import { advanceBadgeMastery, applyFlashcardMasterySummary, BADGE_MASTERY_CHALLENGES, CELEBRATION_STUDIO_REQUIRED_DAYS, DEFAULT_GAMIFICATION, GAMIFICATION_ACHIEVEMENTS, GAMIFICATION_CONFETTI, GAMIFICATION_TITLES, getCelebrationStudioProgress, getGamificationTitle, getLocalSignInDay, getNewAchievementIds, grantAllGamificationRewards, isGamificationTestAccount, normalizeGamification, normalizeSignInDays, summarizeWeeklyMomentum } from "./gamificationUtils.js";
+import { advanceBadgeMastery, applyFlashcardMasterySummary, BADGE_MASTERY_CHALLENGES, CELEBRATION_STUDIO_REQUIRED_DAYS, DEFAULT_GAMIFICATION, GAMIFICATION_ACHIEVEMENTS, GAMIFICATION_CONFETTI, GAMIFICATION_TITLES, getCelebrationStudioProgress, getCompletionStreak, getGamificationLevel, getLocalSignInDay, getNewAchievementIds, grantAllGamificationRewards, isGamificationTestAccount, normalizeGamification, normalizeSignInDays, summarizeWeeklyMomentum, XP_REWARDS } from "./gamificationUtils.js";
 
 /*
  * GLOWDOCKET APPLICATION MAP
@@ -3482,8 +3483,8 @@ function App() {
   useEffect(() => {
     if (!currentUser) return;
     try {
-      const saved = localStorage.getItem(getTutorialStorageKey(currentUser));
-      if (saved && JSON.parse(saved).complete === false) {
+      if (shouldStartTutorialForProfile(localStorage, currentUser)) {
+        localStorage.setItem(getTutorialStorageKey(currentUser), JSON.stringify({ complete: false, eligible: false }));
         setTutorialStep(0);
         setTutorialOpen(true);
       }
@@ -3793,6 +3794,8 @@ function App() {
       }
       return updated;
     });
+    const currentGamification = normalizeGamification(userSettings.gamification);
+    handleAddFieldSettingChange("gamification", { ...currentGamification, totalXp: currentGamification.totalXp + XP_REWARDS.addAssignment });
 
     if (userSettings.externalPushEnabled) {
       const reminder = getExternalReminderForTask(newTask);
@@ -4465,6 +4468,11 @@ function App() {
     const gamification = normalizeGamification(userSettings.gamification);
     const newAchievementIds = getNewAchievementIds(updated, gamification, { priority: completedTask.priority, estimatedMinutes: completedTask.estimatedMinutes, wasOverdue: Boolean(deadline && deadline < new Date(completedAt)), completedEarly: Boolean(deadline && deadline.getTime() - new Date(completedAt).getTime() >= 86400000), source }, { now: new Date(completedAt), weekStartsOn: userSettings.calendarWeekStartsOn });
     let nextGamification = { ...gamification, earnedAchievementIds: [...new Set([...gamification.earnedAchievementIds, ...newAchievementIds])] };
+    const completionDay = getLocalSignInDay(new Date(completedAt));
+    const completedEarly = Boolean(deadline && deadline.getTime() - new Date(completedAt).getTime() >= 86400000);
+    const earnsStreakReward = getCompletionStreak(updated, new Date(completedAt)) >= 7 && !gamification.awardedStreakDays.includes(completionDay);
+    nextGamification.totalXp += XP_REWARDS.completeAssignment + (completedEarly ? XP_REWARDS.completeEarly : 0) + (earnsStreakReward ? XP_REWARDS.sevenDayStreak : 0);
+    if (earnsStreakReward) nextGamification.awardedStreakDays = [...gamification.awardedStreakDays, completionDay];
     nextGamification = advanceBadgeMastery(updated, gamification, nextGamification, { priority: completedTask.priority, estimatedMinutes: completedTask.estimatedMinutes, wasOverdue: Boolean(deadline && deadline < new Date(completedAt)), completedEarly: Boolean(deadline && deadline.getTime() - new Date(completedAt).getTime() >= 86400000), source, course: getTaskCourseOrCategory(completedTask) }, { now: new Date(completedAt), weekStartsOn: userSettings.calendarWeekStartsOn });
     handleAddFieldSettingChange("gamification", nextGamification);
     completionCelebrationSequenceRef.current += 1;
@@ -4477,13 +4485,17 @@ function App() {
 
   // Starting an assignment moves it from To Do into the new In Progress tab.
   const handleStartTask = (id) => {
+    const newlyStarted = tasks.some((task) => task.id === id && task.status !== "inProgress" && !task.xpStartedAt);
+    if (newlyStarted) {
+      const currentGamification = normalizeGamification(userSettings.gamification);
+      handleAddFieldSettingChange("gamification", { ...currentGamification, totalXp: currentGamification.totalXp + XP_REWARDS.startAssignment });
+    }
     setTasks((prev) => {
       const updated = prev.map((task) =>
         task.id === id
-          ? { ...lockVoiceUndo(task), isCompleted: false, status: "inProgress" }
+          ? { ...lockVoiceUndo(task), isCompleted: false, status: "inProgress", xpStartedAt: task.xpStartedAt || new Date().toISOString() }
           : task,
       );
-
       saveTasksForCurrentUser(updated);
       return updated;
     });
@@ -5087,7 +5099,7 @@ function App() {
   const startTutorialForProfile = (profileKey) => {
     try {
       if (!shouldStartTutorialForProfile(localStorage, profileKey)) return;
-      localStorage.setItem(getTutorialStorageKey(profileKey), JSON.stringify({ complete: false }));
+      localStorage.setItem(getTutorialStorageKey(profileKey), JSON.stringify({ complete: false, eligible: false }));
     } catch {
       // Tutorial persistence is optional and must never turn a successful sign-in into an error.
       return;
@@ -5130,7 +5142,7 @@ function App() {
           const { data, error } = await client.auth.signUp({ email: trimmedName, password: authPassword, options: { data: { display_name: displayName.trim() } } });
           if (error) throw error;
           if (data.user) {
-            localStorage.setItem(getTutorialStorageKey(data.user.id), JSON.stringify({ complete: false }));
+            markTutorialEligibleForNewProfile(localStorage, data.user.id);
             const legacyProfileKey = findLegacyProfileKey(displayName.trim());
             const legacy = readLegacySnapshot(localStorage, legacyProfileKey, DEFAULT_USER_SETTINGS);
             if (legacy && hasMeaningfulState(legacy) && !loadLocalSnapshot(localStorage, data.user.id)) {
@@ -5196,6 +5208,7 @@ function App() {
         localStorage.setItem(AUTH_USER_STORAGE_KEY, normalizedName);
         setCurrentUser(profileKey);
         setAccountMode("local");
+        markTutorialEligibleForNewProfile(localStorage, profileKey);
         startTutorialForProfile(profileKey);
       }
 
@@ -8171,7 +8184,7 @@ function App() {
   ];
   const selectedCelebrationPreviewColors = selectedCelebrationColorFields.filter((field) => field.key.startsWith("palette")).map((field) => selectedCelebrationColors[field.key] || field.fallback);
   const weeklyMomentum = summarizeWeeklyMomentum(tasks, gamification, { now: checklistNow, weekStartsOn: userSettings.calendarWeekStartsOn });
-  const gamificationTitle = getGamificationTitle(gamification);
+  const gamificationLevel = getGamificationLevel(gamification.totalXp);
   const earnedAchievements = new Set(gamification.earnedAchievementIds);
   const masteryUnlocked = GAMIFICATION_ACHIEVEMENTS.every((achievement) => earnedAchievements.has(achievement.id));
   const masteredBadges = new Set(gamification.masteredBadgeIds);
@@ -8180,6 +8193,17 @@ function App() {
   const lockedTitleOptions = GAMIFICATION_TITLES.filter((option) => option.requirement && !earnedAchievements.has(option.requirement)).map((option) => ({ ...option, achievement: GAMIFICATION_ACHIEVEMENTS.find((achievement) => achievement.id === option.requirement) }));
   const lockedCelebrationOptions = GAMIFICATION_CONFETTI.filter((option) => option.requirement && !earnedAchievements.has(option.requirement)).map((option) => ({ ...option, achievement: GAMIFICATION_ACHIEVEMENTS.find((achievement) => achievement.id === option.requirement) }));
   const updateGamification = (changes) => handleAddFieldSettingChange("gamification", normalizeGamification({ ...gamification, ...changes }));
+  const syncFlashcardRewards = (summary = {}) => {
+    const current = normalizeGamification(userSettings.gamification);
+    const flashcardXp = Math.max(0, Math.round(Number(summary.total_xp) || 0));
+    const combined = normalizeGamification({
+      ...current,
+      totalXp: Math.max(0, current.totalXp + flashcardXp - current.flashcardXp),
+      flashcardXp,
+      earnedAchievementIds: [...new Set([...current.earnedAchievementIds, ...(summary.badges || [])])],
+    });
+    handleAddFieldSettingChange("gamification", applyFlashcardMasterySummary(combined, summary));
+  };
   const communityEnabled = import.meta.env.VITE_COMMUNITY_HUB_ENABLED === "true" && accountMode === "cloud";
   const flashcardsEnabled = import.meta.env.VITE_FLASHCARDS_ENABLED === "true" && accountMode === "cloud";
   const mobileOwnedTabs = ["dashboard", "todo", "inProgress", "completed", "mobile-add", "mobile-tools", "mobile-courses", ...(communityEnabled ? ["community"] : []), ...(flashcardsEnabled ? ["flashcards"] : [])];
@@ -8344,7 +8368,7 @@ function App() {
 
           <div className="hero-status-stack">
             <div className="user-pill">{currentUser ? `Signed in as ${displayName || "GlowDocket user"}` : "Guest Mode"}</div>
-            {gamification.showHeaderSummary && <button type="button" className="momentum-header-summary" onClick={() => setGamificationOpen(true)} aria-label={`Weekly momentum: ${weeklyMomentum.completed} of ${weeklyMomentum.goal} assignments, ${weeklyMomentum.productiveDays} productive days, displayed badge ${selectedAchievement?.title || "none"}, ${earnedAchievements.size} badges earned. Open achievements.`}><span className="momentum-summary-copy"><strong>{gamificationTitle.label}</strong><small>{weeklyMomentum.completed}/{weeklyMomentum.goal} this week · {weeklyMomentum.productiveDays} active day{weeklyMomentum.productiveDays === 1 ? "" : "s"}</small></span><span className={`momentum-badge-stage badge-${selectedAchievement?.id || "empty"} tone-${selectedAchievement?.tone || "gold"}${selectedBadgeAnimated ? " is-mastery-animated" : ""}`} title={selectedAchievement ? `Displayed badge: ${selectedAchievement.title}` : "Complete an assignment to earn your first badge"} aria-hidden="true"><span className="achievement-medallion"><span className="achievement-rays" /><span className="achievement-core"><span className="achievement-icon"><AchievementEmblem id={selectedAchievement?.id} /></span></span><span className="achievement-ornament">✦</span></span></span><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress><em className="momentum-badge-count">{earnedAchievements.size}</em></button>}
+            {gamification.showHeaderSummary && <button type="button" className="momentum-header-summary" onClick={() => setGamificationOpen(true)} aria-label={`${gamificationLevel.name}, level ${gamificationLevel.level}, ${gamification.totalXp} XP. Open achievements.`}><span className="momentum-summary-copy"><strong>{gamificationLevel.name} · Level {gamificationLevel.level}</strong><small>{gamification.totalXp} XP · {weeklyMomentum.completed}/{weeklyMomentum.goal} this week</small></span><span className={`momentum-badge-stage badge-${selectedAchievement?.id || "empty"} tone-${selectedAchievement?.tone || "gold"}${selectedBadgeAnimated ? " is-mastery-animated" : ""}`} title={selectedAchievement ? `Displayed badge: ${selectedAchievement.title}` : "Complete an assignment to earn your first badge"} aria-hidden="true"><span className="achievement-medallion"><span className="achievement-rays" /><span className="achievement-core"><span className="achievement-icon"><AchievementEmblem id={selectedAchievement?.id} /></span></span><span className="achievement-ornament">✦</span></span></span><progress max="100" value={gamificationLevel.progress}>{gamificationLevel.progress}%</progress><em className="momentum-badge-count">{earnedAchievements.size}</em></button>}
           </div>
         </header>
 
@@ -8533,7 +8557,7 @@ function App() {
               </>
             )}
             {communityEnabled && currentTab === "community" && <CommunityHub userId={currentUser} courses={courses} displayName={displayName} profileSettings={gamification} onProfileSettingsChange={updateGamification} isMobile />}
-            {flashcardsEnabled && currentTab === "flashcards" && <FlashcardsHub userId={currentUser} courses={courses} assignments={tasks} displayName={displayName} profileSettings={gamification} onProfileSettingsChange={updateGamification} isMobile reduceMotion={userSettings.reduceMotion} initialDeckId={flashcardLaunchDeckId} onLaunchConsumed={() => setFlashcardLaunchDeckId("")} onRewards={(summary) => { const withBadges = normalizeGamification({ ...userSettings.gamification, earnedAchievementIds: [...new Set([...(userSettings.gamification?.earnedAchievementIds || []), ...(summary.badges || [])])] }); handleAddFieldSettingChange("gamification", applyFlashcardMasterySummary(withBadges, summary)); }} />}
+            {flashcardsEnabled && currentTab === "flashcards" && <FlashcardsHub userId={currentUser} courses={courses} assignments={tasks} displayName={displayName} profileSettings={gamification} onProfileSettingsChange={updateGamification} isMobile reduceMotion={userSettings.reduceMotion} initialDeckId={flashcardLaunchDeckId} onLaunchConsumed={() => setFlashcardLaunchDeckId("")} onRewards={syncFlashcardRewards} />}
           </main>
         )}
 
@@ -8549,7 +8573,7 @@ function App() {
 
         {currentTab === "dashboard" && renderWorkspaceForTab("dashboard")}
         {!isMobileUi && communityEnabled && currentTab === "community" && <CommunityHub userId={currentUser} courses={courses} displayName={displayName} profileSettings={gamification} onProfileSettingsChange={updateGamification} />}
-        {!isMobileUi && flashcardsEnabled && currentTab === "flashcards" && <FlashcardsHub userId={currentUser} courses={courses} assignments={tasks} displayName={displayName} profileSettings={gamification} onProfileSettingsChange={updateGamification} reduceMotion={userSettings.reduceMotion} initialDeckId={flashcardLaunchDeckId} onLaunchConsumed={() => setFlashcardLaunchDeckId("")} onRewards={(summary) => { const withBadges = normalizeGamification({ ...userSettings.gamification, earnedAchievementIds: [...new Set([...(userSettings.gamification?.earnedAchievementIds || []), ...(summary.badges || [])])] }); handleAddFieldSettingChange("gamification", applyFlashcardMasterySummary(withBadges, summary)); }} />}
+        {!isMobileUi && flashcardsEnabled && currentTab === "flashcards" && <FlashcardsHub userId={currentUser} courses={courses} assignments={tasks} displayName={displayName} profileSettings={gamification} onProfileSettingsChange={updateGamification} reduceMotion={userSettings.reduceMotion} initialDeckId={flashcardLaunchDeckId} onLaunchConsumed={() => setFlashcardLaunchDeckId("")} onRewards={syncFlashcardRewards} />}
         {!isMobileUi && currentTab !== "dashboard" && currentTab !== "calendar" && renderWorkspaceExtrasForTab(currentTab)}
 
         {/*
@@ -11405,6 +11429,7 @@ function App() {
         <div className="gamification-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setGamificationOpen(false); }}>
           <section className="gamification-dialog" role="dialog" aria-modal="true" aria-labelledby="gamification-title" onKeyDown={(event) => { if (event.key === "Escape") setGamificationOpen(false); }}>
             <header><div><h2 id="gamification-title">Cosmetics</h2><p>Collect badges, choose your display piece, equip a title, and pick a celebration style.</p></div><button autoFocus type="button" className="gamification-close" onClick={() => setGamificationOpen(false)} aria-label="Close Cosmetics">×</button></header>
+            <section className="gamification-xp-card"><div><span>Level {gamificationLevel.level}</span><strong>{gamificationLevel.name}</strong><small>{gamification.totalXp} total XP</small></div><progress max={gamificationLevel.xpNeeded} value={gamificationLevel.xpIntoLevel}>{gamificationLevel.progress}%</progress><p><b>Earn XP:</b> Add assignment +{XP_REWARDS.addAssignment} · Start assignment +{XP_REWARDS.startAssignment} · Finish assignment +{XP_REWARDS.completeAssignment} · Finish at least one day early +{XP_REWARDS.completeEarly} · Reach a 7-day streak +{XP_REWARDS.sevenDayStreak}</p></section>
             <div className="gamification-week-card"><div><strong>{weeklyMomentum.completed} of {weeklyMomentum.goal}</strong><span>assignments completed this week</span></div><progress max="100" value={weeklyMomentum.progress}>{weeklyMomentum.progress}%</progress><span>{weeklyMomentum.productiveDays} productive day{weeklyMomentum.productiveDays === 1 ? "" : "s"} this week</span><label>Weekly goal<input type="number" min="1" max="50" value={gamification.weeklyGoal} onChange={(event) => updateGamification({ weeklyGoal: event.target.value })} /></label></div>
             <section><h3>Badges</h3><p className="gamification-section-hint">Choose any earned badge to display in your momentum summary.</p>{masteryUnlocked && <div className="badge-mastery-reveal"><strong>Badge Mastery unlocked</strong><span>Complete each badge’s advanced challenge to awaken its unique desktop animation.</span></div>}<div className="achievement-grid">{GAMIFICATION_ACHIEVEMENTS.map((achievement) => { const earned = earnedAchievements.has(achievement.id); const selected = gamification.selectedBadge === achievement.id; const challenge = BADGE_MASTERY_CHALLENGES.find((item) => item.id === achievement.id); const mastered = masteredBadges.has(achievement.id); const animationEnabled = mastered && gamification.badgeAnimationPreferences[achievement.id] !== false; const masteryProgress = challenge ? Math.min(challenge.target, gamification.masteryProgress[achievement.id] || 0) : 0; return <div className="achievement-card-shell" key={achievement.id}><button type="button" data-badge={achievement.id} className={`achievement-card badge-${achievement.id} ${earned ? "is-earned" : "is-locked"}${selected ? " is-selected" : ""}${animationEnabled ? " is-mastery-animated" : ""} tone-${achievement.tone}`} disabled={!earned} aria-pressed={earned ? selected : undefined} onClick={() => updateGamification({ selectedBadge: achievement.id })}><span className="achievement-medallion" aria-hidden="true"><span className="achievement-rays" /><span className="achievement-core"><span className="achievement-icon"><AchievementEmblem id={earned ? achievement.id : "locked"} /></span></span><span className="achievement-ornament">✦</span></span><span className="achievement-card-copy"><strong>{achievement.title}</strong><small>{achievement.description}</small><em>{earned ? selected ? "Displayed" : "Earned" : "Locked"}</em>{masteryUnlocked && challenge && <span className="badge-mastery-progress"><b>{mastered ? "Mastered ✦" : challenge.description}</b><progress max={challenge.target} value={masteryProgress}>{masteryProgress}/{challenge.target}</progress><small>{masteryProgress}/{challenge.target}</small></span>}</span></button>{mastered && <label className="badge-animation-toggle"><span>Animation</span><input type="checkbox" checked={animationEnabled} onChange={(event) => updateGamification({ badgeAnimationPreferences: { ...gamification.badgeAnimationPreferences, [achievement.id]: event.target.checked } })} /><b>{animationEnabled ? "On" : "Off"}</b></label>}</div>; })}</div></section>
             <section className="gamification-rewards">
