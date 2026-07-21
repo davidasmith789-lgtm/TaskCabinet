@@ -2516,7 +2516,7 @@ function App() {
   // ---------------------------------------------------------------------------
   // CSS reads data-theme from the root <html> element. The same effect saves
   // the choice so the theme survives a refresh.
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     try {
       localStorage.setItem("theme", theme);

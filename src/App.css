@@ -2509,6 +2509,20 @@ html[data-theme="dark"] {
   --backdrop-color: #020617;
 }
 
+/* Keep browser-owned form surfaces in sync with the selected app mode. Native
+   select menus otherwise may briefly repaint with the OS default while closing. */
+html { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
+select,
+select option,
+select optgroup {
+  background-color: var(--input-bg);
+  color: var(--text-color);
+}
+
+select { color-scheme: inherit; }
+
 body,
 html,
 #root,
@@ -6897,7 +6911,7 @@ html[data-theme="dark"] .tutorial-demo-link {
 
 /* Final mobile usability guardrails: touch, keyboard, notches, overflow, and contrast. */
 @media (max-width: 767px) {
-  html { color-scheme: light dark; }
+  html { color-scheme: inherit; }
   html.taskcabinet-mobile-active,
   body.taskcabinet-mobile-active,
   .App.mobile-app-ui { max-width: 100%; }

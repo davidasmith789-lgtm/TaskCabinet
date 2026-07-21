@@ -20,6 +20,15 @@
     <meta name="apple-mobile-web-app-title" content="GlowDocket" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>GlowDocket</title>
+    <script>
+      // Apply the saved mode before styles load so native controls never paint
+      // with the opposite system color scheme during startup.
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("theme") === "light" ? "light" : "dark";
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+      }
+    </script>
     <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"SoftwareApplication","name":"GlowDocket","applicationCategory":"EducationalApplication","operatingSystem":"Web"}
     </script>
