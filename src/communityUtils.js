@@ -2,6 +2,30 @@ export const COMMUNITY_POST_TYPES = ["Course Advice", "Study Guide", "Concept Ex
 export const COMMUNITY_REPORT_REASONS = ["Cheating or answer key", "Copyrighted material", "Personal information", "Harassment or harmful content", "Spam", "Other"];
 export const COMMUNITY_LIMITS = { course: 100, title: 140, body: 10000, tags: 8, tag: 30 };
 
+const normalizeCourseSearch = (value) => String(value || "")
+  .normalize("NFKD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLocaleLowerCase()
+  .replace(/[^a-z0-9]+/g, " ")
+  .trim();
+
+export function matchCommunityCourses(courses, query, limit = 8) {
+  const terms = normalizeCourseSearch(query).split(/\s+/).filter(Boolean);
+  if (!terms.length) return [];
+  return [...new Set((Array.isArray(courses) ? courses : []).map((course) => String(course || "").trim()).filter(Boolean))]
+    .filter((course) => {
+      const normalized = normalizeCourseSearch(course);
+      return terms.every((term) => normalized.includes(term));
+    })
+    .sort((a, b) => {
+      const normalizedA = normalizeCourseSearch(a);
+      const normalizedB = normalizeCourseSearch(b);
+      const queryText = terms.join(" ");
+      return Number(normalizedB.startsWith(queryText)) - Number(normalizedA.startsWith(queryText)) || a.localeCompare(b);
+    })
+    .slice(0, limit);
+}
+
 export function normalizeCommunityLinks(links) {
   return (Array.isArray(links) ? links : []).map((link) => ({
     name: String(link?.name || "").trim().slice(0, 80),

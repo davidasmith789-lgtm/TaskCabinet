@@ -8,6 +8,7 @@ import {
   communityBodyBlocks,
   getCommunityFormattingMarker,
   isSafeCommunityLink,
+  matchCommunityCourses,
   normalizeCommunityLinks,
   parseCommunityTags,
   validateCommunityPost,
@@ -71,7 +72,7 @@ const Body = ({ text, preview = false }) => (
   </div>
 );
 
-export default function CommunityHub({ userId, isMobile = false }) {
+export default function CommunityHub({ userId, courses = [], isMobile = false }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -95,6 +96,7 @@ export default function CommunityHub({ userId, isMobile = false }) {
   const [queue, setQueue] = useState([]);
   const [courseOptions, setCourseOptions] = useState([]);
   const [reporting, setReporting] = useState(false);
+  const matchingCourseOptions = matchCommunityCourses(courseOptions, draft.course_name);
   const dialogRef = useRef(null);
   const triggerRef = useRef(null);
   const closeDialog = useCallback(() => {
@@ -211,13 +213,14 @@ export default function CommunityHub({ userId, isMobile = false }) {
       .then(({ data, error }) => {
         if (error) throw error;
         setCourseOptions(
-          [
-            ...new Set((data || []).map((row) => row.course_name.trim())),
-          ].filter(Boolean),
+          [...new Set([
+            ...courses.map((course) => String(course || "").trim()),
+            ...(data || []).map((row) => row.course_name.trim()),
+          ])].filter(Boolean),
         );
       })
       .catch(() => setCourseOptions([]));
-  }, [formMode]);
+  }, [courses, formMode]);
   const openEdit = (post) => {
     setDraft({ ...post, tags: "", links: normalizeCommunityLinks(post.links) });
     setConfirmed(true);
@@ -747,18 +750,24 @@ export default function CommunityHub({ userId, isMobile = false }) {
                     </small>
                     <input
                       required
-                      list="community-existing-courses"
                       maxLength={COMMUNITY_LIMITS.course}
+                      autoComplete="off"
+                      aria-autocomplete="list"
+                      aria-controls="community-course-suggestions"
                       value={draft.course_name}
                       onChange={(e) =>
                         setDraft({ ...draft, course_name: e.target.value })
                       }
                     />
-                    <datalist id="community-existing-courses">
-                      {courseOptions.map((courseName) => (
-                        <option key={courseName} value={courseName} />
-                      ))}
-                    </datalist>
+                    {matchingCourseOptions.length > 0 && (
+                      <div className="community-course-suggestions" id="community-course-suggestions" role="listbox">
+                        {matchingCourseOptions.map((courseName) => (
+                          <button key={courseName} type="button" role="option" aria-selected={draft.course_name === courseName} onClick={() => setDraft({ ...draft, course_name: courseName })}>
+                            {courseName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <span className="community-course-help">
                       Choose an existing course suggestion, or keep typing to
                       create a new course name.

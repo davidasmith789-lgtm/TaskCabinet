@@ -6,6 +6,7 @@ import {
   communityBodyBlocks,
   getCommunityFormattingMarker,
   isSafeCommunityLink,
+  matchCommunityCourses,
   normalizeCommunityLinks,
   parseCommunityTags,
   validateCommunityPost,
@@ -75,14 +76,22 @@ test("adjacent numbered list markers continue and gaps restart numbering", () =>
     "1. ",
   );
 });
-test("community post course entry suggests existing courses but remains free text", () => {
+test("community course search matches partial acronyms and words anywhere", () => {
+  const courses = ["APUSH (United States History)", "AP Biology", "World History"];
+  assert.deepEqual(matchCommunityCourses(courses, "APU"), ["APUSH (United States History)"]);
+  assert.deepEqual(matchCommunityCourses(courses, "united states"), ["APUSH (United States History)"]);
+  assert.deepEqual(matchCommunityCourses(courses, "world hist"), ["World History"]);
+});
+
+test("community post course entry suggests account and existing courses but remains free text", () => {
   const hub = readFileSync(
     new URL("../src/components/CommunityHub.jsx", import.meta.url),
     "utf8",
   );
   assert.match(hub, /select\("course_name"\)/);
-  assert.match(hub, /list="community-existing-courses"/);
-  assert.match(hub, /<datalist id="community-existing-courses">/);
+  assert.match(hub, /matchCommunityCourses\(courseOptions, draft\.course_name\)/);
+  assert.match(hub, /community-course-suggestions/);
+  assert.match(hub, /\.\.\.courses\.map/);
   assert.match(hub, /keep typing to\s+create a new course name/);
 });
 
