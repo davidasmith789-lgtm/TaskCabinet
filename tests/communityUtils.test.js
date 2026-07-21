@@ -122,6 +122,9 @@ test("Community replaces tags with safe named links and document-style lists", (
   const styles = readFileSync(new URL("../src/components/CommunityHub.css", import.meta.url), "utf8");
   assert.match(hub, /Link name/);
   assert.match(hub, /href=\{link\.url\}/);
+  assert.match(hub, /bodyWithNamedLinks/);
+  assert.match(hub, /isMissingCommunityLinksSchema/);
+  assert.match(hub, /namedLink\[1\]/);
   assert.doesNotMatch(hub, /Topic tags/);
   assert.match(styles, /\.community-body :is\(ul, ol\)/);
   assert.match(styles, /textarea#community-body/);

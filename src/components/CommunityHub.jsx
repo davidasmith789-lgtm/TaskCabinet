@@ -7,6 +7,7 @@ import {
   COMMUNITY_REPORT_REASONS,
   communityBodyBlocks,
   getCommunityFormattingMarker,
+  isSafeCommunityLink,
   normalizeCommunityLinks,
   parseCommunityTags,
   validateCommunityPost,
@@ -22,6 +23,12 @@ const EMPTY = {
   links: [],
 };
 const PAGE_SIZE = 20;
+const isMissingCommunityLinksSchema = (error) =>
+  error?.code === "PGRST202"
+  || /schema cache|new_links|column .*links/i.test(error?.message || "");
+const bodyWithNamedLinks = (body, links) => links.length
+  ? `${body.trimEnd()}\n\n## Links\n${links.map((link) => `[${link.name}](${link.url})`).join("\n")}`
+  : body;
 const messageFor = (error, fallback) =>
   !navigator.onLine
     ? "You appear to be offline. Reconnect and try again."
@@ -47,7 +54,12 @@ const Body = ({ text, preview = false }) => (
         <p key={index}>
           {block.lines.map((line, lineIndex) => (
             <span key={lineIndex}>
-              {line}
+              {(() => {
+                const namedLink = line.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
+                return namedLink && isSafeCommunityLink(namedLink[2])
+                  ? <a href={namedLink[2]} target="_blank" rel="noreferrer">{namedLink[1]}</a>
+                  : line;
+              })()}
               {lineIndex < block.lines.length - 1 && <br />}
             </span>
           ))}
@@ -223,7 +235,7 @@ export default function CommunityHub({ userId, isMobile = false }) {
     try {
       const client = await getSupabaseBrowserClient();
       if (formMode === "edit") {
-        const { error } = await client
+        let { error } = await client
           .from("community_posts")
           .update({
             course_name: draft.course_name.trim(),
@@ -234,9 +246,19 @@ export default function CommunityHub({ userId, isMobile = false }) {
             links,
           })
           .eq("id", draft.id);
+        if (error && isMissingCommunityLinksSchema(error)) {
+          const fallback = await client.from("community_posts").update({
+            course_name: draft.course_name.trim(),
+            post_type: draft.post_type,
+            title: draft.title.trim(),
+            body: bodyWithNamedLinks(draft.body, links),
+            topic_tags,
+          }).eq("id", draft.id);
+          error = fallback.error;
+        }
         if (error) throw error;
       } else {
-        const { error } = await client.rpc("create_community_post", {
+        let { error } = await client.rpc("create_community_post", {
           new_course_name: draft.course_name.trim(),
           new_post_type: draft.post_type,
           new_title: draft.title.trim(),
@@ -244,6 +266,16 @@ export default function CommunityHub({ userId, isMobile = false }) {
           new_topic_tags: topic_tags,
           new_links: links,
         });
+        if (error && isMissingCommunityLinksSchema(error)) {
+          const fallback = await client.rpc("create_community_post", {
+            new_course_name: draft.course_name.trim(),
+            new_post_type: draft.post_type,
+            new_title: draft.title.trim(),
+            new_body: bodyWithNamedLinks(draft.body, links),
+            new_topic_tags: topic_tags,
+          });
+          error = fallback.error;
+        }
         if (error) throw error;
         setRemainingPosts((count) => Math.max(0, Number(count ?? 3) - 1));
       }
