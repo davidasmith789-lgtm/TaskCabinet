@@ -950,7 +950,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                       create a new course name.
                     </span>
                   </label>
-                  <label>
+                  <label className="community-post-type-field">
                     Post type
                     <select
                       value={draft.post_type}

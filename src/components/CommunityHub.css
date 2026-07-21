@@ -249,6 +249,9 @@
 .community-form-grid .wide {
   grid-column: 1/-1;
 }
+.community-form-grid .community-post-type-field {
+  align-self: start;
+}
 .community-form-grid label small {
   justify-self: end;
   color: var(--muted-text);
