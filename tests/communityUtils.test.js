@@ -129,3 +129,13 @@ test("Community replaces tags with safe named links and document-style lists", (
   assert.match(styles, /\.community-body :is\(ul, ol\)/);
   assert.match(styles, /textarea#community-body/);
 });
+
+test("Community editor supports document keyboard formatting", () => {
+  const hub = readFileSync(new URL("../src/components/CommunityHub.jsx", import.meta.url), "utf8");
+  assert.match(hub, /onKeyDown=\{handleBodyKeyDown\}/);
+  assert.match(hub, /event\.key === "Tab"/);
+  assert.match(hub, /event\.key\.toLowerCase\(\) === "b"/);
+  assert.match(hub, /placeholder="Title"/);
+  assert.match(hub, /<InlineText text=\{item\}/);
+  assert.match(hub, /\*\*\$\{selectedText\}\*\*/);
+});

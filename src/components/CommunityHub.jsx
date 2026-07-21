@@ -33,33 +33,35 @@ const messageFor = (error, fallback) =>
   !navigator.onLine
     ? "You appear to be offline. Reconnect and try again."
     : error?.message || fallback;
+const InlineText = ({ text }) => {
+  const namedLink = String(text).match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
+  if (namedLink && isSafeCommunityLink(namedLink[2])) return <a href={namedLink[2]} target="_blank" rel="noreferrer">{namedLink[1]}</a>;
+  return String(text).split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part, index) =>
+    /^\*\*[^*]+\*\*$/.test(part) ? <strong key={index}>{part.slice(2, -2)}</strong> : <span key={index}>{part}</span>,
+  );
+};
 const Body = ({ text, preview = false }) => (
   <div className={`community-body${preview ? " is-preview" : ""}`}>
     {communityBodyBlocks(text).map((block, index) =>
       block.type === "heading" ? (
-        <h3 key={index}>{block.text}</h3>
+        <h3 key={index}><InlineText text={block.text} /></h3>
       ) : block.type === "bullets" ? (
         <ul key={index}>
           {block.items.map((item, itemIndex) => (
-            <li key={itemIndex}>{item}</li>
+            <li key={itemIndex}><InlineText text={item} /></li>
           ))}
         </ul>
       ) : block.type === "numbers" ? (
         <ol key={index}>
           {block.items.map((item, itemIndex) => (
-            <li key={itemIndex}>{item}</li>
+            <li key={itemIndex}><InlineText text={item} /></li>
           ))}
         </ol>
       ) : (
         <p key={index}>
           {block.lines.map((line, lineIndex) => (
             <span key={lineIndex}>
-              {(() => {
-                const namedLink = line.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
-                return namedLink && isSafeCommunityLink(namedLink[2])
-                  ? <a href={namedLink[2]} target="_blank" rel="noreferrer">{namedLink[1]}</a>
-                  : line;
-              })()}
+              <InlineText text={line} />
               {lineIndex < block.lines.length - 1 && <br />}
             </span>
           ))}
@@ -459,6 +461,36 @@ export default function CommunityHub({ userId, isMobile = false }) {
       field?.setSelectionRange(start + marker.length, start + marker.length);
     });
   };
+  const editBodySelection = (kind) => {
+    const field = document.getElementById("community-body");
+    if (!field) return;
+    const start = field.selectionStart;
+    const end = field.selectionEnd;
+    const selectedText = draft.body.slice(start, end);
+    const insertion = kind === "bold"
+      ? `**${selectedText}**`
+      : `  ${selectedText}`;
+    const next = `${draft.body.slice(0, start)}${insertion}${draft.body.slice(end)}`.slice(0, COMMUNITY_LIMITS.body);
+    setDraft({ ...draft, body: next });
+    requestAnimationFrame(() => {
+      field.focus();
+      if (kind === "bold") {
+        const cursorStart = start + 2;
+        field.setSelectionRange(cursorStart, cursorStart + selectedText.length);
+      } else {
+        field.setSelectionRange(start + 2, end + 2);
+      }
+    });
+  };
+  const handleBodyKeyDown = (event) => {
+    if (event.key === "Tab") {
+      event.preventDefault();
+      editBodySelection("indent");
+    } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+      event.preventDefault();
+      editBodySelection("bold");
+    }
+  };
   const renderActions = (post) => (
     <div
       className="community-card-actions"
@@ -784,13 +816,18 @@ export default function CommunityHub({ userId, isMobile = false }) {
                       >
                         Numbered
                       </button>
+                      <button type="button" onClick={() => editBodySelection("bold")}>
+                        <strong>Bold</strong>
+                      </button>
                     </div>
                     <textarea
                       id="community-body"
                       required
                       maxLength={COMMUNITY_LIMITS.body}
                       rows="12"
+                      placeholder="Title"
                       value={draft.body}
+                      onKeyDown={handleBodyKeyDown}
                       onChange={(e) =>
                         setDraft({ ...draft, body: e.target.value })
                       }
