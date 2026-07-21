@@ -990,6 +990,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                       Main text{" "}
                       <small>{COMMUNITY_LIMITS.body - draft.body.length}</small>
                     </label>
+                    <div className="community-editor-workspace">
                     <div
                       className="community-format-toolbar community-rich-toolbar"
                       aria-label="Formatting toolbar"
@@ -998,8 +999,8 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                       }}
                     >
                       <div className="community-toolbar-group" aria-label="History">
-                        <button type="button" title="Undo (Ctrl+Z)" aria-label="Undo" onClick={() => runEditorCommand("undo")}>↶</button>
-                        <button type="button" title="Redo (Ctrl+Y)" aria-label="Redo" onClick={() => runEditorCommand("redo")}>↷</button>
+                        <button type="button" title="Undo (Ctrl+Z)" aria-label="Undo" onClick={() => runEditorCommand("undo")}><span aria-hidden="true">↶</span></button>
+                        <button type="button" title="Redo (Ctrl+Y)" aria-label="Redo" onClick={() => runEditorCommand("redo")}><span aria-hidden="true">↷</span></button>
                       </div>
                       <select aria-label="Paragraph style" value={editorToolbarState.block} onChange={(event) => runEditorCommand("formatBlock", event.target.value)}>
                         <option value="p">Normal text</option>
@@ -1064,16 +1065,17 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                         )}
                       </div>
                       <div className="community-toolbar-group" aria-label="Insert and arrange">
-                        <button type="button" title="Add link" aria-label="Add link" onClick={() => { const url = window.prompt("Paste a web address"); if (url && isSafeCommunityLink(url)) runEditorCommand("createLink", url); }}>🔗</button>
-                        <button type="button" title="Bulleted list" aria-label="Bulleted list" onClick={() => runEditorCommand("insertUnorderedList")}>•≡</button>
-                        <button type="button" title="Numbered list" aria-label="Numbered list" onClick={() => runEditorCommand("insertOrderedList")}>1≡</button>
-                        <button type="button" title="Decrease indent (Shift+Tab)" aria-label="Decrease indent" onClick={() => runEditorCommand("outdent")}>⇤</button>
-                        <button type="button" title="Increase indent (Tab)" aria-label="Increase indent" onClick={() => runEditorCommand("indent")}>⇥</button>
-                        <button type="button" title="Align left" aria-label="Align left" onClick={() => runEditorCommand("justifyLeft")}>☰</button>
-                        <button type="button" title="Align center" aria-label="Align center" onClick={() => runEditorCommand("justifyCenter")}>≡</button>
-                        <button type="button" title="Clear formatting" aria-label="Clear formatting" onClick={() => runEditorCommand("removeFormat")}>Tx</button>
+                        <button type="button" title="Add link" aria-label="Add link" onClick={() => { const url = window.prompt("Paste a web address"); if (url && isSafeCommunityLink(url)) runEditorCommand("createLink", url); }}><span aria-hidden="true">↗</span></button>
+                        <button type="button" title="Bulleted list" aria-label="Bulleted list" onClick={() => runEditorCommand("insertUnorderedList")}><span aria-hidden="true">• ≡</span></button>
+                        <button type="button" title="Numbered list" aria-label="Numbered list" onClick={() => runEditorCommand("insertOrderedList")}><span aria-hidden="true">1. ≡</span></button>
+                        <button type="button" title="Decrease indent (Shift+Tab)" aria-label="Decrease indent" onClick={() => runEditorCommand("outdent")}><span aria-hidden="true">←|</span></button>
+                        <button type="button" title="Increase indent (Tab)" aria-label="Increase indent" onClick={() => runEditorCommand("indent")}><span aria-hidden="true">|→</span></button>
+                        <button type="button" title="Align left" aria-label="Align left" onClick={() => runEditorCommand("justifyLeft")}><span aria-hidden="true">☰</span></button>
+                        <button type="button" title="Align center" aria-label="Align center" onClick={() => runEditorCommand("justifyCenter")}><span aria-hidden="true">≡</span></button>
+                        <button type="button" title="Clear formatting" aria-label="Clear formatting" onClick={() => runEditorCommand("removeFormat")}><span aria-hidden="true">T×</span></button>
                       </div>
                     </div>
+                    <div className="community-editor-canvas">
                     <div
                       ref={bodyRef}
                       id="community-body"
@@ -1090,6 +1092,9 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                       onKeyUp={rememberEditorRange}
                       onFocus={rememberEditorRange}
                     />
+                    </div>
+                    <div className="community-editor-status"><span>Visual editor</span><span>Formatting follows your selection · Tab indents</span></div>
+                    </div>
                   </div>
                   <fieldset className="wide community-link-editor">
                     <legend>Links <small>Optional; show a name instead of the full address</small></legend>
