@@ -6671,7 +6671,16 @@ function App() {
       </div>
       {renderTaskAttachments(task)}
       {renderSubtaskChecklist(task)}
-      {import.meta.env.VITE_FLASHCARDS_ENABLED === "true" && accountMode === "cloud" && <AssignmentFlashcards assignment={task} userId={currentUser} dueDate={getEffectiveDeadline(task)?.toISOString?.().slice(0, 10) || ""} />}
+      {import.meta.env.VITE_FLASHCARDS_ENABLED === "true" && accountMode === "cloud" && (
+        <AssignmentFlashcards
+          task={task}
+          userId={currentUser}
+          onOpenDeck={(deckId) => {
+            setFlashcardLaunchDeckId(String(deckId || ""));
+            setCurrentTab("flashcards");
+          }}
+        />
+      )}
       {renderCopyAction(task)}
     </>
   );

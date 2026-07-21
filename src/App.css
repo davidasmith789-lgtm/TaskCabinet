@@ -631,6 +631,7 @@ html { scrollbar-gutter: stable; }
 }
 
 .task-title-text {
+  font-size: clamp(1.08rem, 1.4vw, 1.22rem);
   font-weight: 700;
   line-height: 1.3;
 }
@@ -638,7 +639,8 @@ html { scrollbar-gutter: stable; }
 .task-course-pill {
   display: inline-flex;
   align-items: center;
-  padding: 4px 9px;
+  min-height: 31px;
+  padding: 6px 12px;
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 700;
@@ -5152,9 +5154,9 @@ a,
 .task-actions {
   align-items: center;
   justify-content: flex-end;
-  padding: 7px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--surface-alt) 65%, transparent);
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 .task-actions .btn { min-height: 34px; }
 .task-card.expanded .task-actions-in-progress {

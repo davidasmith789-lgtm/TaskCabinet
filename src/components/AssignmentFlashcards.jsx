@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowserClient } from "../supabaseClient.js";
 import FlashcardConfirmDialog from "./FlashcardConfirmDialog.jsx";
-export default function AssignmentFlashcards({ task, userId, onOpenDeck }) {
+export default function AssignmentFlashcards({ task = {}, userId, onOpenDeck = () => {} }) {
   const [rows, setRows] = useState([]),
     [owned, setOwned] = useState([]),
     [message, setMessage] = useState(""),
     [confirmRequest, setConfirmRequest] = useState(null);
   const load = useCallback(async () => {
+    if (!task.id || !userId) return;
     try {
       const c = await getSupabaseBrowserClient();
       const [{ data: a, error }, { data: b }] = await Promise.all([
@@ -59,6 +60,8 @@ export default function AssignmentFlashcards({ task, userId, onOpenDeck }) {
       onOpenDeck(data);
     }
   };
+  if (!task.id) return null;
+
   return (
     <section className="assignment-flashcards">
       <h4>Linked Flashcard Decks</h4>
