@@ -115,11 +115,29 @@
 }
 .flash-page > nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 20px 0;
   padding-bottom: 2px;
   border-bottom: 1px solid var(--border-color);
 }
+.flash-deck-star[aria-pressed="true"] {
+  color: #8a5a00;
+  border-color: #f4c34f;
+  background: color-mix(in srgb, #f4c34f 22%, var(--card-bg));
+}
+.flash-share-dialog {
+  width: min(460px, calc(100vw - 32px));
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow);
+}
+.flash-share-dialog h2 { margin-top: 0; }
+.flash-share-dialog label { display: grid; gap: 6px; font-weight: 750; }
+.flash-share-dialog input { width: 100%; padding: 11px; border: 1px solid var(--border-color); border-radius: 10px; color: var(--text-color); background: var(--surface-alt); }
+.flash-share-dialog > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 .flash-page button,
 .flash-editor button,
 .flash-study button,

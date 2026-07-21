@@ -47,7 +47,7 @@ export default function FlashcardsHub({
   profileSettings = {},
   reduceMotion = false,
 }) {
-  const [section, setSection] = useState("mine"),
+  const [section, setSection] = useState("all"),
     [decks, setDecks] = useState([]),
     [loading, setLoading] = useState(true),
     [notice, setNotice] = useState(""),
@@ -55,7 +55,6 @@ export default function FlashcardsHub({
     [debounced, setDebounced] = useState(""),
     [course, setCourse] = useState(""),
     [sort, setSort] = useState("updated"),
-    [deckGroup, setDeckGroup] = useState("all"),
     [page, setPage] = useState(0),
     [more, setMore] = useState(false),
     [editor, setEditor] = useState(null),
@@ -73,7 +72,9 @@ export default function FlashcardsHub({
     [rewardSummary, setRewardSummary] = useState(null),
     [xpGuideOpen, setXpGuideOpen] = useState(false),
     [confirmRequest, setConfirmRequest] = useState(null),
-    [celebrating, setCelebrating] = useState(false);
+    [celebrating, setCelebrating] = useState(false),
+    [shareDeck, setShareDeck] = useState(null),
+    [shareEmail, setShareEmail] = useState("");
   const saveTimer = useRef();
   const rewardsCallbackRef = useRef(onRewards);
   rewardsCallbackRef.current = onRewards;
@@ -123,16 +124,15 @@ export default function FlashcardsHub({
       setLoading(true);
       try {
         const c = await getSupabaseBrowserClient();
-        const fn =
-          section === "mine" ? "flashcard_my_decks" : "flashcard_shared_decks";
+        const fn = "flashcard_library_decks";
         const rpcArgs = {
+          library_section: section,
           search_text: debounced,
           course_filter: course || null,
           sort_by: sort,
           page_number: next,
           page_size: 20,
         };
-        if (section === "mine") rpcArgs.group_filter = deckGroup;
         const { data, error } = await c.rpc(fn, rpcArgs);
         if (error) throw error;
         setDecks((x) =>
@@ -152,7 +152,7 @@ export default function FlashcardsHub({
         setLoading(false);
       }
     },
-    [section, debounced, course, sort, deckGroup],
+    [section, debounced, course, sort],
   );
   useEffect(() => {
     queueMicrotask(() => load());
@@ -205,7 +205,7 @@ export default function FlashcardsHub({
         const c = await getSupabaseBrowserClient();
         const payload = {
           ...d,
-          topic_tags: d.visibility === "shared"
+          topic_tags: ["shared", "public"].includes(d.visibility)
             ? buildFlashcardProfileTags(parseFlashcardTags(d.tags), publicProfile)
             : stripFlashcardProfileTags(parseFlashcardTags(d.tags)),
           cards: d.cards.map((x, i) => ({ ...x, position: i })),
@@ -248,6 +248,30 @@ export default function FlashcardsHub({
   const change = (key, value) => {
     setEditor((x) => ({ ...x, [key]: value }));
     setDirty(true);
+  };
+  const toggleDeckStar = async (deck) => {
+    const next = !deck.is_starred;
+    setDecks((items) => items.map((item) => item.id === deck.id ? { ...item, is_starred: next } : item));
+    try {
+      const c = await getSupabaseBrowserClient();
+      const { error } = await c.rpc("set_flashcard_deck_star", { target_deck_id: deck.id, starred: next });
+      if (error) throw error;
+      if (section === "starred" && !next) setDecks((items) => items.filter((item) => item.id !== deck.id));
+    } catch (e) {
+      setDecks((items) => items.map((item) => item.id === deck.id ? { ...item, is_starred: !next } : item));
+      setNotice(e.message);
+    }
+  };
+  const sendDeckShare = async () => {
+    if (!shareEmail.trim()) return setNotice("Enter your friend's account email.");
+    try {
+      const c = await getSupabaseBrowserClient();
+      const { error } = await c.rpc("share_flashcard_deck", { target_deck_id: shareDeck.id, recipient_email: shareEmail.trim() });
+      if (error) throw error;
+      setNotice(`Deck shared with ${shareEmail.trim()}.`);
+      setShareDeck(null);
+      setShareEmail("");
+    } catch (e) { setNotice(e.message); }
   };
   const cardChange = (id, key, value) => {
     setEditor((x) => ({
@@ -387,7 +411,9 @@ export default function FlashcardsHub({
       try {
         const c = await getSupabaseBrowserClient();
         const { data, error: rewardError } = await c.rpc(
-          "complete_flashcard_session_v2",
+          study.deck.owner_id !== userId && study.deck.visibility === "private"
+            ? "complete_shared_flashcard_session"
+            : "complete_flashcard_session_v2",
           {
             target_deck_id: study.deck.id,
             started_at: new Date(study.started).toISOString(),
@@ -851,12 +877,12 @@ export default function FlashcardsHub({
                   const value = e.target.value;
                   if (value === "shared")
                     askToConfirm(
-                      "Publish this Shared Deck?",
+                      "Make this deck public?",
                       "I confirm that these flashcards are my original work and do not contain private information, active test questions, answer keys, or copyrighted material.",
                       () => change("visibility", "shared"),
-                      "Publish Deck",
+                      "Make Public",
                     );
-                  else if (editor.visibility === "shared")
+                  else if (["shared", "public"].includes(editor.visibility))
                     askToConfirm(
                       "Make this deck private?",
                       "Any Community attachment will stop appearing publicly.",
@@ -867,7 +893,7 @@ export default function FlashcardsHub({
                 }}
               >
                 <option value="private">Private</option>
-                <option value="shared">Shared</option>
+                <option value="shared">Public</option>
               </select>
             </label>
           </div>
@@ -1128,42 +1154,11 @@ export default function FlashcardsHub({
             <button onClick={() => setNotice("")}>×</button>
           </div>
         )}
-        <nav>
-          <button
-            className={section === "mine" ? "active" : ""}
-            onClick={() => setSection("mine")}
-          >
-            My Decks
-          </button>
-          <button
-            className={section === "shared" ? "active" : ""}
-            onClick={() => setSection("shared")}
-          >
-            Shared Decks
-          </button>
+        <nav aria-label="Deck categories">
+          {[['all', 'All Decks'], ['mine', 'My Decks'], ['shared', 'Shared'], ['public', 'Public'], ['starred', 'Starred']].map(([value, label]) => (
+            <button key={value} className={section === value ? "active" : ""} onClick={() => setSection(value)}>{label}</button>
+          ))}
         </nav>
-        {section === "mine" && (
-          <nav className="flash-group-tabs" aria-label="My Deck groups">
-            <button
-              className={deckGroup === "recent" ? "active" : ""}
-              onClick={() => setDeckGroup("recent")}
-            >
-              Recently Studied
-            </button>
-            <button
-              className={deckGroup === "all" ? "active" : ""}
-              onClick={() => setDeckGroup("all")}
-            >
-              All Decks
-            </button>
-            <button
-              className={deckGroup === "favorites" ? "active" : ""}
-              onClick={() => setDeckGroup("favorites")}
-            >
-              Favorite Decks
-            </button>
-          </nav>
-        )}
         <div className="flash-toolbar">
           <label className="flash-search-field">
             <span>Search your library</span>
@@ -1211,7 +1206,7 @@ export default function FlashcardsHub({
           <p className="flash-empty">
             {section === "mine"
               ? "No personal decks yet. Create one or import cards to begin."
-              : "No Shared Decks match this search."}
+              : `No ${section} decks match this search.`}
           </p>
         ) : (
           <div className="flash-grid">
@@ -1224,7 +1219,7 @@ export default function FlashcardsHub({
                     event.target.closest("button, input, select, textarea, a")
                   )
                     return;
-                  openDeck(d, section === "mine" ? "edit" : "view");
+                  openDeck(d, d.owner_id === userId ? "edit" : "view");
                 }}
               >
                 <div className="flash-deck-meta">
@@ -1233,7 +1228,7 @@ export default function FlashcardsHub({
                     {d.owner_id === userId ? "Your Deck" : "GlowDocket Student"}
                   </b>
                 </div>
-                {section === "shared" && <FlashcardProfileChip tags={d.topic_tags || []} compact />}
+                {["shared", "public"].includes(d.visibility) && <FlashcardProfileChip tags={d.topic_tags || []} compact />}
                 <h2>{d.title}</h2>
                 <p>{d.description}</p>
                 <small>
@@ -1256,18 +1251,20 @@ export default function FlashcardsHub({
                   />
                 </div>
                 <footer>
+                  <button className="flash-deck-star" onClick={() => toggleDeckStar(d)} aria-pressed={Boolean(d.is_starred)} aria-label={`${d.is_starred ? "Unstar" : "Star"} ${d.title}`}>{d.is_starred ? "★ Starred" : "☆ Star"}</button>
                   <button
                     className="btn btn-primary flash-study-deck-button"
                     onClick={() => openDeck(d, "study")}
                   >
                     Study this deck
                   </button>
-                  {section === "mine" && (
+                  {d.owner_id === userId && (
                     <button onClick={() => openDeck(d, "edit")}>
                       Edit Deck
                     </button>
                   )}
-                  {section === "shared" && (
+                  {d.owner_id === userId && <button onClick={() => { setShareDeck(d); setShareEmail(""); }}>Share with Friend</button>}
+                  {d.owner_id !== userId && d.visibility !== "private" && (
                     <>
                       {!isMobile && (
                         <button
@@ -1303,6 +1300,7 @@ export default function FlashcardsHub({
           <button onClick={() => load(page + 1, true)}>Load More</button>
         )}
       </main>
+      {shareDeck && <div className="flash-modal" role="dialog" aria-modal="true" aria-labelledby="flash-share-title"><section className="flash-share-dialog"><h2 id="flash-share-title">Share “{shareDeck.title}”</h2><p>Enter the email your friend uses for their GlowDocket account. The deck will appear in their Shared category.</p><label>Friend's account email<input type="email" autoFocus value={shareEmail} onChange={(event) => setShareEmail(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") sendDeckShare(); }} /></label><div><button onClick={() => setShareDeck(null)}>Cancel</button><button className="btn btn-primary" onClick={sendDeckShare}>Share Deck</button></div></section></div>}
       {confirmationDialog}
     </>
   );

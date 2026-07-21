@@ -147,7 +147,7 @@ test("study remains confidence-based without queues or card due dates", () => {
 
 test("deck tiles open full personal decks while Study starts study setup", () => {
   assert.match(hub, /className="flash-deck-tile"/);
-  assert.match(hub, /openDeck\(d, section === "mine" \? "edit" : "view"\)/);
+  assert.match(hub, /openDeck\(d, d\.owner_id === userId \? "edit" : "view"\)/);
   assert.match(hub, /openDeck\(d, "study"\)/);
   assert.match(hub, /Study this deck/);
   assert.match(hub, /onClick=\{\(\) => rate\("Good"\)\}/);
@@ -168,7 +168,7 @@ test("study progress follows the card and personal decks offer study or edit", (
   );
   assert.match(hub, /<div className="flash-header-actions">[\s\S]{0,250}Create Deck/);
   assert.doesNotMatch(hub, /\{!isMobile && \(\s*<div className="flash-header-actions">/);
-  assert.match(hub, /section === "mine" && \(/);
+  assert.match(hub, /d\.owner_id === userId && \(/);
   assert.doesNotMatch(hub, /New \{d\.new_count\}|Learning \{d\.learning_count\}|Familiar \{d\.familiar_count\}|Strong \{d\.strong_count\}|\{d\.total_sessions\} sessions/);
   assert.match(hub, /!isMobile && \([\s\S]*Copy to My Decks/);
   assert.match(
