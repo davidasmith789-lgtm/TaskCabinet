@@ -6,6 +6,9 @@ export const DEFAULT_GAMIFICATION = Object.freeze({
   selectedTitle: "getting-started",
   selectedBadge: "",
   showHeaderSummary: true,
+  shareFlashcardLevel: false,
+  showFlashcardName: false,
+  sharedFlashcardBadge: "",
 });
 
 export const GAMIFICATION_ACHIEVEMENTS = Object.freeze([
@@ -159,7 +162,8 @@ export function normalizeGamification(value = {}) {
   const masteryMilestoneKeys = Object.fromEntries(["weekly-goal", "double-weekly-goal", "three-productive-days", "five-productive-days"].map((id) => [id, [...new Set((Array.isArray(source.masteryMilestoneKeys?.[id]) ? source.masteryMilestoneKeys[id] : []).map(String))].slice(-20)]));
   const masteryCourseCounts = Object.fromEntries(Object.entries(source.masteryCourseCounts && typeof source.masteryCourseCounts === "object" ? source.masteryCourseCounts : {}).map(([course, count]) => [course, Math.max(0, Math.round(Number(count) || 0))]));
   const badgeAnimationPreferences = Object.fromEntries(masteredBadgeIds.map((id) => [id, source.badgeAnimationPreferences?.[id] !== false]));
-  return { version: 2, weeklyGoal, earnedAchievementIds, selectedConfetti, selectedTitle, selectedBadge, showHeaderSummary: source.showHeaderSummary !== false, masteryUnlockedAt: typeof source.masteryUnlockedAt === "string" ? source.masteryUnlockedAt : "", masteryProgress, masteryMilestoneKeys, masteryCourseCounts, masteredBadgeIds, badgeAnimationPreferences };
+  const sharedFlashcardBadge = earned.has(source.sharedFlashcardBadge) ? source.sharedFlashcardBadge : selectedBadge;
+  return { version: 2, weeklyGoal, earnedAchievementIds, selectedConfetti, selectedTitle, selectedBadge, showHeaderSummary: source.showHeaderSummary !== false, shareFlashcardLevel: source.shareFlashcardLevel === true, showFlashcardName: source.showFlashcardName === true, sharedFlashcardBadge, masteryUnlockedAt: typeof source.masteryUnlockedAt === "string" ? source.masteryUnlockedAt : "", masteryProgress, masteryMilestoneKeys, masteryCourseCounts, masteredBadgeIds, badgeAnimationPreferences };
 }
 
 export function grantAllGamificationRewards(value = {}) {

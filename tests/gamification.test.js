@@ -19,6 +19,14 @@ test("weekly momentum honors week starts, ignores legacy and deleted work, and c
   assert.equal(normalizeGamification({ weeklyGoal: -2 }).weeklyGoal, 1);
 });
 
+test("Flashcards public profile preferences normalize independently", () => {
+  const settings = normalizeGamification({ earnedAchievementIds: ["flash-first-session"], selectedBadge: "flash-first-session", shareFlashcardLevel: true, showFlashcardName: false, sharedFlashcardBadge: "flash-first-session" });
+  assert.equal(settings.shareFlashcardLevel, true);
+  assert.equal(settings.showFlashcardName, false);
+  assert.equal(settings.sharedFlashcardBadge, "flash-first-session");
+  assert.equal(normalizeGamification({ showFlashcardName: true }).showFlashcardName, true);
+});
+
 test("achievements unlock from totals, weekly consistency, and completion context without duplicates", () => {
   const tasks = [0, 1, 2, 3, 4].map((offset) => completedTask(String(offset), `2026-07-${20 + offset}T12:00:00`, { priority: offset === 4 ? "HIGH" : "MED" }));
   const unlocked = getNewAchievementIds(tasks, { ...DEFAULT_GAMIFICATION, weeklyGoal: 5 }, { priority: "HIGH", wasOverdue: true, source: "focus" }, { now: new Date(2026, 6, 24), weekStartsOn: "sunday" });

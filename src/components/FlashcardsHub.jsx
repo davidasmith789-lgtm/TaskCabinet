@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "../supabaseClient.js";
 import {
+  buildFlashcardProfileTags,
   confidenceFor,
   deckProgress,
+  getFlashcardLevel,
   parseFlashcardImport,
   parseFlashcardTags,
   selectStudyCards,
+  stripFlashcardProfileTags,
 } from "../flashcardUtils.js";
+import { GAMIFICATION_ACHIEVEMENTS } from "../gamificationUtils.js";
 import FlashcardSharedActions from "./FlashcardSharedActions.jsx";
 import FlashcardConfirmDialog from "./FlashcardConfirmDialog.jsx";
+import FlashcardProfileChip from "./FlashcardProfileChip.jsx";
 import "./FlashcardsHub.css";
 const STUDY_ACTIONS = ["Again", "Hard"];
 const STUDY_SUMMARY_ACTIONS = ["Again", "Hard", "Good"];
@@ -39,6 +44,9 @@ export default function FlashcardsHub({
   initialDeckId = "",
   onLaunchConsumed = () => {},
   onRewards = () => {},
+  displayName = "",
+  profileSettings = {},
+  onProfileSettingsChange = () => {},
   reduceMotion = false,
 }) {
   const [section, setSection] = useState("mine"),
@@ -70,6 +78,15 @@ export default function FlashcardsHub({
   const saveTimer = useRef();
   const rewardsCallbackRef = useRef(onRewards);
   rewardsCallbackRef.current = onRewards;
+  const flashLevel = getFlashcardLevel(rewardSummary?.total_xp || 0);
+  const earnedBadgeOptions = GAMIFICATION_ACHIEVEMENTS.filter((badge) => (profileSettings.earnedAchievementIds || []).includes(badge.id));
+  const publicProfile = useMemo(() => ({
+    shareFlashcardLevel: profileSettings.shareFlashcardLevel === true,
+    showFlashcardName: profileSettings.showFlashcardName === true,
+    badgeId: profileSettings.sharedFlashcardBadge || profileSettings.selectedBadge || "",
+    level: flashLevel.level,
+    name: displayName,
+  }), [displayName, flashLevel.level, profileSettings.selectedBadge, profileSettings.shareFlashcardLevel, profileSettings.sharedFlashcardBadge, profileSettings.showFlashcardName]);
   const askToConfirm = (title, description, action, confirmLabel = "Confirm") =>
     setConfirmRequest({ title, description, action, confirmLabel });
   const closeConfirmation = useCallback(
@@ -159,7 +176,7 @@ export default function FlashcardsHub({
       if (error) throw error;
       const d = {
         ...data,
-        tags: (data.topic_tags || []).join(", "),
+        tags: stripFlashcardProfileTags(data.topic_tags || []).join(", "),
         cards: data.cards || [],
       };
       if (mode === "study") return prepareStudy(d);
@@ -188,7 +205,9 @@ export default function FlashcardsHub({
         const c = await getSupabaseBrowserClient();
         const payload = {
           ...d,
-          topic_tags: parseFlashcardTags(d.tags),
+          topic_tags: d.visibility === "shared"
+            ? buildFlashcardProfileTags(parseFlashcardTags(d.tags), publicProfile)
+            : stripFlashcardProfileTags(parseFlashcardTags(d.tags)),
           cards: d.cards.map((x, i) => ({ ...x, position: i })),
         };
         delete payload.tags;
@@ -218,7 +237,7 @@ export default function FlashcardsHub({
         setSaving(false);
       }
     },
-    [editor, load, reduceMotion, rewardSummary?.badges],
+    [editor, load, publicProfile, reduceMotion, rewardSummary?.badges],
   );
   useEffect(() => {
     if (!dirty || !editor) return;
@@ -380,9 +399,7 @@ export default function FlashcardsHub({
         unlocked = (reward.badges || []).some(
           (id) => !(rewardSummary?.badges || []).includes(id),
         );
-        leveledUp =
-          Math.floor((reward.total_xp || 0) / 100) >
-          Math.floor((rewardSummary?.total_xp || 0) / 100);
+        leveledUp = getFlashcardLevel(reward.total_xp || 0).level > getFlashcardLevel(rewardSummary?.total_xp || 0).level;
         setRewardSummary(reward);
         rewardsCallbackRef.current(reward);
       } catch (e) {
@@ -1068,10 +1085,21 @@ export default function FlashcardsHub({
           </div>
         </header>
         {rewardSummary && (
-          <p className="flash-xp-status">
-            Flashcards XP: {rewardSummary.total_xp} · Today:{" "}
-            {rewardSummary.today_xp ?? rewardSummary.xp_earned ?? 0}/100
-          </p>
+          <section className="flash-level-card" aria-label={`Flashcards level ${flashLevel.level}`}>
+            <div className="flash-level-orb"><small>Level</small><strong>{flashLevel.level}</strong></div>
+            <div className="flash-level-progress">
+              <div><strong>{rewardSummary.total_xp} Flashcards XP</strong><span>{flashLevel.xpIntoLevel}/{flashLevel.xpNeeded} XP to Level {flashLevel.level + 1}</span></div>
+              <progress max={flashLevel.xpNeeded} value={flashLevel.xpIntoLevel}>{flashLevel.progress}%</progress>
+              <small>Today: {rewardSummary.today_xp ?? rewardSummary.xp_earned ?? 0}/{rewardSummary.daily_cap || 100} XP</small>
+            </div>
+            <details className="flash-profile-sharing">
+              <summary>Share level and badge</summary>
+              <label><span>Show my Flashcards level and badge on Shared Decks and Community posts</span><input type="checkbox" checked={profileSettings.shareFlashcardLevel === true} onChange={(event) => onProfileSettingsChange({ shareFlashcardLevel: event.target.checked })} /></label>
+              <label><span>Badge shown with my level</span><select value={profileSettings.sharedFlashcardBadge || profileSettings.selectedBadge || ""} disabled={!earnedBadgeOptions.length} onChange={(event) => onProfileSettingsChange({ sharedFlashcardBadge: event.target.value })}>{!earnedBadgeOptions.length && <option value="">Earn a badge first</option>}{earnedBadgeOptions.map((badge) => <option key={badge.id} value={badge.id}>{badge.title}</option>)}</select></label>
+              <label><span>Show my account name separately</span><input type="checkbox" checked={profileSettings.showFlashcardName === true} onChange={(event) => onProfileSettingsChange({ showFlashcardName: event.target.checked })} /></label>
+              <FlashcardProfileChip tags={buildFlashcardProfileTags([], publicProfile)} />
+            </details>
+          </section>
         )}
         {notice && (
           <div className="flash-notice" role="status">
@@ -1184,6 +1212,7 @@ export default function FlashcardsHub({
                     {d.owner_id === userId ? "Your Deck" : "GlowDocket Student"}
                   </b>
                 </div>
+                {section === "shared" && <FlashcardProfileChip tags={d.topic_tags || []} compact />}
                 <h2>{d.title}</h2>
                 <p>{d.description}</p>
                 <small>

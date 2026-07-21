@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { buildFlashcardProfileTags, getFlashcardLevel, parseFlashcardProfile, stripFlashcardProfileTags } from "../src/flashcardUtils.js";
 
 const read = (path) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
@@ -20,6 +21,25 @@ test("ratings and reports are enforced server-side", () => {
   assert.match(sql, /unique\(deck_id,reporter_id\)/i);
   assert.match(sql, /count\(distinct reporter_id\).*>=3/i);
   assert.match(hub, /FlashcardSharedActions/);
+});
+
+test("Flashcards XP has escalating account levels", () => {
+  assert.deepEqual(getFlashcardLevel(0), { level: 1, totalXp: 0, levelStartXp: 0, nextLevelXp: 100, xpIntoLevel: 0, xpNeeded: 100, progress: 0 });
+  assert.equal(getFlashcardLevel(100).level, 2);
+  assert.equal(getFlashcardLevel(224).level, 2);
+  assert.equal(getFlashcardLevel(225).level, 3);
+  assert.match(hub, /className="flash-level-card"/);
+  assert.match(hub, /XP to Level/);
+});
+
+test("public Flashcards profiles store level badge and name independently in hidden tags", () => {
+  const tags = buildFlashcardProfileTags(["history"], { shareFlashcardLevel: true, showFlashcardName: false, level: 7, badgeId: "flash-first-session", name: "Private Name" });
+  assert.deepEqual(parseFlashcardProfile(tags), { level: 7, badgeId: "flash-first-session", name: "" });
+  assert.deepEqual(stripFlashcardProfileTags(tags), ["history"]);
+  const named = buildFlashcardProfileTags([], { shareFlashcardLevel: false, showFlashcardName: true, level: 7, name: "Taylor" });
+  assert.deepEqual(parseFlashcardProfile(named), { level: null, badgeId: "", name: "Taylor" });
+  assert.match(hub, /Show my account name separately/);
+  assert.match(communityHub, /FlashcardProfileChip/);
 });
 
 test("public deck and Community attachment visibility require active shared decks", () => {

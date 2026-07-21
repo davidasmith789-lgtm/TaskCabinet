@@ -1,0 +1,7 @@
+.flash-public-profile { display: inline-flex; align-items: center; gap: 9px; width: fit-content; max-width: 100%; padding: 7px 11px; border: 1px solid color-mix(in srgb, var(--primary-color) 32%, var(--border-color)); border-radius: 999px; color: var(--text-color); background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-alt)); }
+.flash-public-profile-badge { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border-radius: 50%; color: var(--primary-color); background: color-mix(in srgb, var(--primary-color) 16%, var(--card-bg)); }
+.flash-public-profile-badge svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.1; }
+.flash-public-profile > span:last-child { display: grid; min-width: 0; line-height: 1.1; }
+.flash-public-profile strong { overflow: hidden; font-size: .78rem; text-overflow: ellipsis; white-space: nowrap; }
+.flash-public-profile small { color: var(--primary-color); font-size: .7rem; font-weight: 850; }
+.flash-public-profile.is-compact { padding: 5px 9px; }

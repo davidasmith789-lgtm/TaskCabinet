@@ -12,6 +12,43 @@ export const FLASHCARD_LIMITS = {
   tag: 30,
 };
 export const RATINGS = ["Again", "Hard", "Good", "Easy"];
+const PROFILE_TAG_PREFIXES = ["gdl:", "gdb:", "gdn:"];
+
+export function getFlashcardLevel(totalXp = 0) {
+  const xp = Math.max(0, Math.floor(Number(totalXp) || 0));
+  let level = 1;
+  let levelStartXp = 0;
+  let levelCost = 100;
+  while (xp >= levelStartXp + levelCost && level < 1000) {
+    levelStartXp += levelCost;
+    level += 1;
+    levelCost = 100 + (level - 1) * 25;
+  }
+  const xpIntoLevel = xp - levelStartXp;
+  return { level, totalXp: xp, levelStartXp, nextLevelXp: levelStartXp + levelCost, xpIntoLevel, xpNeeded: levelCost, progress: Math.min(100, Math.round((xpIntoLevel / levelCost) * 100)) };
+}
+
+export const isFlashcardProfileTag = (tag) => PROFILE_TAG_PREFIXES.some((prefix) => String(tag || "").startsWith(prefix));
+export const stripFlashcardProfileTags = (tags) => (Array.isArray(tags) ? tags : []).filter((tag) => !isFlashcardProfileTag(tag));
+
+export function buildFlashcardProfileTags(tags, profile = {}) {
+  const publicTags = stripFlashcardProfileTags(tags);
+  const reserved = [];
+  if (profile.shareFlashcardLevel) {
+    reserved.push(`gdl:${Math.max(1, Math.floor(Number(profile.level) || 1))}`);
+    if (profile.badgeId) reserved.push(`gdb:${String(profile.badgeId).slice(0, 26)}`);
+  }
+  if (profile.showFlashcardName && String(profile.name || "").trim()) reserved.push(`gdn:${String(profile.name).trim().replace(/[\r\n]/g, " ").slice(0, 26)}`);
+  return [...publicTags.slice(0, Math.max(0, 8 - reserved.length)), ...reserved];
+}
+
+export function parseFlashcardProfile(tags) {
+  const values = Array.isArray(tags) ? tags : [];
+  const level = Number(values.find((tag) => String(tag).startsWith("gdl:"))?.slice(4));
+  const badgeId = values.find((tag) => String(tag).startsWith("gdb:"))?.slice(4) || "";
+  const name = values.find((tag) => String(tag).startsWith("gdn:"))?.slice(4) || "";
+  return { level: Number.isFinite(level) && level > 0 ? Math.floor(level) : null, badgeId, name };
+}
 export function parseFlashcardTags(value) {
   return [
     ...new Set(

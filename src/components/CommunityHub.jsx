@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getSupabaseBrowserClient } from "../supabaseClient.js";
 import CommunityFlashcardActions from "./CommunityFlashcardActions.jsx";
+import FlashcardProfileChip from "./FlashcardProfileChip.jsx";
+import { buildFlashcardProfileTags, getFlashcardLevel } from "../flashcardUtils.js";
 import {
   COMMUNITY_LIMITS,
   COMMUNITY_POST_TYPES,
@@ -76,7 +78,7 @@ const Body = ({ text, preview = false }) => (
   </div>
 );
 
-export default function CommunityHub({ userId, courses = [], isMobile = false }) {
+export default function CommunityHub({ userId, courses = [], displayName = "", profileSettings = {}, isMobile = false }) {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -104,7 +106,15 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
   const [queue, setQueue] = useState([]);
   const [courseOptions, setCourseOptions] = useState([]);
   const [reporting, setReporting] = useState(false);
+  const [flashcardXp, setFlashcardXp] = useState(0);
   const matchingCourseOptions = matchCommunityCourses(courseOptions, draft.course_name);
+  const publicFlashcardProfile = {
+    shareFlashcardLevel: profileSettings.shareFlashcardLevel === true,
+    showFlashcardName: profileSettings.showFlashcardName === true,
+    badgeId: profileSettings.sharedFlashcardBadge || profileSettings.selectedBadge || "",
+    level: getFlashcardLevel(flashcardXp).level,
+    name: displayName,
+  };
   const dialogRef = useRef(null);
   const triggerRef = useRef(null);
   const latestDraftRef = useRef(EMPTY);
@@ -117,6 +127,9 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
     if (latestFormModeRef.current === "create") {
       saveCommunityDraft(window.localStorage, userId, latestDraftRef.current);
     }
+  }, [userId]);
+  useEffect(() => {
+    getSupabaseBrowserClient().then((client) => client.rpc("flashcard_reward_summary")).then(({ data }) => setFlashcardXp(Number(data?.total_xp) || 0)).catch(() => setFlashcardXp(0));
   }, [userId]);
   const resetDialog = useCallback(() => {
     setFormMode("");
@@ -295,7 +308,7 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
   };
   const submit = async (event) => {
     event.preventDefault();
-    const topic_tags = parseCommunityTags(draft.tags);
+    const topic_tags = buildFlashcardProfileTags(parseCommunityTags(draft.tags), publicFlashcardProfile);
     const links = normalizeCommunityLinks(draft.links);
     const errorText = validateCommunityPost(
       { ...draft, topic_tags },
@@ -761,6 +774,7 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
                   <strong>{post.author_id === userId ? "You" : "GlowDocket Student"}</strong>
                   <span>{new Date(post.created_at).toLocaleDateString()}</span>
                 </p>
+                <FlashcardProfileChip tags={post.topic_tags || []} compact />
                 {renderActions(post)}
               </div>
             </article>
@@ -1084,6 +1098,7 @@ export default function CommunityHub({ userId, courses = [], isMobile = false })
                   <strong>{selected.author_id === userId ? "You" : "GlowDocket Student"}</strong>
                   <span>{new Date(selected.created_at).toLocaleString()}</span>
                 </p>
+                <FlashcardProfileChip tags={selected.topic_tags || []} />
                 {renderActions(selected)}
                 <footer>
                   {selected.author_id === userId && <button onClick={() => openEdit(selected)}>Edit</button>}
