@@ -151,7 +151,7 @@ export default function CommunityFlashcardActions({ post, userId, onMessage }) {
     <aside className="community-flash-actions">
       {attachedCard}
       {previewDialog}
-      <button onClick={() => setReview(parseCommunityFlashcards(post.body))}>
+      <button className="community-create-flashcards-button" onClick={() => setReview(parseCommunityFlashcards(post.body))}>
         Create Flashcards From This Post
       </button>
       <label>

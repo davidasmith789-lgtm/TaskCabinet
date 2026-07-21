@@ -1084,13 +1084,13 @@ export default function FlashcardsHub({
             </button>
             {xpGuideOpen && (
               <div id="flash-xp-guide-content" className="flash-xp-guide-content">
-                <p>Complete meaningful study sessions to earn Flashcards XP. Thoughtful reviews, improving a card’s confidence, finishing a session, and studying before a target date can all add XP.</p>
+                <p>Complete study sessions to earn Flashcards XP. Thoughtful reviews, improving a card’s confidence, finishing a session, and studying before a target date can all add XP.</p>
                 <ul>
                   <li><strong>Review cards:</strong> 2 XP per eligible card review each day.</li>
                   <li><strong>Improve confidence:</strong> 5 XP when a card moves forward.</li>
                   <li><strong>Finish studying:</strong> session and completion bonuses, plus a target-date bonus when eligible.</li>
                 </ul>
-                <p>You can earn up to 100 XP per day. Lifetime XP never resets. Fill the level bar to level up; each new level takes slightly more XP than the previous one.</p>
+                <p>You can earn up to 100 XP per day. Lifetime XP never resets. Fill the level bar to level up.</p>
               </div>
             )}
           </aside>

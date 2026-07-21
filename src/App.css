@@ -5225,7 +5225,7 @@ html[data-theme="dark"] {
 .workspace-widget.is-dragging,
 .workspace-widget.is-resizing {
   transition: box-shadow 120ms ease, border-color 120ms ease;
-  will-change: left, top, width, height;
+  will-change: transform, width, height;
 }
 .workspace-widget.is-dragging { z-index: 10000 !important; opacity: 0.97; border-color: color-mix(in srgb, var(--focus-color) 52%, var(--border-color)); box-shadow: 0 22px 56px rgba(0, 0, 0, 0.24); }
 .workspace-widget.is-resizing { z-index: 9999 !important; border-color: color-mix(in srgb, var(--focus-color) 42%, var(--border-color)); box-shadow: 0 18px 42px rgba(0, 0, 0, 0.18); }

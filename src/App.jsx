@@ -1461,6 +1461,9 @@ function WorkspaceWidget({
     let nextX = initialX;
     let nextY = initialY;
     let targetTab = null;
+    let dragFrameId = 0;
+    let renderedX = initialX;
+    let renderedY = initialY;
     const obstacles = getWorkspaceObstacleRects(widget, canvas);
     let lastSafe = {
       x: initialX,
@@ -1491,12 +1494,23 @@ function WorkspaceWidget({
       nextX = legal.x;
       nextY = legal.y;
       lastSafe = legal;
-      widget.style.left = `${nextX}px`;
-      widget.style.top = `${nextY}px`;
+      renderedX = nextX;
+      renderedY = nextY;
+      if (!dragFrameId) {
+        dragFrameId = window.requestAnimationFrame(() => {
+          dragFrameId = 0;
+          widget.style.transform = `translate3d(${renderedX - initialX}px, ${renderedY - initialY}px, 0)`;
+        });
+      }
       targetTab = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest?.("[data-tab]")?.dataset.tab || null;
     };
     const stop = (stopEvent) => {
       if (stopEvent?.pointerId !== undefined && stopEvent.pointerId !== activePointerId) return;
+      if (dragFrameId) window.cancelAnimationFrame(dragFrameId);
+      dragFrameId = 0;
+      widget.style.left = `${nextX}px`;
+      widget.style.top = `${nextY}px`;
+      widget.style.transform = "";
       widget.classList.remove("is-dragging");
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", stop);
@@ -2118,6 +2132,7 @@ function App() {
   const [checklistNow, setChecklistNow] = useState(() => new Date());
   const [widgetsTrayOpen, setWidgetsTrayOpen] = useState(false);
   const [widgetSearch, setWidgetSearch] = useState("");
+  const widgetsUnavailableOnCurrentTab = ["community", "flashcards"].includes(currentTab);
   const [helpSearch, setHelpSearch] = useState("");
   const [helpCategory, setHelpCategory] = useState("All");
   const [isMobileUi, setIsMobileUi] = useState(() => window.matchMedia("(max-width: 767px)").matches);
@@ -2137,6 +2152,10 @@ function App() {
   );
   const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceRecordingSupported = Boolean(SpeechRecognitionApi);
+
+  useEffect(() => {
+    if (widgetsUnavailableOnCurrentTab) setWidgetsTrayOpen(false);
+  }, [widgetsUnavailableOnCurrentTab]);
 
   // ---------------------------------------------------------------------------
   // COLOR THEME
@@ -8389,7 +8408,7 @@ function App() {
             ⚙️ Settings
           </button>
 
-          <button type="button" className={`tab-button widgets-tray-button${widgetsTrayOpen ? " active" : ""}`} onClick={() => setWidgetsTrayOpen((open) => !open)} aria-expanded={widgetsTrayOpen}>
+          <button type="button" className={`tab-button widgets-tray-button${widgetsTrayOpen ? " active" : ""}`} onClick={() => setWidgetsTrayOpen((open) => !open)} aria-expanded={widgetsTrayOpen} disabled={widgetsUnavailableOnCurrentTab} title={widgetsUnavailableOnCurrentTab ? "Widgets are not available on Community or Flashcards." : "Customize widgets on this tab"}>
             ▦ Widgets
           </button>
 
@@ -8407,7 +8426,7 @@ function App() {
 
         {assignmentSaveError && <div className="persistent-status-banner is-error" role="alert"><strong>Assignment not saved</strong><span>{assignmentSaveError}</span><button type="button" onClick={() => setAssignmentSaveError("")} aria-label="Dismiss assignment save warning">×</button></div>}
 
-        {widgetsTrayOpen && (
+        {widgetsTrayOpen && !widgetsUnavailableOnCurrentTab && (
           <section className="widgets-tray workspace-organizer" aria-label="Workspace organizer">
             <div className="workspace-organizer-header">
               <div><h2>Workspace Organizer</h2><span>Place features on this tab, recover hidden widgets, or lock the layout when everything feels right.</span></div>

@@ -763,6 +763,42 @@
 .community-detail-header > button {
   flex: 0 0 auto;
 }
+
+.community-create-flashcards-button {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 17px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 72%, white);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 72%, #7c3aed));
+  color: var(--button-primary-color, white);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--primary-color) 28%, transparent);
+  cursor: pointer;
+  font-weight: 850;
+  line-height: 1.2;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.community-create-flashcards-button::before {
+  content: "✦";
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.community-create-flashcards-button:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+  box-shadow: 0 11px 25px color-mix(in srgb, var(--primary-color) 36%, transparent);
+}
+
+.community-create-flashcards-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--primary-color) 32%, transparent);
+  outline-offset: 3px;
+}
 .community-detail-byline {
   margin: 16px 0 4px;
 }
