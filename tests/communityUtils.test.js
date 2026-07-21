@@ -151,6 +151,27 @@ test("Community editor supports document keyboard formatting", () => {
   assert.match(hub, /placeholder="Title"/);
   assert.match(hub, /<InlineText text=\{item\}/);
   assert.match(hub, /\*\*\$\{selectedText\}\*\*/);
+  assert.match(hub, /\["i", "u"\]\.includes/);
+  assert.match(hub, /event\.shiftKey \? "outdent" : "indent"/);
+  assert.match(hub, /\^\^\$\{color\}\|/);
+  assert.match(hub, /HIGHLIGHT_PALETTE\.flatMap/);
+  assert.match(hub, /new window\.EyeDropper\(\)\.open\(\)/);
+});
+
+test("Community composer retains focus while a draft changes", () => {
+  const hub = readFileSync(new URL("../src/components/CommunityHub.jsx", import.meta.url), "utf8");
+  assert.match(hub, /closeDialogRef\.current\?\.\(\)/);
+  assert.match(hub, /\}, \[formMode, reporting, selected\]\);/);
+  assert.doesNotMatch(hub, /\}, \[closeDialog, formMode, reporting, selected\]\);/);
+});
+
+test("Community background and text colors are theme-controlled", () => {
+  const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+  const styles = readFileSync(new URL("../src/components/CommunityHub.css", import.meta.url), "utf8");
+  assert.match(app, /communityBackground[\s\S]*group: "Community"/);
+  assert.match(app, /communityText[\s\S]*group: "Community"/);
+  assert.match(styles, /var\(--community-background/);
+  assert.match(styles, /var\(--community-text/);
 });
 
 test("Community drafts round-trip safely and stay isolated by account", () => {

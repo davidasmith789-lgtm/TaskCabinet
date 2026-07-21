@@ -267,6 +267,8 @@ const COLOR_PERSONALIZATION_FIELDS = [
   { key: "link", label: "Links", group: "Actions" },
   { key: "communityAccent", label: "Accent and buttons", group: "Community" },
   { key: "communityActionText", label: "Button text", group: "Community" },
+  { key: "communityBackground", label: "Page and post background", group: "Community" },
+  { key: "communityText", label: "Page and post text", group: "Community" },
   { key: "flashcardAccent", label: "Accent and buttons", group: "Flashcards" },
   { key: "flashcardActionText", label: "Button text", group: "Flashcards" },
   { key: "calendar", label: "Calendar background", group: "Calendar" },
@@ -403,7 +405,7 @@ const THEME_COLOR_DEFAULTS = {
     heroStart: "#4f46e5", heroMiddle: "#7c3aed", heroEnd: "#2563eb", heroText: "#ffffff",
     logoBackground: "#ffffff", logoGradientStart: "#4f46e5", logoGradientEnd: "#2563eb",
     logoStar: "#ffffff", logoGlow: "#a78bfa", logoSpeedLines: "#4f46e5",
-    communityAccent: "#4f46e5", communityActionText: "#ffffff",
+    communityAccent: "#4f46e5", communityActionText: "#ffffff", communityBackground: "#ffffff", communityText: "#111827",
     flashcardAccent: "#4f46e5", flashcardActionText: "#ffffff",
   },
   dark: {
@@ -421,7 +423,7 @@ const THEME_COLOR_DEFAULTS = {
     heroStart: "#312e81", heroMiddle: "#581c87", heroEnd: "#1e3a8a", heroText: "#ffffff",
     logoBackground: "#151b2e", logoGradientStart: "#818cf8", logoGradientEnd: "#60a5fa",
     logoStar: "#ffffff", logoGlow: "#a78bfa", logoSpeedLines: "#60a5fa",
-    communityAccent: "#60a5fa", communityActionText: "#0b1020",
+    communityAccent: "#60a5fa", communityActionText: "#0b1020", communityBackground: "#151b2e", communityText: "#f9fafb",
     flashcardAccent: "#60a5fa", flashcardActionText: "#0b1020",
   },
 };
@@ -435,6 +437,7 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       ...THEME_COLOR_DEFAULTS.light,
       page: "#eef8ff", surface: "#ffffff", surfaceAlt: "#dff1fb",
       text: "#0f172a", muted: "#486174", border: "#b9d7e8", focus: "#0284c7",
+      communityBackground: "#ffffff", communityText: "#0f172a",
       primary: "#0284c7", primaryText: "#ffffff", secondary: "#dbeafe", secondaryText: "#0f172a",
       link: "#0369a1", calendarSelected: "#0284c7", calendarToday: "#bae6fd",
       checklistAccent: "#0ea5e9", heroStart: "#0284c7", heroMiddle: "#0f766e", heroEnd: "#1d4ed8",
@@ -450,6 +453,7 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       ...THEME_COLOR_DEFAULTS.light,
       page: "#f2f8f1", surface: "#ffffff", surfaceAlt: "#e3f1df",
       text: "#132019", muted: "#51624d", border: "#bdd5b8", focus: "#15803d",
+      communityBackground: "#ffffff", communityText: "#132019",
       primary: "#15803d", primaryText: "#ffffff", secondary: "#dcfce7", secondaryText: "#14532d",
       success: "#16a34a", link: "#166534", calendarSelected: "#15803d", calendarToday: "#bbf7d0",
       checklistAccent: "#22c55e", heroStart: "#166534", heroMiddle: "#15803d", heroEnd: "#0f766e",
@@ -465,6 +469,7 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       ...THEME_COLOR_DEFAULTS.light,
       page: "#fff7ed", surface: "#ffffff", surfaceAlt: "#ffedd5",
       text: "#2f1b12", muted: "#7c5847", border: "#fed7aa", focus: "#f97316",
+      communityBackground: "#ffffff", communityText: "#2f1b12",
       primary: "#ea580c", primaryText: "#ffffff", secondary: "#fee2e2", secondaryText: "#7c2d12",
       warning: "#f59e0b", link: "#c2410c", calendarSelected: "#ea580c", calendarToday: "#fed7aa",
       checklistAccent: "#f97316", heroStart: "#f97316", heroMiddle: "#db2777", heroEnd: "#7c3aed",
@@ -480,6 +485,7 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       ...THEME_COLOR_DEFAULTS.dark,
       page: "#080b17", surface: "#111827", surfaceAlt: "#172033",
       text: "#f8fafc", muted: "#a5b4fc", border: "#273449", focus: "#22d3ee",
+      communityBackground: "#111827", communityText: "#f8fafc",
       primary: "#22d3ee", primaryText: "#06121f", secondary: "#312e81", secondaryText: "#ffffff",
       link: "#67e8f9", calendarSelected: "#22d3ee", calendarToday: "#334155",
       checklistAccent: "#a78bfa", heroStart: "#0f172a", heroMiddle: "#312e81", heroEnd: "#0891b2",
@@ -495,6 +501,7 @@ const DEFAULT_COLOR_THEME_PRESETS = [
       ...THEME_COLOR_DEFAULTS.dark,
       page: "#130916", surface: "#211027", surfaceAlt: "#32153a",
       text: "#fff7fb", muted: "#d8b4fe", border: "#4a2559", focus: "#f472b6",
+      communityBackground: "#211027", communityText: "#fff7fb",
       primary: "#d946ef", primaryText: "#ffffff", secondary: "#581c87", secondaryText: "#ffffff",
       link: "#f0abfc", calendarSelected: "#c026d3", calendarToday: "#4a044e",
       checklistAccent: "#f472b6", heroStart: "#701a75", heroMiddle: "#be185d", heroEnd: "#7c2d12",
@@ -510,10 +517,13 @@ const BUILT_IN_COLOR_THEMES = [
   ...DEFAULT_COLOR_THEME_PRESETS.map((themePreset) => ({ ...themePreset, builtIn: true })),
 ];
 
-const getEffectiveThemeColors = (mode, customColors = {}) => ({
-  ...THEME_COLOR_DEFAULTS[mode],
-  ...(customColors || {}),
-});
+const getEffectiveThemeColors = (mode, customColors = {}) => {
+  const savedColors = customColors || {};
+  const colors = { ...THEME_COLOR_DEFAULTS[mode], ...savedColors };
+  if (!savedColors.communityBackground) colors.communityBackground = savedColors.surface || THEME_COLOR_DEFAULTS[mode].surface;
+  if (!savedColors.communityText) colors.communityText = savedColors.text || THEME_COLOR_DEFAULTS[mode].text;
+  return colors;
+};
 
 const getSafeColorThemeColors = (colors = {}) => {
   const normalized = Object.fromEntries(
@@ -527,6 +537,7 @@ const getSafeColorThemeColors = (colors = {}) => {
     ...(normalized.page && { muted: ensureReadableText(normalized.muted, normalized.page, 3) }),
     ...(normalized.primary && { primaryText: ensureReadableText(normalized.primaryText, normalized.primary) }),
     ...(normalized.communityAccent && { communityActionText: ensureReadableText(normalized.communityActionText, normalized.communityAccent) }),
+    ...(normalized.communityBackground && { communityText: ensureReadableText(normalized.communityText, normalized.communityBackground) }),
     ...(normalized.flashcardAccent && { flashcardActionText: ensureReadableText(normalized.flashcardActionText, normalized.flashcardAccent) }),
     ...(normalized.secondary && { secondaryText: ensureReadableText(normalized.secondaryText, normalized.secondary) }),
     ...(normalized.warning && { warningText: ensureReadableText(normalized.warningText, normalized.warning) }),
@@ -586,6 +597,8 @@ const COLOR_CSS_VARIABLES = {
   logoSpeedLines: ["--logo-speed-lines"],
   communityAccent: ["--community-accent-color"],
   communityActionText: ["--community-action-text"],
+  communityBackground: ["--community-background"],
+  communityText: ["--community-text"],
   flashcardAccent: ["--flashcard-accent-color"],
   flashcardActionText: ["--flashcard-action-text"],
 };

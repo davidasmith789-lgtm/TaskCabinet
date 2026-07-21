@@ -41,12 +41,29 @@ const messageFor = (error, fallback) =>
   !navigator.onLine
     ? "You appear to be offline. Reconnect and try again."
     : error?.message || fallback;
+const HIGHLIGHT_PALETTE = [
+  ["#fce8e6", "#fef3e0", "#fff8c5", "#e6f4ea", "#e0f7fa", "#e8f0fe", "#f3e8fd", "#fce8f3"],
+  ["#f8b4ae", "#fbd39b", "#fce88a", "#a8dab5", "#9adfe6", "#aecbfa", "#d7aefb", "#f6aea9"],
+  ["#e67c73", "#f6b26b", "#f6d04d", "#57bb8a", "#46bdc6", "#7baaf7", "#b694e8", "#e67caa"],
+  ["#c53929", "#e37400", "#b06000", "#188038", "#007b83", "#1967d2", "#8430ce", "#b80672"],
+  ["#7a1f17", "#8a4300", "#6f4b00", "#0d652d", "#00585e", "#174ea6", "#5f249f", "#78004f"],
+];
+const highlightTextColor = (color) => {
+  const hex = String(color).replace("#", "");
+  const [red, green, blue] = [0, 2, 4].map((start) => Number.parseInt(hex.slice(start, start + 2), 16));
+  return (red * 299 + green * 587 + blue * 114) / 1000 > 150 ? "#111827" : "#ffffff";
+};
 const InlineText = ({ text }) => {
   const namedLink = String(text).match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/i);
   if (namedLink && isSafeCommunityLink(namedLink[2])) return <a href={namedLink[2]} target="_blank" rel="noreferrer">{namedLink[1]}</a>;
-  return String(text).split(/(\*\*[^*]+\*\*)/g).filter(Boolean).map((part, index) =>
-    /^\*\*[^*]+\*\*$/.test(part) ? <strong key={index}>{part.slice(2, -2)}</strong> : <span key={index}>{part}</span>,
-  );
+  return String(text).split(/(\^\^#[0-9a-f]{6}\|.*?\^\^|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*)/gi).filter(Boolean).map((part, index) => {
+    const highlight = part.match(/^\^\^(#[0-9a-f]{6})\|(.*?)\^\^$/i);
+    if (highlight) return <mark key={index} style={{ backgroundColor: highlight[1], color: highlightTextColor(highlight[1]) }}>{highlight[2]}</mark>;
+    if (/^\*\*[^*]+\*\*$/.test(part)) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if (/^__[^_]+__$/.test(part)) return <u key={index}>{part.slice(2, -2)}</u>;
+    if (/^\*[^*]+\*$/.test(part)) return <em key={index}>{part.slice(1, -1)}</em>;
+    return <span key={index}>{part}</span>;
+  });
 };
 const Body = ({ text, preview = false }) => (
   <div className={`community-body${preview ? " is-preview" : ""}`}>
@@ -108,6 +125,9 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
   const [courseOptions, setCourseOptions] = useState([]);
   const [reporting, setReporting] = useState(false);
   const [flashcardXp, setFlashcardXp] = useState(0);
+  const [highlightMenuOpen, setHighlightMenuOpen] = useState(false);
+  const [highlightColor, setHighlightColor] = useState("#fff8c5");
+  const [highlightHint, setHighlightHint] = useState("");
   const matchingCourseOptions = matchCommunityCourses(courseOptions, draft.course_name);
   const publicFlashcardProfile = {
     shareFlashcardLevel: profileSettings.shareFlashcardLevel === true,
@@ -119,6 +139,9 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
     name: displayName,
   };
   const dialogRef = useRef(null);
+  const bodyRef = useRef(null);
+  const bodySelectionRef = useRef({ start: 0, end: 0 });
+  const closeDialogRef = useRef(null);
   const triggerRef = useRef(null);
   const latestDraftRef = useRef(EMPTY);
   const latestFormModeRef = useRef("");
@@ -143,12 +166,17 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
     setDraftStatus("");
     setDraftRestored(false);
     setMobileComposerView("edit");
+    setHighlightMenuOpen(false);
+    setHighlightHint("");
     setTimeout(() => triggerRef.current?.focus(), 0);
   }, []);
   const closeDialog = useCallback(() => {
     if (formMode === "create") saveCommunityDraft(window.localStorage, userId, draft);
     resetDialog();
   }, [draft, formMode, resetDialog, userId]);
+  useEffect(() => {
+    closeDialogRef.current = closeDialog;
+  }, [closeDialog]);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 350);
     return () => clearTimeout(timer);
@@ -210,7 +238,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
     triggerRef.current = document.activeElement;
     requestAnimationFrame(() => dialogRef.current?.focus());
     const key = (event) => {
-      if (event.key === "Escape") closeDialog();
+      if (event.key === "Escape") closeDialogRef.current?.();
       if (event.key === "Tab" && dialogRef.current) {
         const nodes = [
           ...dialogRef.current.querySelectorAll(
@@ -231,7 +259,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
     };
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
-  }, [closeDialog, formMode, reporting, selected]);
+  }, [formMode, reporting, selected]);
   const openCreate = () => {
     if (remainingPosts === 0)
       return setNotice(
@@ -536,7 +564,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
     }
   };
   const insertMarker = (kind) => {
-    const field = document.getElementById("community-body");
+    const field = bodyRef.current;
     const start = field?.selectionStart ?? draft.body.length;
     const marker = getCommunityFormattingMarker(kind, draft.body, start);
     const next =
@@ -550,34 +578,75 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
       field?.setSelectionRange(start + marker.length, start + marker.length);
     });
   };
-  const editBodySelection = (kind) => {
-    const field = document.getElementById("community-body");
+  const rememberBodySelection = () => {
+    const field = bodyRef.current;
+    if (field) bodySelectionRef.current = { start: field.selectionStart, end: field.selectionEnd };
+  };
+  const editBodySelection = (kind, color = highlightColor) => {
+    const field = bodyRef.current;
     if (!field) return;
-    const start = field.selectionStart;
-    const end = field.selectionEnd;
+    const activeSelection = document.activeElement === field
+      ? { start: field.selectionStart, end: field.selectionEnd }
+      : bodySelectionRef.current;
+    const { start, end } = activeSelection;
     const selectedText = draft.body.slice(start, end);
-    const insertion = kind === "bold"
-      ? `**${selectedText}**`
-      : `  ${selectedText}`;
+    if (kind === "highlight" && !selectedText) {
+      setHighlightHint("Select text in the editor before choosing a highlight color.");
+      return;
+    }
+    let insertion = selectedText;
+    let selectionOffset = 0;
+    if (kind === "indent" || kind === "outdent") {
+      insertion = selectedText.split("\n").map((line) => kind === "indent" ? `  ${line}` : line.replace(/^ {1,2}/, "")).join("\n");
+      selectionOffset = kind === "indent" ? 2 : 0;
+    } else if (kind === "bold") {
+      insertion = `**${selectedText}**`;
+      selectionOffset = 2;
+    } else if (kind === "highlight") {
+      insertion = selectedText.split("\n").map((line) => line ? `^^${color}|${line}^^` : "").join("\n");
+      selectionOffset = `^^${color}|`.length;
+    } else {
+      const wrappers = { italic: ["*", "*"], underline: ["__", "__"] };
+      const [before, after] = wrappers[kind] || ["", ""];
+      insertion = `${before}${selectedText}${after}`;
+      selectionOffset = before.length;
+    }
     const next = `${draft.body.slice(0, start)}${insertion}${draft.body.slice(end)}`.slice(0, COMMUNITY_LIMITS.body);
     setDraft({ ...draft, body: next });
+    setHighlightHint("");
+    setHighlightMenuOpen(false);
     requestAnimationFrame(() => {
       field.focus();
-      if (kind === "bold") {
-        const cursorStart = start + 2;
-        field.setSelectionRange(cursorStart, cursorStart + selectedText.length);
-      } else {
-        field.setSelectionRange(start + 2, end + 2);
-      }
+      const selectionStart = start + selectionOffset;
+      const selectionEnd = ["indent", "outdent", "highlight"].includes(kind) ? start + insertion.length : selectionStart + selectedText.length;
+      field.setSelectionRange(selectionStart, selectionEnd);
+      rememberBodySelection();
     });
+  };
+  const chooseHighlightColor = (color) => {
+    setHighlightColor(color);
+    editBodySelection("highlight", color);
+  };
+  const pickHighlightFromScreen = async () => {
+    if (!("EyeDropper" in window)) return;
+    rememberBodySelection();
+    try {
+      const result = await new window.EyeDropper().open();
+      if (result?.sRGBHex) chooseHighlightColor(result.sRGBHex);
+    } catch {
+      // Closing the eyedropper without choosing a color is not an error.
+    }
   };
   const handleBodyKeyDown = (event) => {
     if (event.key === "Tab") {
       event.preventDefault();
-      editBodySelection("indent");
+      editBodySelection(event.shiftKey ? "outdent" : "indent");
     } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
       event.preventDefault();
       editBodySelection("bold");
+    } else if ((event.ctrlKey || event.metaKey) && ["i", "u"].includes(event.key.toLowerCase())) {
+      event.preventDefault();
+      editBodySelection({ i: "italic", u: "underline" }[event.key.toLowerCase()]);
     }
   };
   const renderActions = (post) => (
@@ -920,7 +989,52 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                     <div
                       className="community-format-toolbar"
                       aria-label="Formatting toolbar"
+                      onMouseDown={(event) => {
+                        if (event.target.closest("button")) event.preventDefault();
+                      }}
                     >
+                      <div className="community-highlight-control">
+                        <button
+                          type="button"
+                          className="community-highlight-button"
+                          aria-expanded={highlightMenuOpen}
+                          aria-controls="community-highlight-palette"
+                          onClick={() => {
+                            rememberBodySelection();
+                            setHighlightMenuOpen((open) => !open);
+                          }}
+                        >
+                          <span aria-hidden="true" style={{ backgroundColor: highlightColor }}>A</span>
+                          Highlight color
+                        </button>
+                        {highlightMenuOpen && (
+                          <div id="community-highlight-palette" className="community-highlight-palette" role="dialog" aria-label="Highlight colors">
+                            <strong>Highlight color</strong>
+                            <div className="community-highlight-swatches" aria-label="Preset highlight colors">
+                              {HIGHLIGHT_PALETTE.flatMap((row, rowIndex) => row.map((color, columnIndex) => (
+                                <button
+                                  type="button"
+                                  key={color}
+                                  className={highlightColor.toLowerCase() === color ? "is-selected" : ""}
+                                  style={{ backgroundColor: color }}
+                                  onClick={() => chooseHighlightColor(color)}
+                                  aria-label={`Use highlight color ${color}, shade ${rowIndex + 1}, column ${columnIndex + 1}`}
+                                  title={color}
+                                />
+                              )))}
+                            </div>
+                            <div className="community-highlight-custom">
+                              <label>
+                                <span>Custom color</span>
+                                <input type="color" value={highlightColor} onChange={(event) => chooseHighlightColor(event.target.value)} />
+                              </label>
+                              <button type="button" onClick={pickHighlightFromScreen} disabled={!("EyeDropper" in window)} title={("EyeDropper" in window) ? "Choose a color from anywhere on your screen" : "Screen color picking is not supported by this browser"}>
+                                Pick from screen
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={() => insertMarker("heading")}
@@ -942,8 +1056,16 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                       <button type="button" onClick={() => editBodySelection("bold")}>
                         <strong>Bold</strong>
                       </button>
+                      <button type="button" onClick={() => editBodySelection("italic")}>
+                        <em>Italic</em>
+                      </button>
+                      <button type="button" onClick={() => editBodySelection("underline")}>
+                        <u>Underline</u>
+                      </button>
                     </div>
+                    {highlightHint && <p className="community-highlight-hint" role="status">{highlightHint}</p>}
                     <textarea
+                      ref={bodyRef}
                       id="community-body"
                       required
                       maxLength={COMMUNITY_LIMITS.body}
@@ -951,6 +1073,9 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                       placeholder="Title"
                       value={draft.body}
                       onKeyDown={handleBodyKeyDown}
+                      onSelect={rememberBodySelection}
+                      onClick={rememberBodySelection}
+                      onKeyUp={rememberBodySelection}
                       onChange={(e) =>
                         setDraft({ ...draft, body: e.target.value })
                       }
