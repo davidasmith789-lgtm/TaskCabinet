@@ -1239,3 +1239,178 @@
     width: calc(100vw - 16px);
   }
 }
+
+/* Mobile composer clarity: every control wraps vertically with no sideways UI. */
+@media (max-width: 767px) {
+  .community-dialog,
+  .community-post-form,
+  .community-form-grid,
+  .community-form-grid > *,
+  .community-editor-workspace,
+  .community-editor-canvas,
+  .community-rich-editor,
+  .community-link-editor,
+  .community-link-row,
+  .community-rules {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .community-dialog,
+  .community-post-form,
+  .community-form-grid,
+  .community-editor-workspace {
+    overflow-x: hidden;
+  }
+  .community-post-form {
+    width: 100%;
+    font-size: .9rem;
+  }
+  .community-post-form-header {
+    gap: 10px;
+  }
+  .community-post-form-header > div {
+    min-width: 0;
+  }
+  .community-post-form-header span {
+    font-size: .66rem;
+  }
+  .community-post-form-header h2 {
+    overflow-wrap: anywhere;
+    font-size: 1.12rem;
+  }
+  .community-field-heading {
+    min-width: 0;
+    align-items: flex-start;
+  }
+  .community-field-heading > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .community-field-heading small,
+  .community-course-help,
+  .community-link-editor legend small {
+    font-size: .72rem;
+    line-height: 1.35;
+  }
+  .community-rich-toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 7px;
+    overflow: hidden;
+    scroll-snap-type: none;
+  }
+  .community-rich-toolbar > * {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    scroll-snap-align: none;
+  }
+  .community-rich-toolbar > select {
+    width: 100%;
+    min-width: 0;
+    padding: 7px 24px 7px 8px;
+    font-size: 14px;
+  }
+  .community-rich-toolbar > select:nth-of-type(3) {
+    grid-column: 1 / -1;
+  }
+  .community-toolbar-group {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+    grid-column: 1 / -1;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    gap: 5px;
+  }
+  .community-toolbar-group:first-child {
+    grid-template-columns: repeat(2, minmax(44px, 1fr));
+  }
+  .community-rich-toolbar button,
+  .community-rich-toolbar .community-toolbar-color {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .community-highlight-control {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-width: 0;
+  }
+  .community-format-toolbar .community-highlight-button {
+    justify-content: center;
+    min-width: 0 !important;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: .78rem;
+    line-height: 1.15;
+  }
+  .community-rich-editor,
+  .community-rich-editor * {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .community-rich-editor {
+    min-height: 34dvh !important;
+    padding: 13px !important;
+    font-size: 15px !important;
+    line-height: 1.55;
+  }
+  .community-rich-editor :is(ul, ol) {
+    margin-left: 1.15rem;
+    padding-left: .2rem;
+  }
+  .community-editor-status {
+    padding-inline: 10px;
+    font-size: .68rem;
+  }
+  .community-draft-restored,
+  .community-draft-toolbar,
+  .community-confirm,
+  .community-rules,
+  .community-link-editor {
+    overflow-wrap: anywhere;
+  }
+  .community-draft-restored button,
+  .community-post-form-actions button,
+  .community-link-row button,
+  .community-add-link {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: .86rem;
+    line-height: 1.2;
+  }
+  .community-link-row {
+    width: 100%;
+  }
+  .community-link-row input {
+    width: 100%;
+    min-width: 0;
+  }
+  .community-rules {
+    padding: 12px;
+    font-size: .82rem;
+    line-height: 1.4;
+  }
+  .community-rules ul {
+    margin: 8px 0 0;
+    padding-left: 1.15rem;
+  }
+  .community-confirm {
+    font-size: .82rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .community-rich-toolbar {
+    grid-template-columns: 1fr;
+  }
+  .community-rich-toolbar > select:nth-of-type(3),
+  .community-toolbar-group,
+  .community-highlight-control {
+    grid-column: 1;
+  }
+}
