@@ -857,8 +857,8 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
             tabIndex="-1"
           >
             {formMode ? (
-              <form onSubmit={submit}>
-                <header>
+              <form className="community-post-form" onSubmit={submit}>
+                <header className="community-post-form-header">
                   <div>
                     <span>
                       {formMode === "edit"
@@ -1112,7 +1112,7 @@ export default function CommunityHub({ userId, courses = [], displayName = "", p
                   I confirm that this is my original work and does not contain
                   private information, test answers, or copyrighted material.
                 </label>
-                <footer>
+                <footer className="community-post-form-actions">
                   <button
                     type="button"
                     className="btn btn-secondary"
